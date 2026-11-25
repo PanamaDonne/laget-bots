@@ -796,7 +796,7 @@ test("ConfiguredProvider apiKey getter returns the actual key", () => {
   }
 });
 
-test("client error message sanitizes Bearer token from response", async () => {
+test("client error message contains only provider id and status, no response body", async () => {
   const original = process.env.BERGET_API_KEY;
   process.env.BERGET_API_KEY = "test-key";
 
@@ -804,7 +804,7 @@ test("client error message sanitizes Bearer token from response", async () => {
   assert.ok(configured);
 
   const mockFetch = async () => {
-    return new Response('{"error": "Bad auth", "hint": "Bearer sk-secret-leaked"}', {
+    return new Response('{"error": "Bad auth", "secret": "leaked-value"}', {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
@@ -820,8 +820,9 @@ test("client error message sanitizes Bearer token from response", async () => {
     assert.fail("Should have thrown");
   } catch (error) {
     const message = (error as Error).message;
-    assert.ok(!message.includes("sk-secret-leaked"));
-    assert.ok(message.includes("[REDACTED]"));
+    assert.equal(message, "Provider berget returned 401");
+    assert.ok(!message.includes("leaked-value"));
+    assert.ok(!message.includes("Bad auth"));
   }
 
   if (original !== undefined) {
@@ -831,18 +832,17 @@ test("client error message sanitizes Bearer token from response", async () => {
   }
 });
 
-test("client error message truncates long responses", async () => {
+test("client error message never includes API key even if echoed by provider", async () => {
   const original = process.env.BERGET_API_KEY;
-  process.env.BERGET_API_KEY = "test-key";
+  process.env.BERGET_API_KEY = "my-secret-key";
 
   const configured = configureProvider("berget");
   assert.ok(configured);
 
-  const longResponse = "x".repeat(1000);
   const mockFetch = async () => {
-    return new Response(longResponse, {
-      status: 500,
-      headers: { "Content-Type": "text/plain" },
+    return new Response(`{"error": "Invalid key: my-secret-key"}`, {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
     });
   };
 
@@ -856,9 +856,39 @@ test("client error message truncates long responses", async () => {
     assert.fail("Should have thrown");
   } catch (error) {
     const message = (error as Error).message;
-    assert.ok(message.length < 700);
-    assert.ok(message.includes("[truncated]"));
+    assert.ok(!message.includes("my-secret-key"));
+    assert.equal(message, "Provider berget returned 401");
   }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client.provider does not expose apiKey", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "secret-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  assert.equal(client.provider.id, "berget");
+  assert.equal(client.provider.hasApiKey, true);
+  assert.equal("apiKey" in client.provider, false);
+
+  const json = JSON.stringify(client.provider);
+  assert.ok(!json.includes("secret-key"));
+
+  const inspected = inspect(client.provider);
+  assert.ok(!inspected.includes("secret-key"));
 
   if (original !== undefined) {
     process.env.BERGET_API_KEY = original;

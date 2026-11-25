@@ -1,4 +1,4 @@
-import type { ConfiguredProvider } from "./providers.ts";
+import { type ConfiguredProvider, type SafeProvider, toSafeProvider } from "./providers.ts";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -39,32 +39,14 @@ export type ClientOptions = {
 };
 
 export type ProviderClient = {
-  provider: ConfiguredProvider;
+  provider: SafeProvider;
   chatCompletion: (request: ChatCompletionRequest) => Promise<ChatCompletionResponse>;
 };
-
-const SENSITIVE_PATTERNS = [
-  /bearer\s+[^\s"']+/gi,
-  /api[_-]?key[^\s"'=]*[=:]\s*["']?[^\s"']+/gi,
-  /authorization[^\s"'=]*[=:]\s*["']?[^\s"']+/gi,
-  /sk-[a-zA-Z0-9_-]+/g,
-  /xai-[a-zA-Z0-9_-]+/g,
-];
-
-function sanitizeErrorText(text: string): string {
-  let sanitized = text;
-  for (const pattern of SENSITIVE_PATTERNS) {
-    sanitized = sanitized.replace(pattern, "[REDACTED]");
-  }
-  if (sanitized.length > 500) {
-    sanitized = sanitized.slice(0, 500) + "...[truncated]";
-  }
-  return sanitized;
-}
 
 export function createClient(provider: ConfiguredProvider, options: ClientOptions = {}): ProviderClient {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const safeProvider = toSafeProvider(provider);
 
   async function chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
     const url = `${provider.endpoint}/chat/completions`;
@@ -83,8 +65,7 @@ export function createClient(provider: ConfiguredProvider, options: ClientOption
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Provider ${provider.id} returned ${response.status}: ${sanitizeErrorText(errorText)}`);
+        throw new Error(`Provider ${provider.id} returned ${response.status}`);
       }
 
       const data = (await response.json()) as ChatCompletionResponse;
@@ -95,7 +76,7 @@ export function createClient(provider: ConfiguredProvider, options: ClientOption
   }
 
   return {
-    provider,
+    provider: safeProvider,
     chatCompletion,
   };
 }
