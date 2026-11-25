@@ -12,7 +12,10 @@ import {
   getProviderByEnvKey,
   listConfiguredProviders,
   listProviders,
+  toSafeProvider,
+  toSafeProviders,
 } from "../src/providers.ts";
+import { createClient, getEndpointUrl } from "../src/client.ts";
 
 test("listProviders returns providers sorted by region (SE first, then EU, then US)", () => {
   const providers = listProviders();
@@ -362,4 +365,357 @@ test("no secrets appear in provider object itself", () => {
   assert.ok(!providerJson.includes("sk-"));
   assert.ok(!providerJson.includes("api_key"));
   assert.ok(!providerJson.includes("secret"));
+});
+
+test("configureProvider rejects whitespace-only API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "   ";
+
+  const configured = configureProvider("berget");
+
+  assert.equal(configured, null);
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("configureProvider rejects tab-only API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "\t\t";
+
+  const configured = configureProvider("berget");
+
+  assert.equal(configured, null);
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("toSafeProvider strips API key from configured provider", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "secret-key-12345";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const safe = toSafeProvider(configured);
+
+  assert.equal(safe.id, "berget");
+  assert.equal(safe.hasApiKey, true);
+  assert.equal("apiKey" in safe, false);
+
+  const safeJson = JSON.stringify(safe);
+  assert.ok(!safeJson.includes("secret-key-12345"));
+  assert.ok(!safeJson.includes("apiKey"));
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("toSafeProviders strips API keys from all providers", () => {
+  const originalBerget = process.env.BERGET_API_KEY;
+  const originalMistral = process.env.MISTRAL_API_KEY;
+  const originalGrok = process.env.XAI_API_KEY;
+  const originalOpenAI = process.env.OPENAI_API_KEY;
+
+  delete process.env.BERGET_API_KEY;
+  delete process.env.MISTRAL_API_KEY;
+  delete process.env.XAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  process.env.BERGET_API_KEY = "berget-secret";
+  process.env.MISTRAL_API_KEY = "mistral-secret";
+
+  const configured = listConfiguredProviders();
+  const safe = toSafeProviders(configured);
+
+  assert.equal(safe.length, 2);
+  for (const provider of safe) {
+    assert.equal(provider.hasApiKey, true);
+    assert.equal("apiKey" in provider, false);
+  }
+
+  const safeJson = JSON.stringify(safe);
+  assert.ok(!safeJson.includes("berget-secret"));
+  assert.ok(!safeJson.includes("mistral-secret"));
+
+  if (originalBerget !== undefined) process.env.BERGET_API_KEY = originalBerget;
+  else delete process.env.BERGET_API_KEY;
+  if (originalMistral !== undefined) process.env.MISTRAL_API_KEY = originalMistral;
+  else delete process.env.MISTRAL_API_KEY;
+  if (originalGrok !== undefined) process.env.XAI_API_KEY = originalGrok;
+  else delete process.env.XAI_API_KEY;
+  if (originalOpenAI !== undefined) process.env.OPENAI_API_KEY = originalOpenAI;
+  else delete process.env.OPENAI_API_KEY;
+});
+
+test("Berget defaultModel is undefined until confirmed", () => {
+  const berget = getProvider("berget");
+  assert.ok(berget);
+  assert.equal(berget.defaultModel, undefined);
+});
+
+test("Grok defaultModel is grok-4", () => {
+  const grok = getProvider("grok");
+  assert.ok(grok);
+  assert.equal(grok.defaultModel, "grok-4");
+});
+
+test("Mistral defaultModel is mistral-large-latest", () => {
+  const mistral = getProvider("mistral");
+  assert.ok(mistral);
+  assert.equal(mistral.defaultModel, "mistral-large-latest");
+});
+
+test("OpenAI defaultModel is gpt-4o", () => {
+  const openai = getProvider("openai");
+  assert.ok(openai);
+  assert.equal(openai.defaultModel, "gpt-4o");
+});
+
+test("client uses correct endpoint for Berget", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const url = getEndpointUrl(configured, "/chat/completions");
+  assert.equal(url, "https://api.berget.ai/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client uses correct endpoint for Mistral", () => {
+  const original = process.env.MISTRAL_API_KEY;
+  process.env.MISTRAL_API_KEY = "test-key";
+
+  const configured = configureProvider("mistral");
+  assert.ok(configured);
+
+  const url = getEndpointUrl(configured, "/chat/completions");
+  assert.equal(url, "https://api.mistral.ai/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.MISTRAL_API_KEY = original;
+  } else {
+    delete process.env.MISTRAL_API_KEY;
+  }
+});
+
+test("client uses correct endpoint for Grok", () => {
+  const original = process.env.XAI_API_KEY;
+  process.env.XAI_API_KEY = "test-key";
+
+  const configured = configureProvider("grok");
+  assert.ok(configured);
+
+  const url = getEndpointUrl(configured, "/chat/completions");
+  assert.equal(url, "https://api.x.ai/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.XAI_API_KEY = original;
+  } else {
+    delete process.env.XAI_API_KEY;
+  }
+});
+
+test("client uses correct endpoint for OpenAI", () => {
+  const original = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+
+  const configured = configureProvider("openai");
+  assert.ok(configured);
+
+  const url = getEndpointUrl(configured, "/chat/completions");
+  assert.equal(url, "https://api.openai.com/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.OPENAI_API_KEY = original;
+  } else {
+    delete process.env.OPENAI_API_KEY;
+  }
+});
+
+test("client sends API key in Authorization header with mocked fetch", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-api-key-12345";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  let capturedUrl: string | undefined;
+  let capturedHeaders: Record<string, string> | undefined;
+
+  const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
+    capturedUrl = url.toString();
+    capturedHeaders = Object.fromEntries(
+      Object.entries(init?.headers ?? {}).map(([k, v]) => [k, String(v)]),
+    );
+    return new Response(
+      JSON.stringify({
+        id: "chatcmpl-123",
+        object: "chat.completion",
+        created: 1234567890,
+        model: "test-model",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "Hello!" },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+  await client.chatCompletion({
+    model: "test-model",
+    messages: [{ role: "user", content: "Hi" }],
+  });
+
+  assert.equal(capturedUrl, "https://api.berget.ai/v1/chat/completions");
+  assert.equal(capturedHeaders?.["Authorization"], "Bearer test-api-key-12345");
+  assert.equal(capturedHeaders?.["Content-Type"], "application/json");
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client calls correct Mistral endpoint with mocked fetch", async () => {
+  const original = process.env.MISTRAL_API_KEY;
+  process.env.MISTRAL_API_KEY = "mistral-test-key";
+
+  const configured = configureProvider("mistral");
+  assert.ok(configured);
+
+  let capturedUrl: string | undefined;
+
+  const mockFetch = async (url: string | URL | Request) => {
+    capturedUrl = url.toString();
+    return new Response(
+      JSON.stringify({
+        id: "chatcmpl-123",
+        object: "chat.completion",
+        created: 1234567890,
+        model: "mistral-large-latest",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "Bonjour!" },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+  await client.chatCompletion({
+    model: "mistral-large-latest",
+    messages: [{ role: "user", content: "Hello" }],
+  });
+
+  assert.equal(capturedUrl, "https://api.mistral.ai/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.MISTRAL_API_KEY = original;
+  } else {
+    delete process.env.MISTRAL_API_KEY;
+  }
+});
+
+test("client calls correct Grok endpoint with mocked fetch", async () => {
+  const original = process.env.XAI_API_KEY;
+  process.env.XAI_API_KEY = "grok-test-key";
+
+  const configured = configureProvider("grok");
+  assert.ok(configured);
+
+  let capturedUrl: string | undefined;
+
+  const mockFetch = async (url: string | URL | Request) => {
+    capturedUrl = url.toString();
+    return new Response(
+      JSON.stringify({
+        id: "chatcmpl-123",
+        object: "chat.completion",
+        created: 1234567890,
+        model: "grok-4",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "Hi from Grok!" },
+            finish_reason: "stop",
+          },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+  await client.chatCompletion({
+    model: "grok-4",
+    messages: [{ role: "user", content: "Hello" }],
+  });
+
+  assert.equal(capturedUrl, "https://api.x.ai/v1/chat/completions");
+
+  if (original !== undefined) {
+    process.env.XAI_API_KEY = original;
+  } else {
+    delete process.env.XAI_API_KEY;
+  }
+});
+
+test("client throws on error response", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response('{"error": "Invalid API key"}', {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  await assert.rejects(
+    async () => {
+      await client.chatCompletion({
+        model: "test-model",
+        messages: [{ role: "user", content: "Hi" }],
+      });
+    },
+    /Provider berget returned 401/,
+  );
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
 });

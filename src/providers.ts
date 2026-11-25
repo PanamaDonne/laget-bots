@@ -22,7 +22,6 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "SE",
     isEU: true,
     envKey: "BERGET_API_KEY",
-    defaultModel: "llama-3.3-70b-versatile",
   },
   {
     id: "mistral",
@@ -40,7 +39,7 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "US",
     isEU: false,
     envKey: "XAI_API_KEY",
-    defaultModel: "grok-3",
+    defaultModel: "grok-4",
   },
   {
     id: "openai",
@@ -77,7 +76,7 @@ export function getProviderByEnvKey(envKey: string): Provider | null {
 
 function readEnvKey(envKey: string): string | null {
   const value = process.env[envKey];
-  if (value === undefined || value === "") {
+  if (value === undefined || value === "" || value.trim() === "") {
     return null;
   }
   return value;
@@ -152,4 +151,18 @@ export function formatProviderLabel(provider: Provider): string {
 
 export function formatProviderList(providers: readonly Provider[]): string {
   return providers.map((p) => `- ${formatProviderLabel(p)} (${p.region})`).join("\n");
+}
+
+export type SafeProvider = Omit<ConfiguredProvider, "apiKey"> & {
+  hasApiKey: boolean;
+};
+
+export function toSafeProvider(provider: ConfiguredProvider): SafeProvider {
+  const { apiKey: _apiKey, ...rest } = provider;
+  void _apiKey;
+  return { ...rest, hasApiKey: true };
+}
+
+export function toSafeProviders(providers: readonly ConfiguredProvider[]): SafeProvider[] {
+  return providers.map(toSafeProvider);
 }

@@ -11,7 +11,9 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 
 ## Decisions
 
-Read secrets from the environment only. Do not put keys in config, code, or traces.
+Read secrets from the environment only. Do not put keys in config, code, or traces. Never log or serialize objects carrying an API key; use `toSafeProvider()` for logging.
+
+Provider `defaultModel` must be a valid, current model id at the provider. Remove or leave undefined until confirmed.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.
 
