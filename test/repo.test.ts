@@ -19,11 +19,14 @@ test("package scripts expose typecheck, lint, test, and check", () => {
 
   assert.equal(pkg.scripts?.typecheck, "tsc --noEmit");
   assert.equal(pkg.scripts?.lint, "eslint .");
-  assert.equal(pkg.scripts?.test, "node --experimental-strip-types --test test/*.test.ts");
+  assert.equal(
+    pkg.scripts?.test,
+    'node --experimental-strip-types --test "test/**/*.test.ts"',
+  );
   assert.equal(pkg.scripts?.check, "npm run typecheck && npm run lint && npm run test");
 });
 
-test("TypeScript is strict and includes the tests", () => {
+test("TypeScript is strict and includes src and tests", () => {
   const tsconfig = readJson("tsconfig.json") as {
     compilerOptions?: { strict?: boolean; noEmit?: boolean };
     include?: string[];
@@ -31,6 +34,7 @@ test("TypeScript is strict and includes the tests", () => {
 
   assert.equal(tsconfig.compilerOptions?.strict, true);
   assert.equal(tsconfig.compilerOptions?.noEmit, true);
+  assert.ok(tsconfig.include?.includes("src/**/*.ts"));
   assert.ok(tsconfig.include?.includes("test/**/*.ts"));
 });
 

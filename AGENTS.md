@@ -17,6 +17,8 @@ Put the Linear issue id in the branch name and the PR title. Use Linear's branch
 
 The dev flow runs against a sandbox repo only.
 
+When you add TypeScript outside `src/` and `test/`, add that path to `include` in `tsconfig.json`.
+
 ## Handoffs
 
 Handoffs go through artifacts, not free chat: PO writes the issue with goal and exit check -> dev writes the PR -> Vera reviews the PR on the exact head SHA -> Lazek tests the same SHA -> Daniel merges. Key decisions go in the issue or PR, not only in chat. Only one agent writes to a branch at a time.
