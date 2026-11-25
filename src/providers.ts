@@ -65,6 +65,7 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "SE",
     isEU: true,
     envKey: "BERGET_API_KEY",
+    defaultModel: "google/gemma-4-31B-it",
   },
   {
     id: "mistral",

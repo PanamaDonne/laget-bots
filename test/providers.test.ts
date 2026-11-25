@@ -458,10 +458,10 @@ test("toSafeProviders strips API keys from all providers", () => {
   else delete process.env.OPENAI_API_KEY;
 });
 
-test("Berget defaultModel is undefined until confirmed", () => {
+test("Berget defaultModel is google/gemma-4-31B-it", () => {
   const berget = getProvider("berget");
   assert.ok(berget);
-  assert.equal(berget.defaultModel, undefined);
+  assert.equal(berget.defaultModel, "google/gemma-4-31B-it");
 });
 
 test("Grok defaultModel is undefined until confirmed", () => {
