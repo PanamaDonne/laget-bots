@@ -117,7 +117,7 @@ test("configureProvider returns configured provider when API key is set", () => 
 
   assert.ok(configured);
   assert.equal(configured.id, "berget");
-  assert.equal(configured.apiKey, "test-key-12345");
+  assert.equal(configured.getApiKey(), "test-key-12345");
   assert.equal(configured.endpoint, "https://api.berget.ai/v1");
 
   if (original !== undefined) {
@@ -297,7 +297,7 @@ test("configureCustomProvider returns configured provider when API key is set", 
 
   assert.ok(configured);
   assert.equal(configured.id, "custom-test");
-  assert.equal(configured.apiKey, "custom-api-key");
+  assert.equal(configured.getApiKey(), "custom-api-key");
   assert.equal(configured.defaultModel, "custom-model");
   assert.equal(configured.isEU, true);
 
@@ -353,8 +353,8 @@ test("API keys are only read from environment variables", () => {
 
   const configured = configureProvider("berget");
   if (configured !== null) {
-    assert.equal(typeof configured.apiKey, "string");
-    assert.ok(configured.apiKey.length > 0);
+    assert.equal(typeof configured.getApiKey(), "string");
+    assert.ok(configured.getApiKey().length > 0);
   }
 });
 
@@ -550,7 +550,7 @@ test("client uses correct endpoint for OpenAI", () => {
   }
 });
 
-test("client sends API key in Authorization header with mocked fetch", async () => {
+test("client calls correct Berget endpoint with mocked fetch and verifies auth and body", async () => {
   const original = process.env.BERGET_API_KEY;
   process.env.BERGET_API_KEY = "test-dummy";
 
@@ -559,18 +559,20 @@ test("client sends API key in Authorization header with mocked fetch", async () 
 
   let capturedUrl: string | undefined;
   let capturedHeaders: Record<string, string> | undefined;
+  let capturedBody: string | undefined;
 
   const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
     capturedUrl = url.toString();
     capturedHeaders = Object.fromEntries(
       Object.entries(init?.headers ?? {}).map(([k, v]) => [k, String(v)]),
     );
+    capturedBody = init?.body as string;
     return new Response(
       JSON.stringify({
         id: "chatcmpl-123",
         object: "chat.completion",
         created: 1234567890,
-        model: "test-model",
+        model: "google/gemma-4-31B-it",
         choices: [
           {
             index: 0,
@@ -585,13 +587,16 @@ test("client sends API key in Authorization header with mocked fetch", async () 
 
   const client = createClient(configured, { fetch: mockFetch });
   await client.chatCompletion({
-    model: "test-model",
+    model: "google/gemma-4-31B-it",
     messages: [{ role: "user", content: "Hi" }],
   });
 
   assert.equal(capturedUrl, "https://api.berget.ai/v1/chat/completions");
   assert.equal(capturedHeaders?.["Authorization"], "Bearer test-dummy");
   assert.equal(capturedHeaders?.["Content-Type"], "application/json");
+  const body = JSON.parse(capturedBody ?? "{}");
+  assert.equal(body.model, "google/gemma-4-31B-it");
+  assert.deepEqual(body.messages, [{ role: "user", content: "Hi" }]);
 
   if (original !== undefined) {
     process.env.BERGET_API_KEY = original;
@@ -780,14 +785,14 @@ test("util.inspect of ConfiguredProvider redacts API key", () => {
   }
 });
 
-test("ConfiguredProvider apiKey getter returns the actual key", () => {
+test("ConfiguredProvider getApiKey() returns the actual key", () => {
   const original = process.env.BERGET_API_KEY;
   process.env.BERGET_API_KEY = "actual-key";
 
   const configured = configureProvider("berget");
   assert.ok(configured);
 
-  assert.equal(configured.apiKey, "actual-key");
+  assert.equal(configured.getApiKey(), "actual-key");
 
   if (original !== undefined) {
     process.env.BERGET_API_KEY = original;
@@ -897,7 +902,7 @@ test("client.provider does not expose apiKey", () => {
   }
 });
 
-test("client respects custom timeout", async () => {
+test("client passes AbortSignal to fetch", async () => {
   const original = process.env.BERGET_API_KEY;
   process.env.BERGET_API_KEY = "test-key";
 
@@ -928,6 +933,201 @@ test("client respects custom timeout", async () => {
 
   assert.ok(receivedSignal !== undefined);
   assert.ok(receivedSignal instanceof AbortSignal);
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client actually aborts a hanging call after timeout", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  let wasAborted = false;
+
+  const mockFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+    const signal = init?.signal as AbortSignal;
+    return new Promise<Response>((_resolve, reject) => {
+      signal.addEventListener("abort", () => {
+        wasAborted = true;
+        reject(new DOMException("The operation was aborted", "AbortError"));
+      });
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch, timeoutMs: 50 });
+
+  const startTime = Date.now();
+  await assert.rejects(
+    async () => {
+      await client.chatCompletion({
+        model: "test-model",
+        messages: [{ role: "user", content: "Hi" }],
+      });
+    },
+    (err: Error) => err.name === "AbortError",
+  );
+  const elapsed = Date.now() - startTime;
+
+  assert.ok(wasAborted, "fetch should have been aborted");
+  assert.ok(elapsed >= 40 && elapsed < 500, `timeout should trigger around 50ms, got ${elapsed}ms`);
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("network error message does not leak API key", async () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "sk-secret-key-12345";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    throw new Error(`Connection failed to endpoint with key ${secretKey}`);
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const err = error as Error;
+    assert.ok(!err.message.includes(secretKey), "API key should not be in error message");
+    assert.ok(err.message.includes("[REDACTED]"), "API key should be redacted");
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("network error stack does not leak API key", async () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "sk-stack-test-key";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    const err = new Error("Network failure");
+    err.stack = `Error: Network failure with ${secretKey}\n    at mockFetch`;
+    throw err;
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const err = error as Error;
+    assert.ok(!err.stack?.includes(secretKey), "API key should not be in error stack");
+    assert.ok(err.stack?.includes("[REDACTED]"), "API key should be redacted in stack");
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("network error cause chain does not leak API key", async () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "sk-cause-chain-key";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    const innerError = new Error(`Inner error with ${secretKey}`);
+    const outerError = new Error(`Outer error with ${secretKey}`, { cause: innerError });
+    throw outerError;
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const err = error as Error;
+    assert.ok(!err.message.includes(secretKey), "API key should not be in outer error message");
+    assert.ok(err.message.includes("[REDACTED]"), "API key should be redacted in outer message");
+
+    const cause = err.cause as Error;
+    assert.ok(cause instanceof Error, "cause should be an Error");
+    assert.ok(!cause.message.includes(secretKey), "API key should not be in cause message");
+    assert.ok(cause.message.includes("[REDACTED]"), "API key should be redacted in cause message");
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("util.inspect with customInspect:false and getters:true does not show API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "sk-inspect-test-key";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const inspected = inspect(configured, { customInspect: false, getters: true });
+
+  assert.ok(!inspected.includes(secretKey), "API key should not appear in deep inspection");
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("util.inspect of client with customInspect:false and getters:true does not show API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "sk-client-inspect-key";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  const inspected = inspect(client, { customInspect: false, getters: true, depth: 10 });
+
+  assert.ok(!inspected.includes(secretKey), "API key should not appear in deep client inspection");
 
   if (original !== undefined) {
     process.env.BERGET_API_KEY = original;
