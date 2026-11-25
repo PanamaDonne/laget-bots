@@ -399,7 +399,7 @@ test("configureProvider rejects tab-only API key", () => {
 
 test("toSafeProvider strips API key from configured provider", () => {
   const original = process.env.BERGET_API_KEY;
-  process.env.BERGET_API_KEY = "secret-key-12345";
+  process.env.BERGET_API_KEY = "dummy";
 
   const configured = configureProvider("berget");
   assert.ok(configured);
@@ -411,7 +411,7 @@ test("toSafeProvider strips API key from configured provider", () => {
   assert.equal("apiKey" in safe, false);
 
   const safeJson = JSON.stringify(safe);
-  assert.ok(!safeJson.includes("secret-key-12345"));
+  assert.ok(!safeJson.includes("dummy"));
   assert.ok(!safeJson.includes("apiKey"));
 
   if (original !== undefined) {
@@ -551,7 +551,7 @@ test("client uses correct endpoint for OpenAI", () => {
 
 test("client sends API key in Authorization header with mocked fetch", async () => {
   const original = process.env.BERGET_API_KEY;
-  process.env.BERGET_API_KEY = "test-api-key-12345";
+  process.env.BERGET_API_KEY = "test-dummy";
 
   const configured = configureProvider("berget");
   assert.ok(configured);
@@ -589,7 +589,7 @@ test("client sends API key in Authorization header with mocked fetch", async () 
   });
 
   assert.equal(capturedUrl, "https://api.berget.ai/v1/chat/completions");
-  assert.equal(capturedHeaders?.["Authorization"], "Bearer test-api-key-12345");
+  assert.equal(capturedHeaders?.["Authorization"], "Bearer test-dummy");
   assert.equal(capturedHeaders?.["Content-Type"], "application/json");
 
   if (original !== undefined) {
