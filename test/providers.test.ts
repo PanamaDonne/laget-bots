@@ -470,10 +470,10 @@ test("Grok defaultModel is undefined until confirmed", () => {
   assert.equal(grok.defaultModel, undefined);
 });
 
-test("Mistral defaultModel is mistral-large-latest", () => {
+test("Mistral defaultModel is mistral-large-2610", () => {
   const mistral = getProvider("mistral");
   assert.ok(mistral);
-  assert.equal(mistral.defaultModel, "mistral-large-latest");
+  assert.equal(mistral.defaultModel, "mistral-large-2610");
 });
 
 test("OpenAI defaultModel is undefined until confirmed", () => {
@@ -622,7 +622,7 @@ test("client calls correct Mistral endpoint with mocked fetch and verifies auth 
         id: "chatcmpl-123",
         object: "chat.completion",
         created: 1234567890,
-        model: "mistral-large-latest",
+        model: "mistral-large-2610",
         choices: [
           {
             index: 0,
@@ -637,7 +637,7 @@ test("client calls correct Mistral endpoint with mocked fetch and verifies auth 
 
   const client = createClient(configured, { fetch: mockFetch });
   await client.chatCompletion({
-    model: "mistral-large-latest",
+    model: "mistral-large-2610",
     messages: [{ role: "user", content: "Hello" }],
   });
 
@@ -645,7 +645,7 @@ test("client calls correct Mistral endpoint with mocked fetch and verifies auth 
   assert.equal(capturedHeaders?.["Authorization"], "Bearer mistral-test");
   assert.equal(capturedHeaders?.["Content-Type"], "application/json");
   const body = JSON.parse(capturedBody ?? "{}");
-  assert.equal(body.model, "mistral-large-latest");
+  assert.equal(body.model, "mistral-large-2610");
   assert.deepEqual(body.messages, [{ role: "user", content: "Hello" }]);
 
   if (original !== undefined) {
