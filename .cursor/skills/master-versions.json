@@ -1,0 +1,38 @@
+{
+  "source": "~/Desktop/skills",
+  "skills": {
+    "agent-loops": {
+      "masterSha256": "58113f7c2b2dd9555ffe85f2f72481f12d617e3469eba58f29147abcf2d45b4e",
+      "files": [
+        "SKILL.md",
+        "templates/bug-report-to-pr.md",
+        "templates/ci-repair.md",
+        "templates/ci-speed.md",
+        "templates/cve-burndown.md",
+        "templates/dependency-sweep.md",
+        "templates/error-spike-fix.md",
+        "templates/fuzz-crash-fix.md",
+        "templates/inbox-triage.md",
+        "templates/issue-triage.md"
+      ]
+    },
+    "agents-md-maintenance": {
+      "masterSha256": "7b28712ae7016f9b9f280b9df3845c90a822596cb7868fdfc0c47a3c93164b4f",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    "mr-audit-code": {
+      "masterSha256": "52ab28b595f6afa381795f9e4d9dceedf86091b246ee6861e1b65de92065e7f8",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    "mrs-security": {
+      "masterSha256": "815f16ad774a8318acf7dd93295e491e45a7f9b4433f2eb1c9c669269a4fc0f8",
+      "files": [
+        "SKILL.md"
+      ]
+    }
+  }
+}

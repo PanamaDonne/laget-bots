@@ -17,7 +17,11 @@ Put the Linear issue id in the branch name and the PR title. Use Linear's branch
 
 The dev flow runs against a sandbox repo only.
 
+Update skills from `~/Desktop/skills` with `npm run sync-skills`. Edit adaptations only in `.cursor/skills/<name>/PROJECT.md`.
+
 When you add TypeScript outside `src/` and `test/`, add that path to `include` in `tsconfig.json`.
+
+When writing files to a target directory, do not follow existing symlinks and verify that every resolved path stays inside the directory. Replace symlinks instead of following them, and use path separator in prefix checks to avoid false positives.
 
 ## Handoffs
 

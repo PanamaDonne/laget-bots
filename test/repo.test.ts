@@ -57,3 +57,10 @@ test("CI runs typecheck, lint, and tests on pull requests", () => {
   assert.match(ci, /npm run lint/);
   assert.match(ci, /npm run test/);
 });
+
+test("CI scans for secrets and vulnerable dependencies", () => {
+  const ci = readText(".github/workflows/ci.yml");
+
+  assert.match(ci, /gitleaks detect --source \. --redact --exit-code 1/);
+  assert.match(ci, /npm audit/);
+});
