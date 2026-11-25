@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { inspect } from "node:util";
 
 import {
   configureCustomProvider,
@@ -463,10 +464,10 @@ test("Berget defaultModel is undefined until confirmed", () => {
   assert.equal(berget.defaultModel, undefined);
 });
 
-test("Grok defaultModel is grok-4", () => {
+test("Grok defaultModel is undefined until confirmed", () => {
   const grok = getProvider("grok");
   assert.ok(grok);
-  assert.equal(grok.defaultModel, "grok-4");
+  assert.equal(grok.defaultModel, undefined);
 });
 
 test("Mistral defaultModel is mistral-large-latest", () => {
@@ -475,10 +476,10 @@ test("Mistral defaultModel is mistral-large-latest", () => {
   assert.equal(mistral.defaultModel, "mistral-large-latest");
 });
 
-test("OpenAI defaultModel is gpt-4o", () => {
+test("OpenAI defaultModel is undefined until confirmed", () => {
   const openai = getProvider("openai");
   assert.ok(openai);
-  assert.equal(openai.defaultModel, "gpt-4o");
+  assert.equal(openai.defaultModel, undefined);
 });
 
 test("client uses correct endpoint for Berget", () => {
@@ -599,17 +600,23 @@ test("client sends API key in Authorization header with mocked fetch", async () 
   }
 });
 
-test("client calls correct Mistral endpoint with mocked fetch", async () => {
+test("client calls correct Mistral endpoint with mocked fetch and verifies auth and body", async () => {
   const original = process.env.MISTRAL_API_KEY;
-  process.env.MISTRAL_API_KEY = "mistral-test-key";
+  process.env.MISTRAL_API_KEY = "mistral-test";
 
   const configured = configureProvider("mistral");
   assert.ok(configured);
 
   let capturedUrl: string | undefined;
+  let capturedHeaders: Record<string, string> | undefined;
+  let capturedBody: string | undefined;
 
-  const mockFetch = async (url: string | URL | Request) => {
+  const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
     capturedUrl = url.toString();
+    capturedHeaders = Object.fromEntries(
+      Object.entries(init?.headers ?? {}).map(([k, v]) => [k, String(v)]),
+    );
+    capturedBody = init?.body as string;
     return new Response(
       JSON.stringify({
         id: "chatcmpl-123",
@@ -635,6 +642,11 @@ test("client calls correct Mistral endpoint with mocked fetch", async () => {
   });
 
   assert.equal(capturedUrl, "https://api.mistral.ai/v1/chat/completions");
+  assert.equal(capturedHeaders?.["Authorization"], "Bearer mistral-test");
+  assert.equal(capturedHeaders?.["Content-Type"], "application/json");
+  const body = JSON.parse(capturedBody ?? "{}");
+  assert.equal(body.model, "mistral-large-latest");
+  assert.deepEqual(body.messages, [{ role: "user", content: "Hello" }]);
 
   if (original !== undefined) {
     process.env.MISTRAL_API_KEY = original;
@@ -643,17 +655,23 @@ test("client calls correct Mistral endpoint with mocked fetch", async () => {
   }
 });
 
-test("client calls correct Grok endpoint with mocked fetch", async () => {
+test("client calls correct Grok endpoint with mocked fetch and verifies auth and body", async () => {
   const original = process.env.XAI_API_KEY;
-  process.env.XAI_API_KEY = "grok-test-key";
+  process.env.XAI_API_KEY = "grok-test";
 
   const configured = configureProvider("grok");
   assert.ok(configured);
 
   let capturedUrl: string | undefined;
+  let capturedHeaders: Record<string, string> | undefined;
+  let capturedBody: string | undefined;
 
-  const mockFetch = async (url: string | URL | Request) => {
+  const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
     capturedUrl = url.toString();
+    capturedHeaders = Object.fromEntries(
+      Object.entries(init?.headers ?? {}).map(([k, v]) => [k, String(v)]),
+    );
+    capturedBody = init?.body as string;
     return new Response(
       JSON.stringify({
         id: "chatcmpl-123",
@@ -679,6 +697,11 @@ test("client calls correct Grok endpoint with mocked fetch", async () => {
   });
 
   assert.equal(capturedUrl, "https://api.x.ai/v1/chat/completions");
+  assert.equal(capturedHeaders?.["Authorization"], "Bearer grok-test");
+  assert.equal(capturedHeaders?.["Content-Type"], "application/json");
+  const body = JSON.parse(capturedBody ?? "{}");
+  assert.equal(body.model, "grok-4");
+  assert.deepEqual(body.messages, [{ role: "user", content: "Hello" }]);
 
   if (original !== undefined) {
     process.env.XAI_API_KEY = original;
@@ -687,7 +710,7 @@ test("client calls correct Grok endpoint with mocked fetch", async () => {
   }
 });
 
-test("client throws on error response", async () => {
+test("client throws on error response with sanitized message", async () => {
   const original = process.env.BERGET_API_KEY;
   process.env.BERGET_API_KEY = "test-key";
 
@@ -712,6 +735,169 @@ test("client throws on error response", async () => {
     },
     /Provider berget returned 401/,
   );
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("JSON.stringify of ConfiguredProvider redacts API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "super-secret";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const json = JSON.stringify(configured);
+  assert.ok(!json.includes("super-secret"));
+  assert.ok(json.includes("[REDACTED]"));
+  assert.ok(json.includes('"id":"berget"'));
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("util.inspect of ConfiguredProvider redacts API key", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "super-secret";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const inspected = inspect(configured);
+  assert.ok(!inspected.includes("super-secret"));
+  assert.ok(inspected.includes("[REDACTED]") || inspected.includes("REDACTED"));
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("ConfiguredProvider apiKey getter returns the actual key", () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "actual-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  assert.equal(configured.apiKey, "actual-key");
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client error message sanitizes Bearer token from response", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response('{"error": "Bad auth", "hint": "Bearer sk-secret-leaked"}', {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const message = (error as Error).message;
+    assert.ok(!message.includes("sk-secret-leaked"));
+    assert.ok(message.includes("[REDACTED]"));
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client error message truncates long responses", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const longResponse = "x".repeat(1000);
+  const mockFetch = async () => {
+    return new Response(longResponse, {
+      status: 500,
+      headers: { "Content-Type": "text/plain" },
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const message = (error as Error).message;
+    assert.ok(message.length < 700);
+    assert.ok(message.includes("[truncated]"));
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("client respects custom timeout", async () => {
+  const original = process.env.BERGET_API_KEY;
+  process.env.BERGET_API_KEY = "test-key";
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  let receivedSignal: AbortSignal | undefined;
+
+  const mockFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+    receivedSignal = init?.signal as AbortSignal;
+    return new Response(
+      JSON.stringify({
+        id: "chatcmpl-123",
+        object: "chat.completion",
+        created: 1234567890,
+        model: "test-model",
+        choices: [{ index: 0, message: { role: "assistant", content: "Hi" }, finish_reason: "stop" }],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const client = createClient(configured, { fetch: mockFetch, timeoutMs: 5000 });
+  await client.chatCompletion({
+    model: "test-model",
+    messages: [{ role: "user", content: "Hi" }],
+  });
+
+  assert.ok(receivedSignal !== undefined);
+  assert.ok(receivedSignal instanceof AbortSignal);
 
   if (original !== undefined) {
     process.env.BERGET_API_KEY = original;

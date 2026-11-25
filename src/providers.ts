@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+
 export type Region = "SE" | "EU" | "US" | "OTHER";
 
 export type Provider = {
@@ -10,9 +12,50 @@ export type Provider = {
   defaultModel?: string;
 };
 
-export type ConfiguredProvider = Provider & {
-  apiKey: string;
-};
+const REDACTED = "[REDACTED]";
+
+export class ConfiguredProvider implements Provider {
+  readonly id: string;
+  readonly name: string;
+  readonly endpoint: string;
+  readonly region: Region;
+  readonly isEU: boolean;
+  readonly envKey: string;
+  readonly defaultModel?: string;
+  readonly #apiKey: string;
+
+  constructor(provider: Provider, apiKey: string) {
+    this.id = provider.id;
+    this.name = provider.name;
+    this.endpoint = provider.endpoint;
+    this.region = provider.region;
+    this.isEU = provider.isEU;
+    this.envKey = provider.envKey;
+    this.defaultModel = provider.defaultModel;
+    this.#apiKey = apiKey;
+  }
+
+  get apiKey(): string {
+    return this.#apiKey;
+  }
+
+  toJSON(): Record<string, unknown> {
+    return {
+      id: this.id,
+      name: this.name,
+      endpoint: this.endpoint,
+      region: this.region,
+      isEU: this.isEU,
+      envKey: this.envKey,
+      defaultModel: this.defaultModel,
+      apiKey: REDACTED,
+    };
+  }
+
+  [inspect.custom](): Record<string, unknown> {
+    return this.toJSON();
+  }
+}
 
 const KNOWN_PROVIDERS: readonly Provider[] = [
   {
@@ -39,7 +82,6 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "US",
     isEU: false,
     envKey: "XAI_API_KEY",
-    defaultModel: "grok-4",
   },
   {
     id: "openai",
@@ -48,7 +90,6 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "US",
     isEU: false,
     envKey: "OPENAI_API_KEY",
-    defaultModel: "gpt-4o",
   },
 ] as const;
 
@@ -91,7 +132,7 @@ export function configureProvider(id: string): ConfiguredProvider | null {
   if (apiKey === null) {
     return null;
   }
-  return { ...provider, apiKey };
+  return new ConfiguredProvider(provider, apiKey);
 }
 
 export function listConfiguredProviders(): readonly ConfiguredProvider[] {
@@ -99,7 +140,7 @@ export function listConfiguredProviders(): readonly ConfiguredProvider[] {
   for (const provider of KNOWN_PROVIDERS) {
     const apiKey = readEnvKey(provider.envKey);
     if (apiKey !== null) {
-      configured.push({ ...provider, apiKey });
+      configured.push(new ConfiguredProvider(provider, apiKey));
     }
   }
   return configured.sort(compareProviders);
@@ -141,7 +182,7 @@ export function configureCustomProvider(options: CustomProvider): ConfiguredProv
   if (apiKey === null) {
     return null;
   }
-  return { ...provider, apiKey };
+  return new ConfiguredProvider(provider, apiKey);
 }
 
 export function formatProviderLabel(provider: Provider): string {
@@ -153,14 +194,28 @@ export function formatProviderList(providers: readonly Provider[]): string {
   return providers.map((p) => `- ${formatProviderLabel(p)} (${p.region})`).join("\n");
 }
 
-export type SafeProvider = Omit<ConfiguredProvider, "apiKey"> & {
+export type SafeProvider = {
+  id: string;
+  name: string;
+  endpoint: string;
+  region: Region;
+  isEU: boolean;
+  envKey: string;
+  defaultModel?: string;
   hasApiKey: boolean;
 };
 
 export function toSafeProvider(provider: ConfiguredProvider): SafeProvider {
-  const { apiKey: _apiKey, ...rest } = provider;
-  void _apiKey;
-  return { ...rest, hasApiKey: true };
+  return {
+    id: provider.id,
+    name: provider.name,
+    endpoint: provider.endpoint,
+    region: provider.region,
+    isEU: provider.isEU,
+    envKey: provider.envKey,
+    defaultModel: provider.defaultModel,
+    hasApiKey: true,
+  };
 }
 
 export function toSafeProviders(providers: readonly ConfiguredProvider[]): SafeProvider[] {
