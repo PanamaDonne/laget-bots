@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -247,4 +255,105 @@ test("committed copies match ~/Desktop/skills when the master is present", (t) =
       assert.deepEqual(committed, master);
     }
   }
+});
+
+test("sync does not follow a file symlink in the target that points outside", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideFile = join(outsideDir, "escape.txt");
+  writeFileSync(outsideFile, "original outside content\n");
+
+  mkdirSync(join(destDir, "mr-audit-code"), { recursive: true });
+  symlinkSync(outsideFile, join(destDir, "mr-audit-code", "SKILL.md"));
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(readFileSync(outsideFile, "utf8"), "original outside content\n");
+  assert.equal(readFileSync(join(destDir, "mr-audit-code", "SKILL.md"), "utf8"), "# mr-audit-code\n");
+});
+
+test("sync does not follow a directory symlink in the target", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  writeMaster(masterDir, "agent-loops", {
+    "SKILL.md": "# agent-loops\n",
+    "templates/guide.md": "# guide\n",
+  });
+
+  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideFile = join(outsideDir, "guide.md");
+  writeFileSync(outsideFile, "original outside content\n");
+
+  mkdirSync(join(destDir, "agent-loops"), { recursive: true });
+  symlinkSync(outsideDir, join(destDir, "agent-loops", "templates"));
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(readFileSync(outsideFile, "utf8"), "original outside content\n");
+  assert.equal(
+    readFileSync(join(destDir, "agent-loops", "templates", "guide.md"), "utf8"),
+    "# guide\n",
+  );
+});
+
+test("sync replaces a symlink named PROJECT.md with the adaptation template", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideFile = join(outsideDir, "escape.txt");
+  writeFileSync(outsideFile, "original outside content\n");
+
+  mkdirSync(join(destDir, "mrs-security"), { recursive: true });
+  symlinkSync(outsideFile, join(destDir, "mrs-security", ADAPTATION_FILE));
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(readFileSync(outsideFile, "utf8"), "original outside content\n");
+  assert.equal(
+    readFileSync(join(destDir, "mrs-security", ADAPTATION_FILE), "utf8"),
+    ADAPTATION_TEMPLATE,
+  );
+});
+
+test("sync does not delete outside the tree via a symlink", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  syncSkills({ masterDir, destDir });
+  writeFileSync(join(destDir, "agents-md-maintenance", "extra.md"), "extra\n");
+
+  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideFile = join(outsideDir, "precious.txt");
+  writeFileSync(outsideFile, "do not delete\n");
+
+  rmSync(join(destDir, "agents-md-maintenance", "extra.md"));
+  symlinkSync(outsideFile, join(destDir, "agents-md-maintenance", "extra.md"));
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(existsSync(outsideFile), true);
+  assert.equal(readFileSync(outsideFile, "utf8"), "do not delete\n");
+});
+
+test("sync replaces a directory symlink in the parent path", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  writeMaster(masterDir, "mr-audit-code", {
+    "SKILL.md": "# mr-audit-code\n",
+    "docs/readme.md": "# docs\n",
+  });
+
+  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideFile = join(outsideDir, "readme.md");
+  writeFileSync(outsideFile, "original outside content\n");
+  mkdirSync(join(destDir, "mr-audit-code"), { recursive: true });
+  symlinkSync(outsideDir, join(destDir, "mr-audit-code", "docs"));
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(readFileSync(outsideFile, "utf8"), "original outside content\n");
+  assert.equal(
+    readFileSync(join(destDir, "mr-audit-code", "docs", "readme.md"), "utf8"),
+    "# docs\n",
+  );
 });

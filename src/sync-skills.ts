@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmdirSync,
-  rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -112,12 +114,102 @@ export function syncSkills(options: SyncSkillsOptions): SkillSyncStatus[] {
   return statuses;
 }
 
+function isInsideDirectory(target: string, container: string): boolean {
+  const resolvedTarget = resolve(target);
+  const resolvedContainer = resolve(container);
+  if (resolvedTarget === resolvedContainer) {
+    return true;
+  }
+  const prefix = resolvedContainer + sep;
+  return resolvedTarget.startsWith(prefix);
+}
+
+function lstatSyncSafe(path: string): ReturnType<typeof lstatSync> | null {
+  try {
+    return lstatSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function removeSymlinksInPath(targetPath: string, rootDir: string): void {
+  const resolved = resolve(targetPath);
+  const resolvedRoot = resolve(rootDir);
+  const pathsToCheck: string[] = [];
+  let current = dirname(resolved);
+  while (current !== resolvedRoot && isInsideDirectory(current, resolvedRoot)) {
+    pathsToCheck.push(current);
+    current = dirname(current);
+  }
+  for (const pathToCheck of pathsToCheck.reverse()) {
+    const stat = lstatSyncSafe(pathToCheck);
+    if (stat?.isSymbolicLink()) {
+      unlinkSync(pathToCheck);
+    }
+  }
+}
+
+function removeSymlinkIfExists(targetPath: string): void {
+  const stat = lstatSyncSafe(targetPath);
+  if (stat?.isSymbolicLink()) {
+    unlinkSync(targetPath);
+  }
+}
+
+function ensureSafeWritePath(targetPath: string, rootDir: string, relativePath: string): void {
+  if (!isInsideDirectory(targetPath, rootDir)) {
+    throw new Error(`Refusing to write outside skill directory: ${relativePath}`);
+  }
+  removeSymlinksInPath(targetPath, rootDir);
+}
+
+function hasSymlinkInParentPath(targetPath: string, rootDir: string): boolean {
+  const resolved = resolve(targetPath);
+  const resolvedRoot = resolve(rootDir);
+  let current = dirname(resolved);
+  while (current !== resolvedRoot && isInsideDirectory(current, resolvedRoot)) {
+    const stat = lstatSyncSafe(current);
+    if (stat?.isSymbolicLink()) {
+      return true;
+    }
+    current = dirname(current);
+  }
+  return false;
+}
+
+function safeDeletePath(targetPath: string, rootDir: string): string | null {
+  if (!isInsideDirectory(targetPath, rootDir)) {
+    return null;
+  }
+  const stat = lstatSyncSafe(targetPath);
+  if (stat === null || stat === undefined) {
+    return null;
+  }
+  if (stat.isSymbolicLink()) {
+    return null;
+  }
+  try {
+    const realPath = realpathSync(targetPath);
+    if (!isInsideDirectory(realPath, rootDir)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  if (hasSymlinkInParentPath(targetPath, rootDir)) {
+    return null;
+  }
+  return targetPath;
+}
+
 function writeSkill(skillDir: string, files: readonly SkillFile[]): void {
   mkdirSync(skillDir, { recursive: true });
   const keep = new Set<string>();
   for (const file of files) {
     keep.add(file.relativePath);
     const absolute = join(skillDir, ...file.relativePath.split("/"));
+    ensureSafeWritePath(absolute, skillDir, file.relativePath);
+    removeSymlinkIfExists(absolute);
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, file.content);
   }
@@ -126,11 +218,18 @@ function writeSkill(skillDir: string, files: readonly SkillFile[]): void {
     if (relativePath === ADAPTATION_FILE || keep.has(relativePath)) {
       continue;
     }
-    rmSync(join(skillDir, ...relativePath.split("/")));
+    const absolute = join(skillDir, ...relativePath.split("/"));
+    const safePath = safeDeletePath(absolute, skillDir);
+    if (safePath === null) {
+      continue;
+    }
+    unlinkSync(safePath);
   }
   removeEmptyDirectories(skillDir);
 
   const adaptationPath = join(skillDir, ADAPTATION_FILE);
+  ensureSafeWritePath(adaptationPath, skillDir, ADAPTATION_FILE);
+  removeSymlinkIfExists(adaptationPath);
   if (!existsSync(adaptationPath)) {
     writeFileSync(adaptationPath, ADAPTATION_TEMPLATE);
   }
@@ -225,7 +324,13 @@ function walk(root: string, dir: string, files: SkillFile[], skipRootAdaptation:
 
 function removeEmptyDirectories(dir: string): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) {
+    if (entry.name.startsWith(".")) {
+      continue;
+    }
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+    if (!entry.isDirectory()) {
       continue;
     }
     const absolute = join(dir, entry.name);

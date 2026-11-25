@@ -21,6 +21,8 @@ Update skills from `~/Desktop/skills` with `npm run sync-skills`. Edit adaptatio
 
 When you add TypeScript outside `src/` and `test/`, add that path to `include` in `tsconfig.json`.
 
+When writing files to a target directory, do not follow existing symlinks and verify that every resolved path stays inside the directory. Replace symlinks instead of following them, and use path separator in prefix checks to avoid false positives.
+
 ## Handoffs
 
 Handoffs go through artifacts, not free chat: PO writes the issue with goal and exit check -> dev writes the PR -> Vera reviews the PR on the exact head SHA -> Lazek tests the same SHA -> Daniel merges. Key decisions go in the issue or PR, not only in chat. Only one agent writes to a branch at a time.
