@@ -74,7 +74,8 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "EU",
     isEU: true,
     envKey: "MISTRAL_API_KEY",
-    defaultModel: "mistral-large-2610",
+    // Mistral Large 4 (v26.10) - https://docs.mistral.ai/models/mistral-large-4-0
+    defaultModel: "mistral-large-4-0",
   },
   {
     id: "grok",
