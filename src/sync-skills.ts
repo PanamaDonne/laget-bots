@@ -196,24 +196,28 @@ function listRelativeFiles(dir: string): string[] {
   return files.map((file) => file.relativePath);
 }
 
-function walk(root: string, dir: string, files: SkillFile[], skipAdaptation: boolean): void {
+function walk(root: string, dir: string, files: SkillFile[], skipRootAdaptation: boolean): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".")) {
       continue;
     }
-    if (entry.name === VERSION_FILE || (skipAdaptation && entry.name === ADAPTATION_FILE)) {
-      continue;
-    }
     const absolute = join(dir, entry.name);
     if (entry.isDirectory()) {
-      walk(root, absolute, files, skipAdaptation);
+      walk(root, absolute, files, skipRootAdaptation);
       continue;
     }
     if (!entry.isFile()) {
       continue;
     }
+    const relativePath = relative(root, absolute).split(sep).join("/");
+    if (
+      relativePath === VERSION_FILE ||
+      (skipRootAdaptation && relativePath === ADAPTATION_FILE)
+    ) {
+      continue;
+    }
     files.push({
-      relativePath: relative(root, absolute).split(sep).join("/"),
+      relativePath,
       content: readFileSync(absolute),
     });
   }

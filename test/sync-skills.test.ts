@@ -134,6 +134,39 @@ test("check reports an outdated skill without writing", () => {
   assert.deepEqual(readFileSync(join(destDir, "agents-md-maintenance", "SKILL.md")), before);
 });
 
+test("sync copies nested PROJECT.md and master-versions.json from the master", () => {
+  const { masterDir, destDir } = tempRepo();
+  seedMasters(masterDir);
+  writeMaster(masterDir, "mr-audit-code", {
+    "SKILL.md": "# mr-audit-code\n",
+    "templates/PROJECT.md": "# nested project\n",
+    "templates/master-versions.json": "{\"from\":\"master\"}\n",
+  });
+  syncSkills({ masterDir, destDir });
+  mkdirSync(join(destDir, "mr-audit-code", "templates"), { recursive: true });
+  writeFileSync(join(destDir, "mr-audit-code", ADAPTATION_FILE), "# Keep this project note\n");
+  writeFileSync(join(destDir, "mr-audit-code", "templates", "PROJECT.md"), "# stale nested\n");
+  writeFileSync(
+    join(destDir, "mr-audit-code", "templates", "master-versions.json"),
+    "{\"from\":\"stale\"}\n",
+  );
+
+  syncSkills({ masterDir, destDir });
+
+  assert.equal(
+    readFileSync(join(destDir, "mr-audit-code", "templates", "PROJECT.md"), "utf8"),
+    "# nested project\n",
+  );
+  assert.equal(
+    readFileSync(join(destDir, "mr-audit-code", "templates", "master-versions.json"), "utf8"),
+    "{\"from\":\"master\"}\n",
+  );
+  assert.equal(
+    readFileSync(join(destDir, "mr-audit-code", ADAPTATION_FILE), "utf8"),
+    "# Keep this project note\n",
+  );
+});
+
 test("sync removes a master file that disappeared and leaves the adaptation", () => {
   const { masterDir, destDir } = tempRepo();
   seedMasters(masterDir);
