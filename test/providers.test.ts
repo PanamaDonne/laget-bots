@@ -986,7 +986,7 @@ test("client actually aborts a hanging call after timeout", async () => {
 
 test("network error message does not leak API key", async () => {
   const original = process.env.BERGET_API_KEY;
-  const secretKey = "sk-secret-key-12345";
+  const secretKey = "fake-secret-key-12345";
   process.env.BERGET_API_KEY = secretKey;
 
   const configured = configureProvider("berget");
@@ -1019,7 +1019,7 @@ test("network error message does not leak API key", async () => {
 
 test("network error stack does not leak API key", async () => {
   const original = process.env.BERGET_API_KEY;
-  const secretKey = "sk-stack-test-key";
+  const secretKey = "fake-stack-test-key";
   process.env.BERGET_API_KEY = secretKey;
 
   const configured = configureProvider("berget");
@@ -1054,7 +1054,7 @@ test("network error stack does not leak API key", async () => {
 
 test("network error cause chain does not leak API key", async () => {
   const original = process.env.BERGET_API_KEY;
-  const secretKey = "sk-cause-chain-key";
+  const secretKey = "fake-cause-chain-key";
   process.env.BERGET_API_KEY = secretKey;
 
   const configured = configureProvider("berget");
@@ -1094,7 +1094,7 @@ test("network error cause chain does not leak API key", async () => {
 
 test("util.inspect with customInspect:false and getters:true does not show API key", () => {
   const original = process.env.BERGET_API_KEY;
-  const secretKey = "sk-inspect-test-key";
+  const secretKey = "fake-inspect-test-key";
   process.env.BERGET_API_KEY = secretKey;
 
   const configured = configureProvider("berget");
@@ -1113,7 +1113,7 @@ test("util.inspect with customInspect:false and getters:true does not show API k
 
 test("util.inspect of client with customInspect:false and getters:true does not show API key", () => {
   const original = process.env.BERGET_API_KEY;
-  const secretKey = "sk-client-inspect-key";
+  const secretKey = "fake-client-inspect-key";
   process.env.BERGET_API_KEY = secretKey;
 
   const configured = configureProvider("berget");
