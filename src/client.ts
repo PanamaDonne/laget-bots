@@ -43,10 +43,40 @@ export type ProviderClient = {
   chatCompletion: (request: ChatCompletionRequest) => Promise<ChatCompletionResponse>;
 };
 
+function scrubSecret(text: string, secret: string): string {
+  if (!secret || secret.length === 0) {
+    return text;
+  }
+  return text.split(secret).join("[REDACTED]");
+}
+
+function sanitizeErrorChain(error: unknown, secret: string): Error {
+  if (!(error instanceof Error)) {
+    const msg = String(error);
+    return new Error(scrubSecret(msg, secret));
+  }
+
+  const sanitizedMessage = scrubSecret(error.message, secret);
+  const sanitizedStack = error.stack ? scrubSecret(error.stack, secret) : undefined;
+
+  const sanitized = new Error(sanitizedMessage);
+  sanitized.name = error.name;
+  if (sanitizedStack !== undefined) {
+    sanitized.stack = sanitizedStack;
+  }
+
+  if (error.cause !== undefined) {
+    sanitized.cause = sanitizeErrorChain(error.cause, secret);
+  }
+
+  return sanitized;
+}
+
 export function createClient(provider: ConfiguredProvider, options: ClientOptions = {}): ProviderClient {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const safeProvider = toSafeProvider(provider);
+  const apiKey = provider.getApiKey();
 
   async function chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
     const url = `${provider.endpoint}/chat/completions`;
@@ -54,21 +84,31 @@ export function createClient(provider: ConfiguredProvider, options: ClientOption
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetchFn(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify(request),
-        signal: controller.signal,
-      });
+      let response: Response;
+      try {
+        response = await fetchFn(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(request),
+          signal: controller.signal,
+        });
+      } catch (fetchError) {
+        throw sanitizeErrorChain(fetchError, apiKey);
+      }
 
       if (!response.ok) {
         throw new Error(`Provider ${provider.id} returned ${response.status}`);
       }
 
-      const data = (await response.json()) as ChatCompletionResponse;
+      let data: ChatCompletionResponse;
+      try {
+        data = (await response.json()) as ChatCompletionResponse;
+      } catch (parseError) {
+        throw sanitizeErrorChain(parseError, apiKey);
+      }
       return data;
     } finally {
       clearTimeout(timeoutId);

@@ -35,7 +35,7 @@ export class ConfiguredProvider implements Provider {
     this.#apiKey = apiKey;
   }
 
-  get apiKey(): string {
+  getApiKey(): string {
     return this.#apiKey;
   }
 
