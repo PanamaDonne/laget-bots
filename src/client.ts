@@ -103,7 +103,12 @@ export function createClient(provider: ConfiguredProvider, options: ClientOption
         throw new Error(`Provider ${provider.id} returned ${response.status}`);
       }
 
-      const data = (await response.json()) as ChatCompletionResponse;
+      let data: ChatCompletionResponse;
+      try {
+        data = (await response.json()) as ChatCompletionResponse;
+      } catch (parseError) {
+        throw sanitizeErrorChain(parseError, apiKey);
+      }
       return data;
     } finally {
       clearTimeout(timeoutId);

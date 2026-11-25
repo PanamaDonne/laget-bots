@@ -1135,3 +1135,43 @@ test("util.inspect of client with customInspect:false and getters:true does not 
     delete process.env.BERGET_API_KEY;
   }
 });
+
+test("invalid JSON response body containing API key does not leak key in error", async () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "fake-json-parse-key";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response(`{invalid json with ${secretKey} in it`, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const err = error as Error;
+    assert.ok(!err.message.includes(secretKey), "API key should not be in JSON parse error message");
+    assert.ok(!err.stack?.includes(secretKey), "API key should not be in JSON parse error stack");
+    if (err.cause) {
+      const cause = err.cause as Error;
+      assert.ok(!cause.message?.includes(secretKey), "API key should not be in cause message");
+    }
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
