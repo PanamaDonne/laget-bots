@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { loadProviderEnvFile } from "./env-file.ts";
 import { redactConfiguredSecrets, runTeamFromFile } from "./team-run.ts";
 
 const USAGE =
@@ -124,6 +125,15 @@ function isDirectRun(): boolean {
 }
 
 async function main(): Promise<void> {
+  try {
+    loadProviderEnvFile(process.cwd());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Kunde inte läsa .env.";
+    console.error(redactConfiguredSecrets(message));
+    process.exitCode = 1;
+    return;
+  }
+
   const parsed = parseTeamCliArgs(process.argv.slice(2));
   if (!parsed.ok) {
     console.error(redactConfiguredSecrets(parsed.error));

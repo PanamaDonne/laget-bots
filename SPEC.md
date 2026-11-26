@@ -15,7 +15,7 @@ What makes the collaboration reliable (building blocks, not the product itself):
 3. **Permissions and human approval.** Every agent declares what it may read and write. Every write goes through a human approval first.
 4. **Tracing and evals built in.** OTel traces, replay of a run against another model, and evals as a CI gate, including the MAST failure modes FM-1.4 (loss of conversation history), FM-2.4 (information withholding) and FM-2.5 (ignored other agent's input).
 
-**Product principle: super simple.** It should feel as easy to use as Grok Bot. Setting up a team of agents takes minutes. Sensible defaults mean it works once you plug in a model key and ask the command to use it (`--live` or `--provider`). A key in the environment alone does not start a paid call. Roles are set up in plain language. Approvals are shown clearly in plain words. No infrastructure knowledge is needed.
+**Product principle: super simple.** It should feel as easy to use as Grok Bot. Setting up a team of agents takes minutes. Sensible defaults mean it works once you plug in a model key and ask the command to use it (`--live` or `--provider`). A key in the environment alone does not start a paid call. The same holds for a key that is only in a local `.env`. Roles are set up in plain language. Approvals are shown clearly in plain words. No infrastructure knowledge is needed.
 
 **First test bench:** a development flow where a PO agent, a dev agent and a reviewer agent work together on one change, with human approval before merge.
 
@@ -29,7 +29,7 @@ What makes the collaboration reliable (building blocks, not the product itself):
 | Agent | Role, system prompt, model (provider + model id), tools, permissions. Set up in plain language, with a config file behind it. |
 | Shared context | What the team knows about the current goal and what has been done so far. |
 | Ask | An agent can ask another agent for clarification or input before continuing. |
-| Provider | An OpenAI-compatible endpoint + API key from env. The user brings their own key and can add any OpenAI-compatible provider. EU and Swedish providers are listed first and used as defaults: Berget (Swedish, `https://api.berget.ai/v1`) and Mistral (EU). Non-EU providers such as Grok (`https://api.x.ai/v1`) are allowed and clearly marked as non-EU. |
+| Provider | An OpenAI-compatible endpoint + API key from the environment. `npm run team` fills a missing provider key from a local `.env`, and a key already in the environment wins. The user brings their own key and can add any OpenAI-compatible provider. EU and Swedish providers are listed first and used as defaults: Berget (Swedish, `https://api.berget.ai/v1`) and Mistral (EU). Non-EU providers such as Grok (`https://api.x.ai/v1`) are allowed and clearly marked as non-EU. |
 | Handoff contract | A building block for reliable collaboration: a schema (Zod or JSON Schema) for what one agent hands to the next, plus a list of *must-carry facts*. |
 | Contract check | Validates the schema, then checks that every must-carry fact from the input still exists in the output (deterministic first, judge model only for paraphrased facts). A failed check stops the run, or retries once, as configured. |
 | Permission | Per agent: which resources it may read or write (files, issues, PR, memory). Denied by default. |
@@ -46,8 +46,8 @@ What makes the collaboration reliable (building blocks, not the product itself):
 * EU and Swedish providers are listed first and are the defaults: Berget (Swedish), then Mistral (EU).
 * Non-EU providers are allowed and clearly flagged as non-EU, including Grok.
 * With one default (EU or Swedish) key, the test-bench team is ready to run when the command asks for a real provider. Changing an agent's model is a setup change, not a code change.
-* Keys are only read from env. Secrets never go in config, code or traces.
-* `npm run team` calls a provider only after an explicit choice (`--live` or `--provider`). A key in the environment alone leaves that command on the mock. A live run sends the goal and the messages to that provider, and the user pays with their own key.
+* Keys are read from the environment. `npm run team` fills a missing provider key from a local `.env` in the repo, and a key already in the environment wins. `.env` is not committed. Secrets never go in config, code or traces.
+* `npm run team` calls a provider only after an explicit choice (`--live` or `--provider`). A key in the environment alone leaves that command on the mock. A key in a local `.env` alone does the same. A live run sends the goal and the messages to that provider, and the user pays with their own key.
 * `--live` with no provider in the team file is an error and makes no call. `--provider` that changes the provider, without `--model`, uses that provider's default model. A provider without a default model requires `--model` and makes no call. The success line says whether the run was mock or live.
 
 ### 3.2 Collaboration
@@ -133,7 +133,7 @@ The plan takes the time it takes. Each milestone is done only when its done crit
 **Milestone 1: engine core**
 
 * Repo on GitHub, TypeScript, `AGENTS.md` and skills, CI with typecheck, lint and tests.
-* Guided setup with sensible defaults: one model key is enough to run the test-bench team once the command asks for a real provider (`--live` or `--provider`). A key in the environment alone leaves the command on the mock.
+* Guided setup with sensible defaults: one model key is enough to run the test-bench team once the command asks for a real provider (`--live` or `--provider`). A key in the environment, or only in a local `.env`, leaves the command on the mock until then.
 * Config for agents and providers. One client for any OpenAI-compatible API, verified first against Berget and Mistral, and also against a non-EU provider (Grok), which is flagged as non-EU.
 * Several agents work together on one goal: they share context, hand work to each other, and can ask each other.
 * Handoff contracts with schema and must-carry facts, plus the contract check, so collaboration does not lose facts.
@@ -197,5 +197,6 @@ To keep costs down, CI runs the full eval only on PRs that touch engine code or 
 * The first test bench is the dev flow. Agent-Ante's four skills are used.
 * 2026-11-26: `npm run team` calls a real provider only after `--live` or `--provider`. A key in the environment does not by itself start a paid call. A live run sends the goal and the messages to the provider, and the user pays with their own key.
 * 2026-11-26: `--live` with no provider in the team file is an error and makes no call. `--provider` without `--model` uses the new provider's default model when the team file names another provider. A provider with no default model requires `--model`. The success line says mock or live.
+* 2026-11-26: `npm run team` fills a missing provider API key from a local `.env`. A key already in the environment wins. The file is gitignored. A key there does not start a paid call without `--live` or `--provider`.
 
 **Open:** none right now.
