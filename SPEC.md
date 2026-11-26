@@ -15,11 +15,11 @@ This file is the accepted product spec for Radio Days, version 2.0, on `main`. I
 
 Radio Days is a voice agent inside an old radio (or cassette player). It gets to know the user and makes its own decisions. The user talks to the radio. It runs on a Raspberry Pi 4 with 4 GB, hidden in a set that Daniel finds himself.
 
-v1 is wake word, spoken conversation with an AI that learns the user’s habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech such as a morning brief and reminders, Spotify controlled entirely by voice (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes, with no approval button; a Spotify Premium account is required), long-term memory of the user, and a cloud web admin. Multi-step goal planning is not in v1. The former team engine is shut down. Work continues in the same repository.
+v1 is wake word, spoken conversation with an AI that learns the user’s habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech (a morning brief is a less important example; the important unprompted utterances are calendar reminders and incoming email from senders the user has chosen, arriving with a later calendar integration and with Gmail in v2), Spotify controlled entirely by voice (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes, with no approval button; a Spotify Premium account is required), long-term memory of the user, and a cloud web admin. Multi-step goal planning is not in v1. The former team engine is shut down. Work continues in the same repository.
 
 **User:** in the first place Daniel, at home, speaking Swedish to the radio.
 
-**User value:** The radio gets to know Daniel. When it is confident enough in a habit, it chooses for him, and it asks only when it is unsure. He can walk up to an old radio, say a wake word, talk with an AI, and control Spotify without touching a phone or a button. He can turn autonomous behaviour off, and he can correct or forget a learned habit, by voice and in the web admin. The radio may also speak first, for example with a morning brief or a reminder, but not during quiet hours and not more often than the limit allows. Secrets and memory, including learned habits, stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
+**User value:** The radio gets to know Daniel. When it is confident enough in a habit, it chooses for him, and it asks only when it is unsure. He can walk up to an old radio, say a wake word, talk with an AI, and control Spotify without touching a phone or a button. He can turn autonomous behaviour off, and he can correct or forget a learned habit, by voice and in the web admin. The radio may also speak first. A morning brief is a less important example. Calendar reminders, and incoming email from senders he has chosen, are the important ones; they arrive with a later calendar integration and with Gmail in v2. Unprompted speech stays out of quiet hours and within the limit on how often. Secrets and memory, including learned habits, stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
 
 **Product principle: super simple.** Talking to the radio should feel as easy as talking to a person in the room. No infrastructure knowledge is needed for everyday use.
 
@@ -35,7 +35,7 @@ v1 is wake word, spoken conversation with an AI that learns the user’s habits 
 * Spotify by voice, with no button. A Spotify Premium account is required. The user can play, skip to the next or previous track, choose artist, album and playlist by voice, and change playlists and favourites. Pause, volume and questions such as “what is playing now?” are included.
 * Long-term memory of the user, stored only on the Pi (see section 8).
 * Learning habits and preferences, and acting on them when the agent is confident enough. It asks only when it is unsure. This is the primary autonomous behaviour in v1 (section 5).
-* Proactive speech, secondary to that learning. The radio may speak unprompted, for example a morning brief and reminders, subject to quiet hours and a limit on how often.
+* Proactive speech, secondary to that learning. The radio may speak unprompted, subject to quiet hours and a limit on how often. A morning brief is a less important example. The important unprompted utterances are calendar reminders and incoming email from senders the user has chosen. Calendar reminders come with a later calendar integration. Incoming email from those senders comes with Gmail in v2.
 * Turning autonomous behaviour off, and correcting or forgetting a learned habit, by voice and in the web admin.
 * Learned habit data stays in the on-device encrypted memory. The cloud sees only status.
 * Cloud web admin skeleton: sign-in, pairing the Pi with a device code, provider and API key, Spotify connection, connection status, viewing and deleting memory, turning autonomous behaviour off, correcting or forgetting a learned habit, and downloading an encrypted backup (see section 7).
@@ -46,13 +46,13 @@ v1 is wake word, spoken conversation with an AI that learns the user’s habits 
 
 ### 2.2 In scope for v2
 
-* Gmail (sending mail and similar serious actions).
+* Gmail (sending mail and similar serious actions). Telling the user about incoming email from senders the user has chosen is proactive speech and comes with this (section 5). Sending mail still requires the physical approval button.
 * A physical approval button on the radio for those serious actions (see section 10).
 * Approval evals: no mail or similar action with consequences outside the radio without a physical button press, including when the agent is acting on its own.
 * ATECC608 required, including the option to lock the memory-database key in the chip.
 * Lamp wait-state for approval, in addition to the v1 lamp states.
 
-Calendar, weather and other later services may follow after v2; they are not committed in this spec.
+Weather and other later services may follow after v2; they are not committed in this spec. A calendar integration is also later, and is not a v1 or v2 milestone. When it arrives, calendar reminders are one of the important things the radio may say unprompted (section 5).
 
 ### 2.3 Out of scope
 
@@ -128,7 +128,7 @@ Daniel set the v1 scope of this autonomy on 2026-11-26.
 
 **Primary: habits and preferences.** The radio learns the user’s habits and preferences, for example what they usually want to hear in the morning, or how they like to be answered. It learns so it can decide on its own instead of asking every time. It acts on what it has learned when it is confident enough, and it asks only when it is unsure. It does not invent a preference to fill the gap.
 
-**Secondary: proactive speech.** The radio may also speak without being asked. A morning brief and reminders are examples. Proactive speech is secondary to learning habits. It follows the guardrails below.
+**Secondary: proactive speech.** The radio may also speak without being asked. This is secondary to learning habits. The important things it says unprompted are calendar reminders, and incoming email from senders the user has chosen. Calendar reminders come with a later calendar integration, which is not part of v1 or v2. Incoming email from those senders comes with Gmail in v2. Saying that such mail has arrived is speech. Sending mail still requires the physical approval button (section 10). A morning brief is an example of a less important unprompted utterance. Proactive speech follows the guardrails below.
 
 **Not in v1.** Multi-step goal planning is not in v1. The radio does not set a goal of its own and carry out a chain of steps to reach it.
 
@@ -278,7 +278,7 @@ Every frontend or backend item below is done only when the stated outcome is tru
 
 * Local wake word, with optional push-to-talk as backup.
 * Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech, and local Piper on the Pi for text-to-speech with a Swedish voice (section 6). Spoken replies in Swedish.
-* One voice agent that gets to know the user (section 5). It learns habits and preferences. When it is confident enough, it acts on what it has learned. When it is unsure, it asks. Proactive speech, for example a morning brief and reminders, is secondary. The radio does not speak unprompted during quiet hours, and unprompted speech stays within the limit on how often.
+* One voice agent that gets to know the user (section 5). It learns habits and preferences. When it is confident enough, it acts on what it has learned. When it is unsure, it asks. Proactive speech is secondary. A morning brief is a less important example. Calendar reminders and incoming email from senders the user has chosen are the important unprompted utterances; they arrive with a later calendar integration and with Gmail in v2. The radio does not speak unprompted during quiet hours, and unprompted speech stays within the limit on how often.
 * Multi-step goal planning is not in v1.
 * The user can turn autonomous behaviour off, and can correct or forget a learned habit, by voice. The same controls are in the web admin (milestone 4). Learned habit data stays on the device. Any action with consequences outside the radio waits for the physical approval button (v2).
 * One provider, with a token cap and the rule that a key alone does not start a paid call.
@@ -351,7 +351,7 @@ For **one household, one device, 30 days**:
 
 * 15 minutes of user speech per day is sent to Pianissimo after the wake word (local wake-word listening is not billed). That is 450 minutes of STT audio per month.
 * 15 minutes of assistant speech per day (TTS).
-* Unprompted speech, such as a morning brief and reminders (section 5), is not included in these minutes. A household that uses it every day will be above the figures here.
+* Unprompted speech, such as a morning brief (section 5), is not included in these minutes. A household that uses it every day will be above the figures here. Calendar reminders and incoming-email notices are also outside this estimate; they arrive with later services.
 * 20 conversational turns per day (600 turns per month).
 * Per turn, the conversation model is assumed to use 2,000 input tokens and 300 output tokens (system prompt, memories, recent turns, user text, and a short spoken reply). This is an assumption, not a measurement.
 * Embeddings: 100 input tokens to embed the query on each turn, plus 200 input tokens of extracted facts after 10 conversations per day (120,000 input tokens per month). Catalogue output price for E5 is not applied in this estimate.
@@ -392,8 +392,8 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 
 * The product is called Radio Days. The repository is [`PanamaDonne/radio-days`](https://github.com/PanamaDonne/radio-days). The repository rename is done.
 * A voice agent in an old radio on a Raspberry Pi 4 with 4 GB. It gets to know the user and makes its own decisions. The team engine is shut down. The pivot happens in the same repo.
-* v1: wake word, conversation with an AI that learns habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech such as a morning brief and reminders, Spotify controlled by voice with no button (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes), long-term memory, and a cloud web admin skeleton. Multi-step goal planning is not in v1. Gmail and the physical approval button come in v2. Any action with consequences outside the radio always requires that button.
-* Autonomy (Daniel, 2026-11-26): the radio gets to know the user and makes its own decisions. Primary: it learns habits and preferences, acts when it is confident enough, and asks only when it is unsure. Secondary: proactive speech, for example a morning brief and reminders. Not in v1: multi-step goal planning. Guardrails: quiet hours, a limit on how often it may speak unprompted, the user can turn autonomous behaviour off and can correct or forget a learned habit by voice and in the web admin, learned habit data stays in the on-device encrypted memory and the cloud sees only status, and any action with consequences outside the radio (email in v2) always requires the physical approval button. See section 5.
+* v1: wake word, conversation with an AI that learns habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech (a morning brief is a less important example; calendar reminders and incoming email from senders the user has chosen are the important unprompted utterances, with a later calendar integration and with Gmail in v2), Spotify controlled by voice with no button (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes), long-term memory, and a cloud web admin skeleton. Multi-step goal planning is not in v1. Gmail and the physical approval button come in v2. Any action with consequences outside the radio always requires that button.
+* Autonomy (Daniel, 2026-11-26): the radio gets to know the user and makes its own decisions. Primary: it learns habits and preferences, acts when it is confident enough, and asks only when it is unsure. Secondary: proactive speech. The important unprompted utterances are calendar reminders and incoming email from senders the user has chosen; a morning brief is a less important example. Not in v1: multi-step goal planning. Guardrails: quiet hours, a limit on how often it may speak unprompted, the user can turn autonomous behaviour off and can correct or forget a learned habit by voice and in the web admin, learned habit data stays in the on-device encrypted memory and the cloud sees only status, and any action with consequences outside the radio (email in v2) always requires the physical approval button. See section 5.
 * A Spotify Premium account is required for that voice control. This follows Spotify’s Web API rule that playback-control endpoints work only for Premium users ([Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback)).
 * Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech. User-facing voice text is Swedish. Pianissimo was confirmed in Berget’s public catalogue on 2026-11-26. Text-to-speech for v1 is local Piper on the Raspberry Pi with a Swedish voice (`sv_SE-nst-medium` or `sv_SE-alma-medium`), decided 2026-11-26. ReadSpeaker is the fallback if quality is not good enough. Berget Sten is not available and is not the v1 choice.
 * Web admin in the cloud (Next.js on Vercel, with Supabase); secrets live on the Pi, encrypted on disk. The key is encrypted in the browser with the Pi’s public key. Spotify OAuth uses PKCE, with token exchange on the Pi. The cloud sees status, never secrets.

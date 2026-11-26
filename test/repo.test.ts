@@ -151,7 +151,9 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "confident enough",
     "unsure",
     "morning brief",
-    "reminders",
+    "less important",
+    "calendar reminders",
+    "senders the user has chosen",
     "Multi-step goal planning is not in v1",
   ]) {
     assert.equal(scopeLine.includes(fact), true, `scope line missing ${fact}`);
@@ -164,7 +166,10 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "asks only when it is unsure",
     "Secondary",
     "morning brief",
-    "reminders",
+    "less important",
+    "calendar reminders",
+    "senders the user has chosen",
+    "Gmail in v2",
     "Multi-step goal planning",
     "not in v1",
     "does not speak unprompted during quiet hours",
