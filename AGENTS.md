@@ -14,6 +14,8 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 SPEC.md is the product spec, Linear PAN-267 is its source, and both must be kept in sync.
 
 Read secrets from the environment only. Do not put keys in config, code, or traces. `ConfiguredProvider` is safe to serialize (redacts the key), but never include raw API keys in logs, errors, or telemetry. Never expose a `ConfiguredProvider` on a public client surface; use `toSafeProvider()` instead. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on; use the `sanitizeErrorChain` pattern to replace the key with `[REDACTED]`.
+Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.
+A secret in the environment must not by itself start a paid call; require an explicit choice such as `--live` or `--provider`.
 
 Provider `defaultModel` must be a valid, current model id at the provider. Remove or leave undefined until confirmed.
 

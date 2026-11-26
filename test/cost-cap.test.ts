@@ -31,6 +31,15 @@ import { configureTeam, parseTeamConfig, type ConfiguredTeam, type TeamConfigInp
 const execFileAsync = promisify(execFile);
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+const PROVIDER_ENV = ["BERGET_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY"] as const;
+
+function providerFreeEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of PROVIDER_ENV) {
+    delete env[key];
+  }
+  return env;
+}
 
 function createMockProvider(): ConfiguredProvider {
   const provider = createCustomProvider({
@@ -608,7 +617,7 @@ test("the CLI honours --max-tokens and rejects an unknown flag", async () => {
   }
   assert.equal(parseTeamCliArgs(["example-team.json", "Mål", "--max-tokens", "nej"]).ok, false);
   assert.match(cliError(["example-team.json", "Mål", "--max-tokens"]), /Tokentaket måste vara ett positivt heltal/);
-  assert.match(cliError(["example-team.json", "Mål", "--bogus"]), /Okänt argument: --bogus/);
+  assert.equal(cliError(["example-team.json", "Mål", "--bogus"]), "Okänt argument.");
 
   const stopped = await runCli(["example-team.json", "Bygg en funktion", "--max-tokens", "1"]);
   assert.equal(stopped.code, 1);
@@ -621,7 +630,7 @@ test("the CLI honours --max-tokens and rejects an unknown flag", async () => {
 
   const unknownFlag = await runCli(["example-team.json", "Bygg en funktion", "--bogus"]);
   assert.equal(unknownFlag.code, 1);
-  assert.match(unknownFlag.stderr, /Okänt argument: --bogus/);
+  assert.match(unknownFlag.stderr, /^Okänt argument\.\n?$/);
   assert.equal(unknownFlag.stdout.includes("Teamkörning"), false);
 });
 
@@ -638,7 +647,7 @@ async function runCli(args: readonly string[]): Promise<{ code: number; stdout: 
     const result = await execFileAsync(
       process.execPath,
       ["--experimental-strip-types", "src/team-cli.ts", ...args],
-      { cwd: root },
+      { cwd: root, env: providerFreeEnv() },
     );
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {

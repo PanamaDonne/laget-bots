@@ -127,6 +127,24 @@ test("configureProvider returns configured provider when API key is set", () => 
   }
 });
 
+test("configureProvider stores a trimmed copy of the environment key", () => {
+  const original = process.env.BERGET_API_KEY;
+  const key = "fake-trim-key-277";
+  process.env.BERGET_API_KEY = `  ${key}\r\n`;
+
+  try {
+    const configured = configureProvider("berget");
+    assert.ok(configured);
+    assert.equal(configured.getApiKey(), key);
+  } finally {
+    if (original !== undefined) {
+      process.env.BERGET_API_KEY = original;
+    } else {
+      delete process.env.BERGET_API_KEY;
+    }
+  }
+});
+
 test("configureProvider returns null for unknown provider", () => {
   const configured = configureProvider("unknown-provider");
 
@@ -1167,6 +1185,46 @@ test("invalid JSON response body containing API key does not leak key in error",
       const cause = err.cause as Error;
       assert.ok(!cause.message?.includes(secretKey), "API key should not be in cause message");
     }
+  }
+
+  if (original !== undefined) {
+    process.env.BERGET_API_KEY = original;
+  } else {
+    delete process.env.BERGET_API_KEY;
+  }
+});
+
+test("invalid JSON that starts with the API key uses a fixed error", async () => {
+  const original = process.env.BERGET_API_KEY;
+  const secretKey = "fake-json-prefix-key-277";
+  process.env.BERGET_API_KEY = secretKey;
+
+  const configured = configureProvider("berget");
+  assert.ok(configured);
+
+  const mockFetch = async () => {
+    return new Response(`${secretKey} är inte json`, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const client = createClient(configured, { fetch: mockFetch });
+
+  try {
+    await client.chatCompletion({
+      model: "test-model",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    assert.fail("Should have thrown");
+  } catch (error) {
+    const err = error as Error;
+    assert.equal(err.message, "Provider berget returned invalid JSON");
+    assert.equal(err.message.includes(secretKey), false);
+    assert.equal(err.message.includes("fake-json-prefix"), false);
+    assert.equal(err.stack?.includes(secretKey), false);
+    assert.equal(err.stack?.includes("fake-json-prefix"), false);
+    assert.equal(err.cause, undefined);
   }
 
   if (original !== undefined) {

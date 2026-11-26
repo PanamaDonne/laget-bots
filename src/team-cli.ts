@@ -1,17 +1,29 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { runTeamFromFile } from "./team-run.ts";
+import { redactConfiguredSecrets, runTeamFromFile } from "./team-run.ts";
 
-const USAGE = 'Användning: npm run team -- <konfiguration.json> "<mål>" [--max-tokens <antal>]';
+const USAGE =
+  'Användning: npm run team -- <konfiguration.json> "<mål>" [--live] [--provider <id>] [--model <id>] [--max-tokens <antal>]';
 
 export type TeamCliArgs =
-  | { ok: true; configPath: string; goal: string; maxTokens?: number }
+  | {
+      ok: true;
+      configPath: string;
+      goal: string;
+      maxTokens?: number;
+      providerId?: string;
+      model?: string;
+      live: boolean;
+    }
   | { ok: false; error: string };
 
 export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   const positionals: string[] = [];
   let maxTokens: number | undefined;
+  let providerId: string | undefined;
+  let model: string | undefined;
+  let live = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] ?? "";
@@ -19,19 +31,41 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
       continue;
     }
     if (arg === "--max-tokens" || arg.startsWith("--max-tokens=")) {
-      const raw = arg === "--max-tokens" ? argv[index + 1] : arg.slice("--max-tokens=".length);
-      if (arg === "--max-tokens") {
-        index += 1;
-      }
-      const parsed = parseTokenCap(raw);
+      const taken = readFlagValue(argv, index, arg, "--max-tokens");
+      index = taken.index;
+      const parsed = parseTokenCap(taken.raw);
       if (!parsed.ok) {
         return parsed;
       }
       maxTokens = parsed.value;
       continue;
     }
+    if (arg === "--live") {
+      live = true;
+      continue;
+    }
+    if (arg === "--provider" || arg.startsWith("--provider=")) {
+      const taken = readFlagValue(argv, index, arg, "--provider");
+      index = taken.index;
+      const parsed = requireFlagValue(taken.raw, "Leverantören saknas");
+      if (!parsed.ok) {
+        return parsed;
+      }
+      providerId = parsed.value;
+      continue;
+    }
+    if (arg === "--model" || arg.startsWith("--model=")) {
+      const taken = readFlagValue(argv, index, arg, "--model");
+      index = taken.index;
+      const parsed = requireFlagValue(taken.raw, "Modellen saknas");
+      if (!parsed.ok) {
+        return parsed;
+      }
+      model = parsed.value;
+      continue;
+    }
     if (arg.startsWith("-")) {
-      return { ok: false, error: `Okänt argument: ${arg}` };
+      return { ok: false, error: "Okänt argument." };
     }
     positionals.push(arg);
   }
@@ -43,9 +77,31 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   }
   const extra = positionals[2];
   if (extra !== undefined) {
-    return { ok: false, error: `Okänt argument: ${extra}` };
+    return { ok: false, error: "Okänt argument." };
   }
-  return { ok: true, configPath, goal, maxTokens };
+  return { ok: true, configPath, goal, maxTokens, providerId, model, live };
+}
+
+function readFlagValue(
+  argv: readonly string[],
+  index: number,
+  arg: string,
+  flag: string,
+): { raw: string | undefined; index: number } {
+  if (arg === flag) {
+    return { raw: argv[index + 1], index: index + 1 };
+  }
+  return { raw: arg.slice(flag.length + 1), index };
+}
+
+function requireFlagValue(
+  raw: string | undefined,
+  missing: string,
+): { ok: true; value: string } | { ok: false; error: string } {
+  if (raw === undefined || raw.trim() === "" || raw.trim().startsWith("-")) {
+    return { ok: false, error: missing };
+  }
+  return { ok: true, value: raw.trim() };
 }
 
 function parseTokenCap(raw: string | undefined): { ok: true; value: number } | { ok: false; error: string } {
@@ -70,7 +126,7 @@ function isDirectRun(): boolean {
 async function main(): Promise<void> {
   const parsed = parseTeamCliArgs(process.argv.slice(2));
   if (!parsed.ok) {
-    console.error(parsed.error);
+    console.error(redactConfiguredSecrets(parsed.error));
     process.exitCode = 1;
     return;
   }
@@ -78,13 +134,16 @@ async function main(): Promise<void> {
   try {
     const result = await runTeamFromFile(parsed.configPath, parsed.goal, {
       maxTokens: parsed.maxTokens,
+      providerId: parsed.providerId,
+      model: parsed.model,
+      live: parsed.live,
     });
     if (!result.success) {
       process.exitCode = 1;
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Teamkörningen misslyckades";
-    console.error(message);
+    console.error(redactConfiguredSecrets(message));
     process.exitCode = 1;
   }
 }

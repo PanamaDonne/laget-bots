@@ -58,7 +58,7 @@ export type ConfiguredTeam = {
 function normalizeRoleId(input: string): RoleId {
   const roleId = resolveRoleId(input);
   if (roleId === null) {
-    throw new Error(`Okänd roll: ${input}`);
+    throw new Error("Okänd roll.");
   }
   return roleId;
 }
@@ -86,10 +86,10 @@ export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
       throw new Error("Varje agent måste ha ett id");
     }
     if (!agentInput.roll || typeof agentInput.roll !== "string") {
-      throw new Error(`Agent ${agentInput.id} måste ha en roll`);
+      throw new Error("Agenten måste ha en roll.");
     }
     if (!agentInput.namn || typeof agentInput.namn !== "string") {
-      throw new Error(`Agent ${agentInput.id} måste ha ett namn`);
+      throw new Error("Agenten måste ha ett namn.");
     }
 
     const roleId = normalizeRoleId(agentInput.roll);
@@ -107,7 +107,7 @@ export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
   const agentIds = new Set<string>();
   for (const agent of agents) {
     if (agentIds.has(agent.id)) {
-      throw new Error(`Dubblett av agent-id: ${agent.id}`);
+      throw new Error("Dubblett av agent-id.");
     }
     agentIds.add(agent.id);
   }
@@ -138,17 +138,12 @@ export function configureTeam(
     const providerId = agentConfig.providerId ?? config.defaultProviderId;
     const provider = resolveProvider(providerId);
     if (provider === null) {
-      throw new Error(
-        `Kunde inte konfigurera provider för agent ${agentConfig.id}` +
-          (providerId ? ` (provider: ${providerId})` : ""),
-      );
+      throw new Error("Kunde inte konfigurera leverantören.");
     }
 
     const model = agentConfig.model ?? provider.defaultModel;
     if (model === undefined) {
-      throw new Error(
-        `Ingen modell angiven för agent ${agentConfig.id} och ingen standardmodell för provider ${provider.id}`,
-      );
+      throw new Error("Ingen modell angiven och leverantören saknar standardmodell.");
     }
 
     configuredAgents.push({

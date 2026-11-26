@@ -304,7 +304,59 @@ test("parseTeamConfig throws on duplicate agent ids", () => {
 
   assert.throws(
     () => parseTeamConfig(input),
-    /Dubblett av agent-id/,
+    (error: Error) => {
+      assert.equal(error.message, "Dubblett av agent-id.");
+      assert.equal(error.message.includes("same-id"), false);
+      return true;
+    },
+  );
+});
+
+test("parseTeamConfig does not echo a key used as a role or an agent id", () => {
+  const secret = "fake-team-file-key-277";
+  const unknownRole: TeamConfigInput = {
+    namn: "Team",
+    beskrivning: "Test",
+    agenter: [{ id: "a1", roll: secret, namn: "Anna" }],
+  };
+  assert.throws(
+    () => parseTeamConfig(unknownRole),
+    (error: Error) => {
+      assert.equal(error.message, "Okänd roll.");
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    },
+  );
+
+  const duplicate: TeamConfigInput = {
+    namn: "Team",
+    beskrivning: "Test",
+    agenter: [
+      { id: secret, roll: "po", namn: "Anna" },
+      { id: secret, roll: "dev", namn: "Erik" },
+    ],
+  };
+  assert.throws(
+    () => parseTeamConfig(duplicate),
+    (error: Error) => {
+      assert.equal(error.message, "Dubblett av agent-id.");
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    },
+  );
+
+  const missingName: TeamConfigInput = {
+    namn: "Team",
+    beskrivning: "Test",
+    agenter: [{ id: secret, roll: "po", namn: "" }],
+  };
+  assert.throws(
+    () => parseTeamConfig(missingName),
+    (error: Error) => {
+      assert.equal(error.message, "Agenten måste ha ett namn.");
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    },
   );
 });
 
@@ -317,7 +369,11 @@ test("parseTeamConfig throws on unknown role", () => {
 
   assert.throws(
     () => parseTeamConfig(input),
-    /Okänd roll/,
+    (error: Error) => {
+      assert.equal(error.message, "Okänd roll.");
+      assert.equal(error.message.includes("okänd-roll"), false);
+      return true;
+    },
   );
 });
 
@@ -374,7 +430,11 @@ test("configureTeam throws when provider not found", () => {
 
   assert.throws(
     () => configureTeam(config, () => null),
-    /Kunde inte konfigurera provider/,
+    (error: Error) => {
+      assert.equal(error.message, "Kunde inte konfigurera leverantören.");
+      assert.equal(error.message.includes("po-1"), false);
+      return true;
+    },
   );
 });
 
