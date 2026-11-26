@@ -1,3 +1,4 @@
+import { assertPositiveInteger } from "./budget.ts";
 import type { ConfiguredProvider } from "./providers.ts";
 import { type RoleId, getRole, resolveRoleId } from "./roles.ts";
 
@@ -14,6 +15,9 @@ export type TeamConfig = {
   description: string;
   agents: readonly AgentConfig[];
   defaultProviderId?: string;
+  maxTokens?: number;
+  maxContextEntries?: number;
+  maxEntryChars?: number;
 };
 
 export type TeamConfigInput = {
@@ -21,6 +25,9 @@ export type TeamConfigInput = {
   beskrivning: string;
   agenter: readonly AgentConfigInput[];
   standardLeverantör?: string;
+  maxTokens?: number;
+  maxContextEntries?: number;
+  maxEntryChars?: number;
 };
 
 export type AgentConfigInput = {
@@ -43,6 +50,9 @@ export type ConfiguredTeam = {
   name: string;
   description: string;
   agents: readonly ConfiguredAgent[];
+  maxTokens?: number;
+  maxContextEntries?: number;
+  maxEntryChars?: number;
 };
 
 function normalizeRoleId(input: string): RoleId {
@@ -107,6 +117,9 @@ export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
     description: input.beskrivning,
     agents,
     defaultProviderId: input.standardLeverantör,
+    maxTokens: readOptionalLimit(input.maxTokens, "Tokentaket"),
+    maxContextEntries: readOptionalLimit(input.maxContextEntries, "Antal poster"),
+    maxEntryChars: readOptionalLimit(input.maxEntryChars, "Tecken per post"),
   };
   assertCompleteTeam(config);
   return config;
@@ -151,7 +164,17 @@ export function configureTeam(
     name: config.name,
     description: config.description,
     agents: configuredAgents,
+    maxTokens: config.maxTokens,
+    maxContextEntries: config.maxContextEntries,
+    maxEntryChars: config.maxEntryChars,
   };
+}
+
+function readOptionalLimit(value: unknown, label: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return assertPositiveInteger(value, label);
 }
 
 export function getAgentById(team: ConfiguredTeam, agentId: string): ConfiguredAgent | null {

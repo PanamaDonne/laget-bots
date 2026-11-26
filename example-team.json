@@ -2,6 +2,9 @@
   "namn": "Exempelteam",
   "beskrivning": "Ett team som demonstrerar samarbete mellan agenter",
   "standardLeverantör": "berget",
+  "maxTokens": 100000,
+  "maxContextEntries": 12,
+  "maxEntryChars": 2000,
   "agenter": [
     {
       "id": "po-1",
