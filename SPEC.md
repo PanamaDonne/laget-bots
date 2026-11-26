@@ -13,13 +13,13 @@ This file is the accepted product spec for Radio Days, version 2.0, on `main`. I
 
 ## 1. What it is
 
-Radio Days is a voice agent inside an old radio (or cassette player). The user talks to the radio. It runs on a Raspberry Pi 4 with 4 GB, hidden in a set that Daniel finds himself.
+Radio Days is a voice agent inside an old radio (or cassette player). It gets to know the user and makes its own decisions. The user talks to the radio. It runs on a Raspberry Pi 4 with 4 GB, hidden in a set that Daniel finds himself.
 
-v1 is wake word, spoken conversation with an AI, Spotify controlled entirely by voice (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes, with no approval button; a Spotify Premium account is required), long-term memory of the user, and a cloud web admin. The former team engine is shut down. Work continues in the same repository.
+v1 is wake word, spoken conversation with an AI that learns the user’s habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech such as a morning brief and reminders, Spotify controlled entirely by voice (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes, with no approval button; a Spotify Premium account is required), long-term memory of the user, and a cloud web admin. Multi-step goal planning is not in v1. The former team engine is shut down. Work continues in the same repository.
 
 **User:** in the first place Daniel, at home, speaking Swedish to the radio.
 
-**User value:** Daniel can walk up to an old radio, say a wake word, talk with an AI, and control Spotify without touching a phone or a button. The radio remembers things about him (name, taste, habits, earlier conversations). Secrets and memory stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
+**User value:** The radio gets to know Daniel. When it is confident enough in a habit, it chooses for him, and it asks only when it is unsure. He can walk up to an old radio, say a wake word, talk with an AI, and control Spotify without touching a phone or a button. He can turn autonomous behaviour off, and he can correct or forget a learned habit, by voice and in the web admin. The radio may also speak first, for example with a morning brief or a reminder, but not during quiet hours and not more often than the limit allows. Secrets and memory, including learned habits, stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
 
 **Product principle: super simple.** Talking to the radio should feel as easy as talking to a person in the room. No infrastructure knowledge is needed for everyday use.
 
@@ -31,20 +31,24 @@ v1 is wake word, spoken conversation with an AI, Spotify controlled entirely by 
 
 * Wake word, with optional push-to-talk as a backup (not as approval).
 * Spoken conversation with one AI agent.
-* Voice chain: realtime speech via Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi, with a Swedish voice (section 5). ReadSpeaker is the fallback if quality is not good enough.
+* Voice chain: realtime speech via Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi, with a Swedish voice (section 6). ReadSpeaker is the fallback if quality is not good enough.
 * Spotify by voice, with no button. A Spotify Premium account is required. The user can play, skip to the next or previous track, choose artist, album and playlist by voice, and change playlists and favourites. Pause, volume and questions such as “what is playing now?” are included.
-* Long-term memory of the user, stored only on the Pi (see section 7).
-* Cloud web admin skeleton: sign-in, pairing the Pi with a device code, provider and API key, Spotify connection, connection status, viewing and deleting memory, and downloading an encrypted backup (see section 6).
+* Long-term memory of the user, stored only on the Pi (see section 8).
+* Learning habits and preferences, and acting on them when the agent is confident enough. It asks only when it is unsure. This is the primary autonomous behaviour in v1 (section 5).
+* Proactive speech, secondary to that learning. The radio may speak unprompted, for example a morning brief and reminders, subject to quiet hours and a limit on how often.
+* Turning autonomous behaviour off, and correcting or forgetting a learned habit, by voice and in the web admin.
+* Learned habit data stays in the on-device encrypted memory. The cloud sees only status.
+* Cloud web admin skeleton: sign-in, pairing the Pi with a device code, provider and API key, Spotify connection, connection status, viewing and deleting memory, turning autonomous behaviour off, correcting or forgetting a learned habit, and downloading an encrypted backup (see section 7).
 * Secrets stored on the Pi, encrypted on disk. ATECC608 is optional in v1.
 * Status lamp on the radio scale: on when listening, pulsing when thinking, idle when at rest.
-* Evals for intent-to-tool accuracy and memory; latency is logged (see section 10).
+* Evals for intent-to-tool accuracy and memory; latency is logged (see section 11).
 * A token cap per conversation. A provider key alone does not start a paid call; an explicit choice is required.
 
 ### 2.2 In scope for v2
 
 * Gmail (sending mail and similar serious actions).
-* A physical approval button on the radio for those serious actions (see section 9).
-* Approval evals: no mail or similar action without a physical button press.
+* A physical approval button on the radio for those serious actions (see section 10).
+* Approval evals: no mail or similar action with consequences outside the radio without a physical button press, including when the agent is acting on its own.
 * ATECC608 required, including the option to lock the memory-database key in the chip.
 * Lamp wait-state for approval, in addition to the v1 lamp states.
 
@@ -56,6 +60,7 @@ Calendar, weather and other later services may follow after v2; they are not com
 * PR #13 and the remaining Laget Bots stage-1 work stay paused.
 * A local admin UI as the primary surface (replaced by the hosted web admin).
 * Mobile apps.
+* Multi-step goal planning in v1. The radio does not set a goal of its own and carry out a chain of steps to reach it. No later version of that behaviour is committed here.
 * A local model on the Pi (optional later, not v1).
 * Bluetooth speakers (avoided because of latency).
 * Mounting in the radio cabinet, HiFiBerry or other amplifier fitting, and volume or channel knobs: these wait until Daniel has found a radio. A desk prototype with Pi and microphone is enough for v1 software milestones.
@@ -70,14 +75,14 @@ Calendar, weather and other later services may follow after v2; they are not com
 * TypeScript, the same GitHub repository (`PanamaDonne/radio-days`), `AGENTS.md`, CI (typecheck, lint, tests), and the workflow: Daniel builds and opens the PR; Vera reviews and Lazek QA-tests the same sha and posts a verdict in the PR; only Daniel merges. Linear issue ids belong in branch names and PR titles.
 * The user brings their own key and may use any OpenAI-compatible provider. EU and Swedish providers come first and are the defaults (Berget, then Mistral). Grok and OpenAI are allowed and clearly marked as non-EU.
 * The existing provider-client idea, and the rule that a key alone does not start a paid call.
-* The idea of human approval before serious actions. It does not apply to Spotify and is not in v1. It returns in v2 with a physical button, when mail can be sent.
+* The idea of human approval before serious actions. It does not apply to Spotify and is not in v1. It returns in v2 with a physical button, when mail can be sent. Any action with consequences outside the radio requires that button, including when the agent is acting on its own.
 * Evals in CI, with new metrics that fit voice, Spotify and memory. The approval eval comes with mail in v2.
 * Secrets never go in config, code, traces or the public repo.
 * A token cap per conversation (formerly per team run).
 
 ### Changed
 
-* The product is a voice assistant in a radio, not an engine for collaborating development agents.
+* The product is a voice assistant in a radio, not an engine for collaborating development agents. The assistant gets to know the user and makes its own decisions (section 5).
 * One agent with tools, not PO, dev and reviewer agents. The team engine is shut down in this repo, not kept as a side track.
 * Runtime moves to a Pi 4 (4 GB), always on, with voice as the interface and a wake word.
 * Admin becomes a hosted web app (Next.js on Vercel, with Supabase). In v1.0 a hosted admin UI was out of scope.
@@ -85,7 +90,7 @@ Calendar, weather and other later services may follow after v2; they are not com
 * The first test bench is conversation plus Spotify by voice, plus memory, not a development flow against a sandbox repo.
 * Evals shift to intent-to-tool accuracy, latency (logged in v1), and memory quality. Button approval is a v2 requirement.
 * The repo stays public (v1.0 was already open; a later proposal to make it private is not followed).
-* Cost changes. v1.0 assumed 0 SEK/month in infrastructure. A hosted admin, voice models, embeddings and Spotify calls add cost. The running-cost estimate is in section 13.
+* Cost changes. v1.0 assumed 0 SEK/month in infrastructure. A hosted admin, voice models, embeddings and Spotify calls add cost. The running-cost estimate is in section 14.
 * The product name is Radio Days, not Laget Bots. The repository is `PanamaDonne/radio-days`.
 
 ### Removed from the v1.0 spec
@@ -115,7 +120,31 @@ Daniel finds the radio or cassette player himself. No shop prices are listed her
 
 ---
 
-## 5. Voice agent and everyday use
+## 5. An agent that learns and decides
+
+Radio Days gets to know its user and makes its own decisions. It is not only a device that waits for the next order. Over time it knows the person well enough to choose, and it asks only when it needs to.
+
+Daniel set the v1 scope of this autonomy on 2026-11-26.
+
+**Primary: habits and preferences.** The radio learns the user’s habits and preferences, for example what they usually want to hear in the morning, or how they like to be answered. It learns so it can decide on its own instead of asking every time. It acts on what it has learned when it is confident enough, and it asks only when it is unsure. It does not invent a preference to fill the gap.
+
+**Secondary: proactive speech.** The radio may also speak without being asked. A morning brief and reminders are examples. Proactive speech is secondary to learning habits. It follows the guardrails below.
+
+**Not in v1.** Multi-step goal planning is not in v1. The radio does not set a goal of its own and carry out a chain of steps to reach it.
+
+### Guardrails
+
+* **Quiet hours.** The radio does not speak unprompted during quiet hours. When the user talks to it during those hours, it still answers.
+* **How often.** There is a limit on how often the radio may speak unprompted. A reply the user asked for does not count toward that limit.
+* **Off, correct, forget.** The user can turn autonomous behaviour off, and can correct or forget a learned habit, by voice and in the web admin. While autonomous behaviour is off, the radio does not act on a learned habit on its own and does not speak unprompted. It still answers when spoken to. A correction replaces the habit the radio uses from then on. A forgotten habit is not used again.
+* **On the device.** Learned habit data stays on the device, in the on-device encrypted memory (section 8). The cloud sees only status.
+* **Outside the radio.** Any action with consequences outside the radio always requires the physical approval button. Sending email in v2 is an example. A learned habit, confidence, or the radio deciding on its own does not replace that press (section 10). Actions inside the radio, including Spotify, do not need the button.
+
+The clock times for quiet hours, and the maximum number of unprompted turns, are open (section 15).
+
+---
+
+## 6. Voice agent and everyday use
 
 The user says the wake word. The Pi listens with a local wake-word detector (openWakeWord). Optional push-to-talk is only a backup, never an approval.
 
@@ -130,17 +159,17 @@ Checked against Berget’s public catalogue on 2026-11-26 ([models page](https:/
 1. **Chosen: local Piper on the Pi 4, Swedish voice.** The official Piper CLI documents an arm64 binary for a 64-bit Raspberry Pi 4 ([CLI.md](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md)). The engine is GPL-3.0-or-later ([piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), [PyPI](https://pypi.org/project/piper-tts/)). Official Swedish voices in [piper-voices](https://huggingface.co/rhasspy/piper-voices) include `sv_SE-nst-medium` (quality: medium; dataset licence CC0; trained from scratch by KBLab) and `sv_SE-alma-medium` (quality: medium; model weights CC BY 4.0; trained on the NST Swedish TTS dataset, which the card describes as high-quality studio recordings of Swedish speech). Official cards: [nst](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/nst/medium/MODEL_CARD), [alma](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/alma/medium/MODEL_CARD). Samples: [piper-samples](https://rhasspy.github.io/piper-samples/). The CLI document says running Piper once per request can be slow because the voice is loaded each time, and recommends the web server for repeated use. No official end-to-end latency figure for a Pi 4 with 4 GB was found. Incremental running cost is €0 (no hosted TTS fee).
 2. **Fallback: ReadSpeaker speechCloud API (EU).** Used only if Piper’s quality is not good enough. ReadSpeaker AB is headquartered in Sweden (Uppsala). The [speechCloud API](https://www.readspeaker.com/products/speechcloud-api/) is described as EU-based, GDPR compliant and ISO/IEC 27001:2022 certified, and as generating “natural-sounding synthetic speech”. The [Swedish voice list](https://www.readspeaker.com/languages-voices/swedish/) has six neural sv-SE voices: Fredrik, Karin, Linnea, Maja, Majsan and Sven. Pricing is a credits model (1 credit = 1 character excluding whitespace); production credits are ordered through an account manager, and no public unit price in euro was published on that page. Latency is not stated there.
 
-v1 uses local Piper. ReadSpeaker is only that quality fallback. The cost principle in section 13 is to take the cheapest option that meets the quality and latency evals; Piper has no hosted fee.
+v1 uses local Piper. ReadSpeaker is only that quality fallback. The cost principle in section 14 is to take the cheapest option that meets the quality and latency evals; Piper has no hosted fee.
 
-One always-on voice agent runs on the Pi (TypeScript). It holds a conversation with the AI, controls Spotify by voice, and uses long-term memory (section 7). The user chooses the conversation model through their AI provider (section 8). Every conversation has a token cap.
+One always-on voice agent runs on the Pi (TypeScript). It gets to know the user and makes its own decisions (section 5). It holds a conversation with the AI, controls Spotify by voice, and uses long-term memory (section 8). The user chooses the conversation model through their AI provider (section 9). Every conversation has a token cap.
 
 Spotify is controlled entirely by voice, with no button. A **Spotify Premium** account is required. This matches Spotify’s own rule that Web API playback-control endpoints work only for Premium users, for example [Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback).
 
-By voice the user can play, skip to the next or previous track, and choose artist, album and playlist, and can change playlists and favourites. Pause, volume and questions such as “what is playing now?” are included. Playback uses Spotify Connect (raspotify) together with the Spotify Web API.
+By voice the user can play, skip to the next or previous track, and choose artist, album and playlist, and can change playlists and favourites. Pause, volume and questions such as “what is playing now?” are included. When the agent is confident in a learned habit, it may choose Spotify on its own, still with no approval button (section 5). Playback uses Spotify Connect (raspotify) together with the Spotify Web API.
 
 ---
 
-## 6. Web admin
+## 7. Web admin
 
 The web admin is a cloud app: Next.js on Vercel, with Supabase. It works from any computer or phone.
 
@@ -151,18 +180,22 @@ In the admin the user:
 * chooses an AI provider and enters an API key
 * connects Spotify
 * sees connection status (never secrets in cleartext)
-* views and deletes long-term memory (section 7)
+* views and deletes long-term memory (section 8)
+* turns autonomous behaviour off and on
+* corrects or forgets a learned habit
 * downloads an encrypted backup of memory
 
 The API key is encrypted in the browser with the Pi’s public key. The cloud forwards only ciphertext that only the Pi can open. Spotify uses OAuth with PKCE; the token exchange happens on the Pi. Refresh tokens are stored on the Pi, encrypted on disk. The cloud sees status only, never secrets.
 
-In v1 a skeleton is enough: sign-in, pairing, provider and key, Spotify connection, status, memory view and delete, and encrypted backup download.
+Turning autonomous behaviour off, and correcting or forgetting a learned habit, are done here as well as by voice. Both go through the Pi. Learned habit data stays on the device. The cloud sees only status.
+
+In v1 a skeleton is enough: sign-in, pairing, provider and key, Spotify connection, status, memory view and delete, turning autonomous behaviour off, correcting or forgetting a learned habit, and encrypted backup download. Those habit controls are part of milestone 4, together with long-term memory.
 
 ---
 
-## 7. Long-term memory
+## 8. Long-term memory
 
-The agent has long-term memory about the user, for example name, music taste, habits and earlier conversations. Daniel has prior experience of memory and RAG from Präpp; that experience may inform the work, but this product’s rules are the ones below.
+The agent has long-term memory about the user, for example name, music taste, habits and earlier conversations. Habits and preferences the agent learns (section 5) are part of this memory. Learned habit data stays on the device, in the on-device encrypted memory. The cloud sees only status. Daniel has prior experience of memory and RAG from Präpp; that experience may inform the work, but this product’s rules are the ones below.
 
 Memory is stored only on the Pi, in SQLite with sqlite-vec for semantic search. The v1 default for embeddings is Berget’s E5, model id `intfloat/multilingual-e5-large-instruct` (PO recommendation, 2026-11-26; Daniel can still object). Rationale: the instruct model is the documented default on Berget’s embeddings API; a large E5 model is heavy to run with good latency on a Pi 4 with 4 GB; conversation already goes via Berget in the EU; only short extracted fact texts are sent; vectors and memory stay encrypted on the Pi. A small local embedding model may be added later as an optional offline fallback; it is not required in v1. Berget’s public catalogue on 2026-11-26 also lists `intfloat/multilingual-e5-large` (both active, MIT). Sources: [catalogue](https://api.berget.ai/v1/models), [OpenAPI](https://api.berget.ai/openapi.json), [model chains](https://docs.berget.ai/models/model-chains). After each conversation, facts are extracted. The 5–10 most relevant memories are retrieved into each new conversation.
 
@@ -172,29 +205,31 @@ The web admin reads and deletes memory via the Pi. No copy of memory is kept in 
 
 ---
 
-## 8. Privacy, security and providers
+## 9. Privacy, security and providers
 
 **Public repository.** The repo stays public, as `PanamaDonne/radio-days`. Because of that, secrets, keys, device identifiers and personal data must never be committed, logged into the repo, or otherwise placed in the repository.
 
-**Secrets live on the Pi**, encrypted on disk. The cloud does not store API keys, OAuth tokens or memory content. It may store only what it needs to sign the user in, pair a device, and show status.
+**Secrets live on the Pi**, encrypted on disk. The cloud does not store API keys, OAuth tokens, memory content, or learned habit data. It may store only what it needs to sign the user in, pair a device, and show status.
 
-**Providers, EU first.** The user brings their own key. Any OpenAI-compatible provider can be added. EU and Swedish providers are listed first and are the defaults: Berget (Swedish), then Mistral (EU). Non-EU providers such as Grok and OpenAI are allowed and clearly flagged as non-EU. Realtime speech in v1 is Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi with a Swedish voice; ReadSpeaker is the fallback if quality is not good enough (section 5). Sten is not available and is not used. A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required.
+**Providers, EU first.** The user brings their own key. Any OpenAI-compatible provider can be added. EU and Swedish providers are listed first and are the defaults: Berget (Swedish), then Mistral (EU). Non-EU providers such as Grok and OpenAI are allowed and clearly flagged as non-EU. Realtime speech in v1 is Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi with a Swedish voice; ReadSpeaker is the fallback if quality is not good enough (section 6). Sten is not available and is not used. A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required.
 
 **ATECC608** is optional in v1 and required in v2 (see section 4).
 
 ---
 
-## 9. Physical approval for serious actions (v2)
+## 10. Physical approval for serious actions (v2)
 
-The button is not in v1. Spotify, including playlists and favourites, is then controlled entirely by voice.
+The button is not in v1. Spotify, including playlists and favourites, is then controlled entirely by voice. The agent may also act on a learned habit inside the radio, including Spotify, without the button (section 5).
 
 In v2, when the radio can send mail and similar, a press on a physical button on the radio is required for those serious actions. A spoken “yes” or a click in the admin is not enough.
 
+Any action with consequences outside the radio always requires the physical approval button. Sending email in v2 is an example. This holds when the user has just asked and when the agent is acting on its own, from a learned habit or from proactive speech. Confidence does not replace the press.
+
 **Serious in v2 (requires the button):**
 
-* Sending mail, and other actions that send something or delete data outside Spotify.
+* Sending mail, and other actions with consequences outside the radio, including when the agent would otherwise take them on its own.
 
-**Not serious (the agent may do them after an ordinary voice request), already in v1:**
+**Not serious (the agent may do them when the user asks, and when it acts on a learned habit it is confident about), already in v1:**
 
 * Conversation with the AI.
 * All Spotify control: play, next and previous track, choose artist, album and playlist, pause, volume, and changes to playlists and favourites.
@@ -212,7 +247,7 @@ In v2, when the radio can send mail and similar, a press on a physical button on
 
 ---
 
-## 10. Evals
+## 11. Evals
 
 | Eval | Metric | Gate |
 | -- | -- | -- |
@@ -220,10 +255,10 @@ In v2, when the radio can send mail and similar, a press on a physical button on
 | Latency | Time from end of speech after the wake word to first audio in the reply | Logged in v1; threshold after a baseline |
 | Memory recall | Stored facts that should be recalled are recalled correctly in a later turn | Threshold after the first baseline |
 | Memory invention | The agent must not present invented personal facts as memory | 0 invented “memories” on the test set |
-| Memory deletion | A fact the user deleted in admin is no longer retrievable or spoken | 100 % |
+| Memory deletion | A fact or learned habit the user deleted, or told the radio to forget, is no longer retrievable or spoken | 100 % |
 | Memory privacy | Memory content must not appear in cloud storage or in cloud or repo logs | 0 leaks on the test set |
 | Encrypted backup | A downloaded backup is encrypted (not readable as cleartext) and restorable on the Pi | 100 % |
-| Approval safety (v2) | Mail or similar serious actions without a physical button press | 0 (100 %) |
+| Approval safety (v2) | Mail or any other action with consequences outside the radio, including when the agent is acting on its own, without a physical button press | 0 (100 %) |
 
 Handoff-contract survival and MAST metrics between agents are removed as v1 requirements. The approval eval arrives in v2 together with mail.
 
@@ -231,21 +266,24 @@ Thresholds that are not already 100 % or 0 are set after a first baseline. Evals
 
 ---
 
-## 11. Plan (milestones, no fixed timeline)
+## 12. Plan (milestones, no fixed timeline)
 
 The plan takes the time it takes. Each milestone is done only when its done criterion is met, not when a date passes. PR #13 and remaining Laget Bots stage-1 work stay paused. The team engine is not developed further.
 
-A first thin slice should still be possible to wake, talk to, and use for Spotify, with admin and memory following as their own milestones. Mounting in the radio cabinet is outside the software milestones and waits until Daniel has a radio.
+A first thin slice should still be possible to wake, talk to, and use for Spotify, with admin and memory following as their own milestones. Milestone 1 already includes an agent that decides from what it knows (section 5). Storing learned habits on the device, and correcting them in the web admin, are part of milestone 4. Mounting in the radio cabinet is outside the software milestones and waits until Daniel has a radio.
 
 Every frontend or backend item below is done only when the stated outcome is true **and** it is covered by unit tests, with CI green.
 
-**Milestone 1: Wake word and conversation**
+**Milestone 1: Wake word, conversation, and an agent that decides**
 
 * Local wake word, with optional push-to-talk as backup.
-* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech, and local Piper on the Pi for text-to-speech with a Swedish voice (section 5). Spoken replies in Swedish.
-* One voice agent and one provider, with a token cap and the rule that a key alone does not start a paid call.
+* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech, and local Piper on the Pi for text-to-speech with a Swedish voice (section 6). Spoken replies in Swedish.
+* One voice agent that gets to know the user (section 5). It learns habits and preferences. When it is confident enough, it acts on what it has learned. When it is unsure, it asks. Proactive speech, for example a morning brief and reminders, is secondary. The radio does not speak unprompted during quiet hours, and unprompted speech stays within the limit on how often.
+* Multi-step goal planning is not in v1.
+* The user can turn autonomous behaviour off, and can correct or forget a learned habit, by voice. The same controls are in the web admin (milestone 4). Learned habit data stays on the device. Any action with consequences outside the radio waits for the physical approval button (v2).
+* One provider, with a token cap and the rule that a key alone does not start a paid call.
 * Scale lamp: idle, listening, thinking.
-* Done when: after the wake word, the user can have a short spoken conversation and hear the reply from the speaker. Covered by unit tests, CI green.
+* Done when: after the wake word, the user can have a short spoken conversation and hear the reply from the speaker. When the agent is confident enough in a learned habit, it acts without asking; when it is unsure, it asks. It does not speak unprompted during quiet hours or beyond the limit on how often, and it does not carry out multi-step goal planning. Covered by unit tests, CI green.
 
 **Milestone 2: Spotify by voice**
 
@@ -265,7 +303,8 @@ Every frontend or backend item below is done only when the stated outcome is tru
 * SQLite on the Pi with sqlite-vec; embeddings via Berget E5, default `intfloat/multilingual-e5-large-instruct`. A small local embedding model is an optional offline fallback, not required in v1.
 * Facts extracted after each conversation; the 5–10 most relevant memories retrieved into each conversation.
 * Database encrypted with SQLCipher. Admin reads and deletes memory via the Pi; no copy in the cloud. Encrypted backup can be downloaded and restored.
-* Done when: facts persist and are recalled in a later conversation; the user can view and delete memory in admin; deletion is effective; a backup is encrypted and restorable; memory content never appears in cloud storage or logs. Covered by unit tests, CI green.
+* Learned habits and preferences (section 5) are stored in that on-device encrypted memory. The user can turn autonomous behaviour off in the web admin, and can correct or forget a learned habit there, as well as by voice. The cloud sees only status.
+* Done when: facts persist and are recalled in a later conversation; the user can view and delete memory in admin; deletion is effective; a backup is encrypted and restorable; memory content never appears in cloud storage or logs. The user can turn autonomous behaviour off, and can correct or forget a learned habit, in the admin and by voice. A forgotten habit is not used again. The cloud sees only status. Covered by unit tests, CI green.
 
 **Milestone 5: Evals and CI gate**
 
@@ -273,11 +312,11 @@ Every frontend or backend item below is done only when the stated outcome is tru
 * CI gate on PRs.
 * Done when: CI turns red on a planted memory leak, a failed deletion, or a wrong tool choice in the test set, and green again when it is fixed. Covered by unit tests, CI green.
 
-**v2 (after v1):** Gmail; physical approval button and lamp wait-state; ATECC608 required, with the memory-database key lockable in the chip; approval eval (zero serious actions without a button press). Each of those items is done when its behaviour holds and it is covered by unit tests, with CI green.
+**v2 (after v1):** Gmail; physical approval button and lamp wait-state for every action with consequences outside the radio, including when the agent would otherwise act on its own; ATECC608 required, with the memory-database key lockable in the chip; approval eval (zero such actions without a button press). Each of those items is done when its behaviour holds and it is covered by unit tests, with CI green.
 
 ---
 
-## 12. Process and workflow
+## 13. Process and workflow
 
 These rules are unchanged from v1.0, except that the product and the repository are now Radio Days / `PanamaDonne/radio-days`.
 
@@ -290,36 +329,37 @@ These rules are unchanged from v1.0, except that the product and the repository 
 
 ---
 
-## 13. Running cost
+## 14. Running cost
 
-The product should be cheap and good. **Principle:** use the cheapest option that still meets the quality and latency evals (section 10).
+The product should be cheap and good. **Principle:** use the cheapest option that still meets the quality and latency evals (section 11).
 
 **Proposed cap (proposal, not locked):** €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget, with local Piper for text-to-speech). Spotify Premium is the user’s own subscription and sits outside the cap. Hardware, electricity and one-off purchases are also outside it.
 
-### 13.1 Sources (checked 2026-11-26)
+### 14.1 Sources (checked 2026-11-26)
 
 * Berget list prices and plans: [`GET /v1/models`](https://api.berget.ai/v1/models), [pricing](https://berget.ai/en/pricing), Pianissimo also in the [realtime announcement](https://berget.ai/en/blog/realtime-transcription-launch). All Berget prices below are **excluding VAT**. Swedish consumers are charged 25% VAT ([pricing FAQ](https://berget.ai/en/pricing)).
 * Vercel Hobby (free): [Hobby plan](https://vercel.com/docs/plans/hobby).
 * Supabase Free: [pricing](https://supabase.com/pricing); free projects may pause after a week of low activity ([project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)).
 * Spotify Premium Individual, Sweden: 149 SEK per month after any trial ([spotify.com/se/premium](https://www.spotify.com/se/premium/)).
-* Piper, the v1 text-to-speech choice: no hosted fee (section 5). ReadSpeaker speechCloud is the quality fallback and has no public unit price, so it is not in this estimate.
+* Piper, the v1 text-to-speech choice: no hosted fee (section 6). ReadSpeaker speechCloud is the quality fallback and has no public unit price, so it is not in this estimate.
 
 Berget’s [pricing FAQ](https://berget.ai/en/pricing) states that Trial includes €5 starting credits and €0 per month, and that **continued API access requires an active plan from €25 per month in prepaid credits** (Starter: €25 per month, with a €25 monthly top-up). Unused credits roll over and remain valid for 12 months. Plans include prepaid tokens at a discount to list price; this estimate uses **list prices** for usage, because the size of the plan discount is not published.
 
-### 13.2 Usage assumptions (labelled, not measured)
+### 14.2 Usage assumptions (labelled, not measured)
 
 For **one household, one device, 30 days**:
 
 * 15 minutes of user speech per day is sent to Pianissimo after the wake word (local wake-word listening is not billed). That is 450 minutes of STT audio per month.
 * 15 minutes of assistant speech per day (TTS).
+* Unprompted speech, such as a morning brief and reminders (section 5), is not included in these minutes. A household that uses it every day will be above the figures here.
 * 20 conversational turns per day (600 turns per month).
 * Per turn, the conversation model is assumed to use 2,000 input tokens and 300 output tokens (system prompt, memories, recent turns, user text, and a short spoken reply). This is an assumption, not a measurement.
 * Embeddings: 100 input tokens to embed the query on each turn, plus 200 input tokens of extracted facts after 10 conversations per day (120,000 input tokens per month). Catalogue output price for E5 is not applied in this estimate.
-* The conversation model used for the estimate is `google/gemma-4-31B-it` (€0.25 input / €0.50 output per million tokens). The price is taken from Berget’s suggested starting point for Swedish or Scandinavian applications in [Choose a language model](https://docs.berget.ai/models/choosing-a-model). That id is only an input to this estimate. This repository does not configure a conversation model; the user chooses one (section 8). If evals later show that a cheaper model is good enough, the cost principle says to switch.
+* The conversation model used for the estimate is `google/gemma-4-31B-it` (€0.25 input / €0.50 output per million tokens). The price is taken from Berget’s suggested starting point for Swedish or Scandinavian applications in [Choose a language model](https://docs.berget.ai/models/choosing-a-model). That id is only an input to this estimate. This repository does not configure a conversation model; the user chooses one (section 9). If evals later show that a cheaper model is good enough, the cost principle says to switch.
 * Web admin stays within Vercel Hobby and Supabase Free. If a Free Supabase project is paused for inactivity, that is a product risk, not a monthly fee in this estimate.
 * Electricity, the Pi, the radio and other hardware are not included.
 
-### 13.3 Estimate at list prices (usage)
+### 14.3 Estimate at list prices (usage)
 
 | Item | Basis | Monthly estimate (excl. VAT) |
 | -- | -- | -- |
@@ -333,7 +373,7 @@ For **one household, one device, 30 days**:
 
 At these assumptions, metered usage is about €2 per month excluding VAT (about €2.46 including 25% Swedish consumer VAT). That sits well inside Starter’s €25 prepaid credits.
 
-### 13.4 What the household actually pays
+### 14.4 What the household actually pays
 
 | Item | Monthly | Notes |
 | -- | -- | -- |
@@ -346,13 +386,14 @@ Trial (€0 / month, €5 starting credits) can cover a short test period at thi
 
 ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fallback is used, its price must be added when a quote exists; the cap may then need to be revisited.
 
-## 14. Decisions and open questions
+## 15. Decisions and open questions
 
 **Decided (2026-11-26):**
 
 * The product is called Radio Days. The repository is [`PanamaDonne/radio-days`](https://github.com/PanamaDonne/radio-days). The repository rename is done.
-* A voice agent in an old radio on a Raspberry Pi 4 with 4 GB. The team engine is shut down. The pivot happens in the same repo.
-* v1: wake word, conversation with AI, Spotify controlled by voice with no button (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes), long-term memory, and a cloud web admin skeleton. Gmail and the physical approval button come in v2.
+* A voice agent in an old radio on a Raspberry Pi 4 with 4 GB. It gets to know the user and makes its own decisions. The team engine is shut down. The pivot happens in the same repo.
+* v1: wake word, conversation with an AI that learns habits and preferences and acts on them when it is confident enough (it asks only when it is unsure), proactive speech such as a morning brief and reminders, Spotify controlled by voice with no button (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes), long-term memory, and a cloud web admin skeleton. Multi-step goal planning is not in v1. Gmail and the physical approval button come in v2. Any action with consequences outside the radio always requires that button.
+* Autonomy (Daniel, 2026-11-26): the radio gets to know the user and makes its own decisions. Primary: it learns habits and preferences, acts when it is confident enough, and asks only when it is unsure. Secondary: proactive speech, for example a morning brief and reminders. Not in v1: multi-step goal planning. Guardrails: quiet hours, a limit on how often it may speak unprompted, the user can turn autonomous behaviour off and can correct or forget a learned habit by voice and in the web admin, learned habit data stays in the on-device encrypted memory and the cloud sees only status, and any action with consequences outside the radio (email in v2) always requires the physical approval button. See section 5.
 * A Spotify Premium account is required for that voice control. This follows Spotify’s Web API rule that playback-control endpoints work only for Premium users ([Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback)).
 * Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech. User-facing voice text is Swedish. Pianissimo was confirmed in Berget’s public catalogue on 2026-11-26. Text-to-speech for v1 is local Piper on the Raspberry Pi with a Swedish voice (`sv_SE-nst-medium` or `sv_SE-alma-medium`), decided 2026-11-26. ReadSpeaker is the fallback if quality is not good enough. Berget Sten is not available and is not the v1 choice.
 * Web admin in the cloud (Next.js on Vercel, with Supabase); secrets live on the Pi, encrypted on disk. The key is encrypted in the browser with the Pi’s public key. Spotify OAuth uses PKCE, with token exchange on the Pi. The cloud sees status, never secrets.
@@ -361,11 +402,12 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 * PR #13 and Laget Bots stage 1 are paused.
 * Long-term memory: SQLite on the Pi with sqlite-vec; embeddings default to Berget E5, `intfloat/multilingual-e5-large-instruct` (PO recommendation, 2026-11-26; Daniel can still object). A small local embedding model is an optional offline fallback, not required in v1. Catalogue also lists `intfloat/multilingual-e5-large`. facts extracted after each conversation; 5–10 most relevant memories retrieved into each conversation; database encrypted with SQLCipher; the key can later be locked in the ATECC608; admin reads and deletes memory via the Pi, with no copy in the cloud; the admin can download an encrypted backup. Memory content must never appear in cloud storage or logs. A backup must be encrypted and restorable.
 * Daniel finds the radio himself. A desk prototype with Pi and microphone is enough until then.
-* Running-cost principle: use the cheapest option that meets the quality and latency evals. v1 text-to-speech is local Piper, with no hosted fee. Proposed cap: €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget Starter). Spotify Premium is outside the cap. See section 13. This cap is a proposal, not locked.
+* Running-cost principle: use the cheapest option that meets the quality and latency evals. v1 text-to-speech is local Piper, with no hosted fee. Proposed cap: €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget Starter). Spotify Premium is outside the cap. See section 14. This cap is a proposal, not locked.
 * TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges.
 
 **Open:**
 
 1. **Exact wake word.** A wake word is in v1; the phrase itself is not chosen.
-2. **Proposed cost cap.** Section 13 estimates about €2 per month in metered usage (list prices, stated assumptions) and €25 per month excluding VAT as the amount actually paid on Berget Starter. The €25 cap is a proposal, pending Daniel’s ok.
+2. **Proposed cost cap.** Section 14 estimates about €2 per month in metered usage (list prices, stated assumptions) and €25 per month excluding VAT as the amount actually paid on Berget Starter. The €25 cap is a proposal, pending Daniel’s ok. Those assumptions leave out unprompted speech.
 3. **Hardware fit.** Compatibility of the Pi 4, amplifier, microphone and the radio Daniel finds is not verified. It is not a blocker for the desk prototype.
+4. **Quiet hours and how often.** Quiet hours, and a limit on how often the radio may speak unprompted, are required (section 5). The clock times and the maximum number of unprompted turns are still open.

@@ -125,6 +125,86 @@ test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
   }
 });
 
+test("SPEC.md describes an agent that learns habits and acts on its own", () => {
+  const spec = readText("SPEC.md");
+  const what = between(spec, "## 1. What it is", "## 2. Scope");
+  const scope = between(spec, "## 2. Scope", "## 3. What is kept");
+  const behaviour = between(
+    spec,
+    "## 5. An agent that learns and decides",
+    "## 6. Voice agent and everyday use",
+  );
+  const approval = between(
+    spec,
+    "## 10. Physical approval",
+    "## 11. Evals",
+  );
+  const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
+  const decided = between(spec, "**Decided", "**Open:**");
+  const open = spec.slice(spec.indexOf("**Open:**"));
+  const scopeLine = what.split("\n").find((line) => line.startsWith("v1 is "));
+
+  assert.ok(scopeLine, "missing v1 scope line");
+  assert.match(what, /gets to know the user and makes its own decisions/);
+  for (const fact of [
+    "habits and preferences",
+    "confident enough",
+    "unsure",
+    "morning brief",
+    "reminders",
+    "Multi-step goal planning is not in v1",
+  ]) {
+    assert.equal(scopeLine.includes(fact), true, `scope line missing ${fact}`);
+  }
+
+  for (const fact of [
+    "Primary",
+    "habits and preferences",
+    "confident enough",
+    "asks only when it is unsure",
+    "Secondary",
+    "morning brief",
+    "reminders",
+    "Multi-step goal planning",
+    "not in v1",
+    "does not speak unprompted during quiet hours",
+    "How often",
+    "turn autonomous behaviour off",
+    "forget",
+    "by voice and in the web admin",
+    "on-device encrypted memory",
+    "The cloud sees only status",
+    "physical approval button",
+    "email",
+  ]) {
+    assert.equal(behaviour.includes(fact), true, `behaviour section missing ${fact}`);
+  }
+  assert.match(behaviour, /section 8/);
+  assert.match(behaviour, /section 10/);
+  assert.equal(spec.includes("## 8. Long-term memory"), true);
+  assert.equal(spec.includes("## 10. Physical approval"), true);
+
+  assert.match(scope, /quiet hours/);
+  assert.match(scope, /multi-step goal planning/i);
+  assert.match(scope, /on-device encrypted memory/);
+
+  assert.match(approval, /consequences outside the radio/);
+  assert.match(approval, /physical approval button/);
+  assert.match(approval, /acting on its own/);
+
+  assert.match(milestone1, /confident enough/);
+  assert.match(milestone1, /asks/);
+  assert.match(milestone1, /quiet hours/);
+  assert.match(milestone1, /multi-step goal planning/i);
+  assert.match(milestone1, /physical approval button/);
+
+  assert.match(decided, /learns habits and preferences/);
+  assert.match(decided, /Daniel, 2026-11-26/);
+  assert.match(decided, /physical approval button/);
+  assert.match(open, /Quiet hours/);
+  assert.match(open, /still open/);
+});
+
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   const readme = readText("README.md");
   const agents = readText("AGENTS.md");
