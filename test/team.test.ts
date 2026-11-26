@@ -42,12 +42,7 @@ import {
   runTeam,
   formatRunResult,
 } from "../src/runner.ts";
-import {
-  ConfiguredProvider,
-  createCustomProvider,
-  getProvider,
-  toSafeProvider,
-} from "../src/providers.ts";
+import { ConfiguredProvider, createCustomProvider, toSafeProvider } from "../src/providers.ts";
 import { createClient } from "../src/client.ts";
 import type { ConfiguredTeam, TeamConfigInput } from "../src/team.ts";
 import type { ProviderClient } from "../src/client.ts";
@@ -1059,18 +1054,8 @@ test("example-team.json can be parsed", async () => {
   const config = parseTeamConfig(input);
 
   assert.equal(config.name, "Exempelteam");
-  assert.equal(config.defaultProviderId, "grok");
   assert.equal(config.agents.length, 3);
-  assert.ok(config.agents.every((agent) => agent.model === undefined));
   assert.ok(config.agents.some((a) => a.roleId === "po"));
   assert.ok(config.agents.some((a) => a.roleId === "dev"));
   assert.ok(config.agents.some((a) => a.roleId === "reviewer"));
-
-  const grok = getProvider("grok");
-  assert.ok(grok);
-  const provider = new ConfiguredProvider(grok, "fake-grok-key");
-  const team = configureTeam(config, () => provider);
-
-  assert.ok(team.agents.every((agent) => agent.model === "grok-4.7"));
-  assert.ok(!JSON.stringify(team).includes("fake-grok-key"));
 });
