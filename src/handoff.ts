@@ -373,7 +373,21 @@ function isBlockQuote(line: string): boolean {
 }
 
 function isIndentedCodeLine(line: string): boolean {
-  return /^(?: {4,}|\t)/.test(withoutCarriageReturn(line));
+  const raw = withoutCarriageReturn(line);
+  let column = 0;
+  for (const char of raw) {
+    if (char === " ") {
+      column += 1;
+    } else if (char === "\t") {
+      column += 4 - (column % 4);
+    } else {
+      return false;
+    }
+    if (column >= 4) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function lineHasLooseMarker(line: string, lineStart: number, ignored: readonly TextSpan[]): boolean {

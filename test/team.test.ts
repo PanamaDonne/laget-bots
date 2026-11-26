@@ -761,6 +761,28 @@ test("parseAgentResponse still accepts a marker indented by fewer than four spac
   assert.match(parsed.content, /Färdigt/);
 });
 
+test("parseAgentResponse ignores a marker indented with spaces and a tab", () => {
+  const team = createTestTeam();
+
+  const oneSpace = parseAgentResponse(" \t[KLART]\nInte klart.", team);
+  const twoSpaces = parseAgentResponse("  \t[KLART]\nInte klart.", team);
+  const threeSpaces = parseAgentResponse("   \t[LÄMNAR ÖVER TILL Erik]\nInte än.", team);
+  const besideReal = parseAgentResponse(
+    " \t[KLART]\n[LÄMNAR ÖVER TILL Erik]\nGör det",
+    team,
+  );
+
+  assert.equal(oneSpace.type, "invalid");
+  assert.match(oneSpace.error ?? "", /saknar markör/);
+  assert.equal(twoSpaces.type, "invalid");
+  assert.match(twoSpaces.error ?? "", /saknar markör/);
+  assert.equal(threeSpaces.type, "invalid");
+  assert.match(threeSpaces.error ?? "", /saknar markör/);
+  assert.equal(besideReal.type, "handoff");
+  assert.equal(besideReal.targetAgentId, "dev-1");
+  assert.equal(besideReal.error, undefined);
+});
+
 test("parseAgentResponse ignores a marker inside a pre element", () => {
   const team = createTestTeam();
 
