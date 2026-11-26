@@ -145,7 +145,9 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   const scopeLine = what.split("\n").find((line) => line.startsWith("v1 is "));
 
   assert.ok(scopeLine, "missing v1 scope line");
-  assert.match(what, /gets to know the user and makes its own decisions/);
+  assert.match(what, /The core of the agent is getting to know the user/);
+  assert.match(what, /makes its own decisions/);
+  assert.match(what, /Proactive announcements are driven by what it has learned/);
   for (const fact of [
     "habits and preferences",
     "confident enough",
@@ -165,7 +167,14 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "Primary",
     "habits and preferences",
     "confident enough",
+    "The core of the agent is getting to know the user",
+    "Proactive announcements are driven by what it has learned",
     "asks only when it is unsure",
+    "habit-based suggestions for Spotify content are in v1",
+    "Nytt avsnitt av podden <namn> är ute, som du brukar lyssna på. Ska jag sätta på det?",
+    "Shall I put it on?",
+    "asks before playing",
+    "just play",
     "Important proactive announcements",
     "It is not secondary",
     "Calendar reminders",
