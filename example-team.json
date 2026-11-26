@@ -1,0 +1,25 @@
+{
+  "namn": "Exempelteam",
+  "beskrivning": "Ett team som demonstrerar samarbete mellan agenter",
+  "standardLeverantör": "berget",
+  "agenter": [
+    {
+      "id": "po-1",
+      "roll": "PO-agent",
+      "namn": "Anna",
+      "modell": "google/gemma-4-31B-it"
+    },
+    {
+      "id": "dev-1",
+      "roll": "Dev-agent",
+      "namn": "Erik",
+      "modell": "google/gemma-4-31B-it"
+    },
+    {
+      "id": "reviewer-1",
+      "roll": "Gransknings-agent",
+      "namn": "Lisa",
+      "modell": "google/gemma-4-31B-it"
+    }
+  ]
+}
