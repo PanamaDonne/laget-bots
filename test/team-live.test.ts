@@ -842,6 +842,8 @@ describe("team run against a real provider", { concurrency: false }, () => {
     shows(agents, "unknown key");
     shows(agents, "raw user input");
     shows(agents, "trimmed form");
+    const rule = agents.split("\n").filter((line) => line.includes("unknown key") || line.includes("must not by itself"));
+    assert.equal(rule.length, 2);
     shows(agents, "--live");
     assert.equal(readme.includes("Riktig modell"), false);
     assert.equal(readme.includes(FAKE_BERGET), false);
