@@ -43,7 +43,7 @@ When writing files to a target directory, do not follow existing symlinks and ve
 
 Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code. A marker that is only mentioned in running text must never end or steer the run.
 
-Ignore a marker on a line that starts with four or more spaces or a tab. Test indented code blocks, list items, and a marker with other text on the same line.
+Ignore a marker on a line that starts with four or more spaces or a tab, except when the indent only continues a list item. A code block nested in the list still does not count. A tab advances to the next four-column stop, so a space followed by a tab is indented code too. Ignore a marker inside a `<code>` element. Test indented code blocks, list items, and a marker with other text on the same line.
 
 Normalize both the model reply and the team config (name, id and role) to NFC before comparing them. Never normalize only one side.
 
