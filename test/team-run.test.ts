@@ -100,6 +100,23 @@ test("AGENTS.md requires an error event when reply parsing fails", () => {
   );
 });
 
+test("AGENTS.md parses a marker only when it is a real marker", () => {
+  const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
+
+  assert.match(
+    agents,
+    /Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code\./,
+  );
+  assert.match(
+    agents,
+    /A marker that is only mentioned in running text must never end or steer the run\./,
+  );
+  assert.match(agents, /four or more spaces or a tab/);
+  assert.match(agents, /indented code blocks, list items, and a marker with other text on the same line/);
+  assert.match(agents, /Normalize both the model reply and the team config/);
+  assert.match(agents, /Never normalize only one side/);
+});
+
 test("README documents npm run team", () => {
   const readme = readFileSync(join(root, "README.md"), "utf8");
 
@@ -168,6 +185,51 @@ test("runTeamFromFile shows a mock team run and does not call the network", asyn
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("npm run team accepts an NFD team file", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "laget-nfd-"));
+  const path = join(dir, "team.json");
+  const devId = "dev-ö".normalize("NFD");
+  const devName = "Östen".normalize("NFD");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      namn: "NFD-team",
+      beskrivning: "Namn med NFD",
+      agenter: [
+        { id: "po-1", roll: "produktägare".normalize("NFD"), namn: "Åsa".normalize("NFD") },
+        { id: devId, roll: "Dev-agent", namn: devName },
+        { id: "reviewer-1", roll: "Gransknings-agent", namn: "Ärla".normalize("NFD") },
+      ],
+    }),
+  );
+  assert.notEqual(devName, devName.normalize("NFC"));
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["--experimental-strip-types", "src/team-cli.ts", path, "Bygg en funktion"],
+    { cwd: root },
+  );
+
+  assert.match(stdout, /slutförde målet/);
+  assert.equal(stdout.includes("Okänd mottagare"), false);
+});
+
+test("a marker that shares its line does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies(["[KLART] Allt klart"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+  assert.equal(events.some((event) => event.type === "done"), false);
 });
 
 test("npm run team prints the example team run without a live model", async () => {
@@ -240,7 +302,7 @@ test("a reply with text before the marker is parsed and the run continues", asyn
   const mock = mockReplies([
     "Jag har förtydligat målet.\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
     "Implementationen är klar.\n[LÄMNAR ÖVER TILL Lisa]\nGranska",
-    "Allt klart! [KLART]\nFärdigt",
+    "Allt klart!\n[KLART]\nFärdigt",
   ]);
 
   const result = await runTeam(team, "Mål", {
@@ -283,7 +345,7 @@ test("a reply with no marker stops the run with an error event", async () => {
 test("several markers stop the run with an error event", async () => {
   const team = createTestTeam();
   const events: Array<{ type: string; content: string }> = [];
-  const mock = mockReplies(["Först [KLART] och sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det"]);
+  const mock = mockReplies(["[KLART]\noch sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det"]);
 
   const result = await runTeam(team, "Mål", {
     createClientFn: mock.client,
@@ -298,6 +360,179 @@ test("several markers stop the run with an error event", async () => {
   const failure = events.find((event) => event.type === "error");
   assert.equal(failure?.content, result.error);
   assert.equal(events.some((event) => event.type === "handoff" || event.type === "done"), false);
+});
+
+test("a marker in an indented code block does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["Så här ser det ut:\n    [KLART]\nJag är inte klar än."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(result.turns, 1);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a tab-indented marker does not steer the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["\t[LÄMNAR ÖVER TILL Erik]\nInte än."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "handoff"), false);
+});
+
+test("a marker inside pre does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["<pre>\n[KLART]\n</pre>\nInte klart."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a marker in a code block does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies([
+    "Så här ser formatet ut:\n```\n[KLART]\n```\nJag är inte klar än.",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(result.turns, 1);
+  assert.equal(mock.calls(), 1);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a marker in a quote does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["> [KLART]\nInte klart."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a marker in inline code does not steer the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["Använd `[LÄMNAR ÖVER TILL Erik]` när du är klar"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "handoff"), false);
+});
+
+test("a marker mentioned in running text does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["Jag ska skriva [KLART] sist, men jag har inte börjat"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a reply that only mentions markers does not stop for several markers", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies([
+    "Använd [LÄMNAR ÖVER TILL Erik], [FRÅGAR Anna] eller [KLART].",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
+  assert.equal(result.error?.includes("flera markörer"), false);
+  assert.equal(result.turns, 1);
+  assert.equal(
+    events.some((event) => event.type === "handoff" || event.type === "question" || event.type === "done"),
+    false,
+  );
+});
+
+test("a real marker still steers the run when other markers are only mentioned", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies([
+    "Plan.\n[LÄMNAR ÖVER TILL Erik]\nSkriv [KLART] när du är klar.",
+    "[KLART]\nFärdigt",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.turns, 2);
+  assert.equal(mock.calls(), 2);
+  assert.equal(events.some((event) => event.type === "handoff"), true);
+  assert.equal(events.some((event) => event.type === "done"), true);
+  assert.equal(events.some((event) => event.type === "error"), false);
+});
+
+test("an NFD marker steers the run like a normal marker", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies([
+    "[LÄMNAR ÖVER TILL Erik]\nImplementera".normalize("NFD"),
+    "[KLART]\nKlart",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.turns, 2);
+  assert.equal(events.some((event) => event.type === "handoff"), true);
+  assert.equal(events.some((event) => event.type === "done"), true);
+  assert.equal(events.some((event) => event.type === "error"), false);
 });
 
 function routingEvents(events: ReadonlyArray<{ type: string }>): string[] {

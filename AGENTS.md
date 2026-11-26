@@ -33,6 +33,14 @@ When you add TypeScript outside `src/` and `test/`, add that path to `include` i
 
 When writing files to a target directory, do not follow existing symlinks and verify that every resolved path stays inside the directory. Replace symlinks instead of following them, and use path separator in prefix checks to avoid false positives.
 
+## Markers
+
+Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code. A marker that is only mentioned in running text must never end or steer the run.
+
+Ignore a marker on a line that starts with four or more spaces or a tab. Test indented code blocks, list items, and a marker with other text on the same line.
+
+Normalize both the model reply and the team config (name, id and role) to NFC before comparing them. Never normalize only one side.
+
 ## Handoffs
 
 Handoffs go through artifacts, not free chat: PO writes the issue with goal and exit check -> dev writes the PR -> Vera reviews the PR on the exact head SHA -> Lazek tests the same SHA -> Daniel merges. Key decisions go in the issue or PR, not only in chat. Only one agent writes to a branch at a time.
