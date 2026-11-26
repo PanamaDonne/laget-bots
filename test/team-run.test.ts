@@ -15,6 +15,15 @@ import { loadTeamConfig, runTeamFromFile } from "../src/team-run.ts";
 
 const execFileAsync = promisify(execFile);
 const root = fileURLToPath(new URL("..", import.meta.url));
+const PROVIDER_ENV = ["BERGET_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY"] as const;
+
+function providerFreeEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of PROVIDER_ENV) {
+    delete env[key];
+  }
+  return env;
+}
 
 function createMockProvider(): ConfiguredProvider {
   const provider = createCustomProvider({
@@ -164,6 +173,10 @@ test("runTeamFromFile shows a mock team run and does not call the network", asyn
   const lines: string[] = [];
   let fetchCalls = 0;
   const originalFetch = globalThis.fetch;
+  const savedEnv = PROVIDER_ENV.map((key) => [key, process.env[key]] as const);
+  for (const key of PROVIDER_ENV) {
+    delete process.env[key];
+  }
   globalThis.fetch = async () => {
     fetchCalls += 1;
     throw new Error("live call");
@@ -187,6 +200,13 @@ test("runTeamFromFile shows a mock team run and does not call the network", asyn
     assert.equal(output.includes("fake-team-demo-key"), false);
   } finally {
     globalThis.fetch = originalFetch;
+    for (const [key, value] of savedEnv) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   }
 });
 
@@ -212,7 +232,7 @@ test("npm run team accepts an NFD team file", async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
     ["--experimental-strip-types", "src/team-cli.ts", path, "Bygg en funktion"],
-    { cwd: root },
+    { cwd: root, env: providerFreeEnv() },
   );
 
   assert.match(stdout, /slutförde målet/);
@@ -239,7 +259,7 @@ test("npm run team prints the example team run without a live model", async () =
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
     ["--experimental-strip-types", "src/team-cli.ts", "example-team.json", "Bygg en funktion"],
-    { cwd: root },
+    { cwd: root, env: providerFreeEnv() },
   );
   const output = `${stdout}\n${stderr}`;
 

@@ -31,6 +31,15 @@ import { configureTeam, parseTeamConfig, type ConfiguredTeam, type TeamConfigInp
 const execFileAsync = promisify(execFile);
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+const PROVIDER_ENV = ["BERGET_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY", "OPENAI_API_KEY"] as const;
+
+function providerFreeEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of PROVIDER_ENV) {
+    delete env[key];
+  }
+  return env;
+}
 
 function createMockProvider(): ConfiguredProvider {
   const provider = createCustomProvider({
@@ -638,7 +647,7 @@ async function runCli(args: readonly string[]): Promise<{ code: number; stdout: 
     const result = await execFileAsync(
       process.execPath,
       ["--experimental-strip-types", "src/team-cli.ts", ...args],
-      { cwd: root },
+      { cwd: root, env: providerFreeEnv() },
     );
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {

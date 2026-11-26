@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 
 import type { ChatCompletionResponse, ProviderClient } from "./client.ts";
 import { createClient } from "./client.ts";
-import { ConfiguredProvider, createCustomProvider } from "./providers.ts";
+import { ConfiguredProvider, configureProvider, createCustomProvider, formatProviderLabel, getProvider } from "./providers.ts";
 import { getRole } from "./roles.ts";
-import { formatRunResult, runTeam, type TurnEvent } from "./runner.ts";
+import { formatRunResult, runTeam, type RunResult, type TurnEvent } from "./runner.ts";
 import {
   configureTeam,
   parseTeamConfig,
+  type AgentConfig,
   type ConfiguredTeam,
   type TeamConfig,
   type TeamConfigInput,
@@ -166,24 +167,170 @@ function nameForRole(team: ConfiguredTeam, roleId: "po" | "dev" | "reviewer"): s
 export type TeamRunIO = {
   write?: (line: string) => void;
   maxTokens?: number;
+  providerId?: string;
+  model?: string;
 };
+
+type ResolvedRun = {
+  team: ConfiguredTeam;
+  live: boolean;
+  notice: string;
+};
+
+function blankToUndefined(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+  return value;
+}
+
+function applySelection(
+  config: TeamConfig,
+  selection: { providerId?: string; model?: string },
+): TeamConfig {
+  const providerId = blankToUndefined(selection.providerId);
+  const model = blankToUndefined(selection.model);
+  return {
+    ...config,
+    defaultProviderId: providerId ?? blankToUndefined(config.defaultProviderId),
+    agents: config.agents.map((agent) => ({
+      ...agent,
+      providerId: providerId ?? blankToUndefined(agent.providerId),
+      model: model ?? agent.model,
+    })),
+  };
+}
+
+function chosenProviderId(agent: AgentConfig, config: TeamConfig): string | undefined {
+  return agent.providerId ?? config.defaultProviderId;
+}
+
+/** Live only when every agent has a configured provider. Any missing key keeps the whole run on the mock. */
+function resolveRun(config: TeamConfig): ResolvedRun {
+  const ids = config.agents.map((agent) => chosenProviderId(agent, config));
+  const missingEnv: string[] = [];
+  const configured = new Map<string, ConfiguredProvider>();
+
+  for (const id of ids) {
+    if (id === undefined) {
+      continue;
+    }
+    const known = getProvider(id);
+    if (known === null) {
+      throw new Error(`Okänd leverantör: ${id}`);
+    }
+    if (configured.has(id) || missingEnv.includes(known.envKey)) {
+      continue;
+    }
+    const ready = configureProvider(id);
+    if (ready === null) {
+      missingEnv.push(known.envKey);
+    } else {
+      configured.set(id, ready);
+    }
+  }
+
+  const live = ids.every((id) => id !== undefined && configured.has(id));
+  if (!live) {
+    return {
+      team: configureTeam(config, () => createDemoProvider()),
+      live: false,
+      notice: missingEnv.length === 0 ? "Leverantör: Mock" : `Leverantör: Mock (ingen nyckel i ${missingEnv.join(", ")})`,
+    };
+  }
+
+  const team = configureTeam(config, (providerId) => {
+    if (providerId === undefined) {
+      return null;
+    }
+    return configured.get(providerId) ?? null;
+  });
+  return { team, live: true, notice: formatLiveNotice(team) };
+}
+
+function formatLiveNotice(team: ConfiguredTeam): string {
+  const labels = team.agents.map((agent) => ({
+    name: agent.name,
+    provider: formatProviderLabel(agent.provider),
+    model: agent.model,
+  }));
+  const first = labels[0];
+  if (
+    first !== undefined &&
+    labels.every((label) => label.provider === first.provider && label.model === first.model)
+  ) {
+    return `Leverantör: ${first.provider}, modell ${first.model}`;
+  }
+  const lines = ["Leverantörer:"];
+  for (const label of labels) {
+    lines.push(`- ${label.name}: ${label.provider}, modell ${label.model}`);
+  }
+  return lines.join("\n");
+}
+
+function redactSecrets(text: string, secrets: readonly string[]): string {
+  let redacted = text;
+  for (const secret of secrets) {
+    if (secret.length === 0) {
+      continue;
+    }
+    redacted = redacted.split(secret).join("[REDACTED]");
+  }
+  return redacted;
+}
+
+function uniqueSecrets(team: ConfiguredTeam): string[] {
+  const secrets: string[] = [];
+  for (const agent of team.agents) {
+    const secret = agent.provider.getApiKey();
+    if (secret.length > 0 && !secrets.includes(secret)) {
+      secrets.push(secret);
+    }
+  }
+  return secrets;
+}
+
+function redactResult(result: RunResult, secrets: readonly string[]): RunResult {
+  if (secrets.length === 0) {
+    return result;
+  }
+  const redact = (text: string) => redactSecrets(text, secrets);
+  return {
+    ...result,
+    error: result.error === undefined ? undefined : redact(result.error),
+    finalSummary: redact(result.finalSummary),
+    context: {
+      ...result.context,
+      goal: redact(result.context.goal),
+      entries: result.context.entries.map((entry) => ({
+        ...entry,
+        content: redact(entry.content),
+      })),
+    },
+  };
+}
 
 export async function runTeamFromFile(
   configPath: string,
   goal: string,
   io: TeamRunIO = {},
 ): Promise<Awaited<ReturnType<typeof runTeam>>> {
-  const write = io.write ?? ((line: string) => console.log(line));
+  const emit = io.write ?? ((line: string) => console.log(line));
   const config = loadTeamConfig(configPath);
-  const team = configureTeam(config, () => createDemoProvider());
+  const resolved = resolveRun(applySelection(config, { providerId: io.providerId, model: io.model }));
+  const secrets = resolved.live ? uniqueSecrets(resolved.team) : [];
+  const write = (line: string) => emit(redactSecrets(line, secrets));
 
-  write(`Teamkörning: ${team.name}`);
+  write(`Teamkörning: ${resolved.team.name}`);
   write(`Mål: ${goal}`);
+  for (const line of resolved.notice.split("\n")) {
+    write(line);
+  }
   write("");
 
-  const result = await runTeam(team, goal, {
+  const result = await runTeam(resolved.team, goal, {
     maxTokens: io.maxTokens,
-    createClientFn: createDemoClient(team),
+    createClientFn: resolved.live ? createClient : createDemoClient(resolved.team),
     onTurn: (event) => {
       const line = formatDemoTurn(event);
       if (line !== null) {
@@ -194,5 +341,5 @@ export async function runTeamFromFile(
 
   write("");
   write(formatRunResult(result));
-  return result;
+  return redactResult(result, secrets);
 }

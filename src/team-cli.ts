@@ -3,15 +3,25 @@ import { pathToFileURL } from "node:url";
 
 import { runTeamFromFile } from "./team-run.ts";
 
-const USAGE = 'Användning: npm run team -- <konfiguration.json> "<mål>" [--max-tokens <antal>]';
+const USAGE =
+  'Användning: npm run team -- <konfiguration.json> "<mål>" [--provider <id>] [--model <id>] [--max-tokens <antal>]';
 
 export type TeamCliArgs =
-  | { ok: true; configPath: string; goal: string; maxTokens?: number }
+  | {
+      ok: true;
+      configPath: string;
+      goal: string;
+      maxTokens?: number;
+      providerId?: string;
+      model?: string;
+    }
   | { ok: false; error: string };
 
 export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   const positionals: string[] = [];
   let maxTokens: number | undefined;
+  let providerId: string | undefined;
+  let model: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] ?? "";
@@ -19,15 +29,33 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
       continue;
     }
     if (arg === "--max-tokens" || arg.startsWith("--max-tokens=")) {
-      const raw = arg === "--max-tokens" ? argv[index + 1] : arg.slice("--max-tokens=".length);
-      if (arg === "--max-tokens") {
-        index += 1;
-      }
-      const parsed = parseTokenCap(raw);
+      const taken = readFlagValue(argv, index, arg, "--max-tokens");
+      index = taken.index;
+      const parsed = parseTokenCap(taken.raw);
       if (!parsed.ok) {
         return parsed;
       }
       maxTokens = parsed.value;
+      continue;
+    }
+    if (arg === "--provider" || arg.startsWith("--provider=")) {
+      const taken = readFlagValue(argv, index, arg, "--provider");
+      index = taken.index;
+      const parsed = requireFlagValue(taken.raw, "Leverantören saknas");
+      if (!parsed.ok) {
+        return parsed;
+      }
+      providerId = parsed.value;
+      continue;
+    }
+    if (arg === "--model" || arg.startsWith("--model=")) {
+      const taken = readFlagValue(argv, index, arg, "--model");
+      index = taken.index;
+      const parsed = requireFlagValue(taken.raw, "Modellen saknas");
+      if (!parsed.ok) {
+        return parsed;
+      }
+      model = parsed.value;
       continue;
     }
     if (arg.startsWith("-")) {
@@ -45,7 +73,29 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   if (extra !== undefined) {
     return { ok: false, error: `Okänt argument: ${extra}` };
   }
-  return { ok: true, configPath, goal, maxTokens };
+  return { ok: true, configPath, goal, maxTokens, providerId, model };
+}
+
+function readFlagValue(
+  argv: readonly string[],
+  index: number,
+  arg: string,
+  flag: string,
+): { raw: string | undefined; index: number } {
+  if (arg === flag) {
+    return { raw: argv[index + 1], index: index + 1 };
+  }
+  return { raw: arg.slice(flag.length + 1), index };
+}
+
+function requireFlagValue(
+  raw: string | undefined,
+  missing: string,
+): { ok: true; value: string } | { ok: false; error: string } {
+  if (raw === undefined || raw.trim() === "" || raw.trim().startsWith("-")) {
+    return { ok: false, error: missing };
+  }
+  return { ok: true, value: raw.trim() };
 }
 
 function parseTokenCap(raw: string | undefined): { ok: true; value: number } | { ok: false; error: string } {
@@ -78,6 +128,8 @@ async function main(): Promise<void> {
   try {
     const result = await runTeamFromFile(parsed.configPath, parsed.goal, {
       maxTokens: parsed.maxTokens,
+      providerId: parsed.providerId,
+      model: parsed.model,
     });
     if (!result.success) {
       process.exitCode = 1;
