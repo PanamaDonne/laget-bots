@@ -16,6 +16,7 @@ export const DEFAULT_MAX_CONTEXT_ENTRIES = 12;
 export const DEFAULT_MAX_ENTRY_CHARS = 2_000;
 
 const TRUNCATION_MARK = "… (avkortat)";
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export type ContextLimits = {
   maxEntries: number;
@@ -51,14 +52,30 @@ export function createContext(goal: string, limits?: Partial<ContextLimits>): Sh
   };
 }
 
+function truncateWellFormed(text: string, maxUnits: number): string {
+  if (maxUnits <= 0) {
+    return "";
+  }
+  let units = 0;
+  let end = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    if (units + segment.length > maxUnits) {
+      break;
+    }
+    units += segment.length;
+    end += segment.length;
+  }
+  return text.slice(0, end);
+}
+
 export function boundEntryContent(content: string, maxChars: number): string {
   if (content.length <= maxChars) {
     return content;
   }
   if (maxChars <= TRUNCATION_MARK.length) {
-    return content.slice(0, maxChars);
+    return truncateWellFormed(content, maxChars);
   }
-  return content.slice(0, maxChars - TRUNCATION_MARK.length) + TRUNCATION_MARK;
+  return truncateWellFormed(content, maxChars - TRUNCATION_MARK.length) + TRUNCATION_MARK;
 }
 
 export function addEntry(

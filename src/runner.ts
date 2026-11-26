@@ -389,7 +389,7 @@ async function runTeamOnce(
     }
 
     let response: string;
-    let callUsage: { total_tokens: number } | undefined;
+    let callUsage: unknown;
     try {
       const result = await executeAgentTurn(agent, team, state, options, {
         messages,

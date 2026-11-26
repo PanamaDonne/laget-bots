@@ -4,10 +4,6 @@ const CHARS_PER_TOKEN = 4;
 /** Default per-run token cap. A normal dev-flow run is about 70k tokens (SPEC §8). */
 export const DEFAULT_MAX_TOKENS = 100_000;
 
-export type ReportedUsage = {
-  total_tokens: number;
-};
-
 export function estimateTokens(text: string): number {
   if (text.length === 0) {
     return 0;
@@ -23,11 +19,15 @@ export function estimateMessages(messages: readonly { content: string }[]): numb
   return total;
 }
 
-export function tokensFromUsage(usage: ReportedUsage | undefined): number | null {
-  if (usage === undefined || !Number.isFinite(usage.total_tokens) || usage.total_tokens < 0) {
+export function tokensFromUsage(usage: unknown): number | null {
+  if (usage == null || typeof usage !== "object" || !("total_tokens" in usage)) {
     return null;
   }
-  return Math.ceil(usage.total_tokens);
+  const total = usage.total_tokens;
+  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) {
+    return null;
+  }
+  return Math.ceil(total);
 }
 
 export function assertPositiveInteger(value: unknown, label: string): number {

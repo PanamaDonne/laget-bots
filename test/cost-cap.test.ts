@@ -3,11 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_MAX_TOKENS, estimateMessages, estimateTokens } from "../src/budget.ts";
+import { DEFAULT_MAX_TOKENS, estimateMessages, estimateTokens, tokensFromUsage } from "../src/budget.ts";
 import type { ChatCompletionRequest, ChatCompletionResponse } from "../src/client.ts";
 import { createClient } from "../src/client.ts";
 import {
   addEntry,
+  boundEntryContent,
   createContext,
   createSnapshot,
   DEFAULT_MAX_CONTEXT_ENTRIES,
@@ -473,6 +474,55 @@ test("the request asks the provider to stop within the remaining completion budg
 
   assert.equal(seen, 25);
   assert.equal(mock.calls(), 1);
+});
+
+test("a null or malformed usage report falls back to the estimate", async () => {
+  assert.equal(tokensFromUsage(null), null);
+  assert.equal(tokensFromUsage(undefined), null);
+  assert.equal(tokensFromUsage({}), null);
+  assert.equal(tokensFromUsage("500"), null);
+  assert.equal(tokensFromUsage({ total_tokens: "500" }), null);
+  assert.equal(tokensFromUsage({ total_tokens: Number.NaN }), null);
+  assert.equal(tokensFromUsage({ total_tokens: 12.4 }), 13);
+
+  const team = createTestTeam();
+  const goal = "Mål";
+  const reply = "[KLART]\nKlar";
+  const promptTokens = firstPromptTokens(team, goal);
+  const mock = mockClient(() => {
+    const response = completion(reply);
+    return { ...response, usage: null } as unknown as ChatCompletionResponse;
+  });
+
+  const result = await runTeam(team, goal, { createClientFn: mock.client });
+
+  assert.equal(mock.calls(), 1);
+  assert.equal(result.success, true);
+  assert.equal(result.tokensUsed, promptTokens + estimateTokens(reply));
+});
+
+function isWellFormed(text: string): boolean {
+  const method = (String.prototype as unknown as { isWellFormed(this: string): boolean }).isWellFormed;
+  return method.call(text);
+}
+
+test("truncation keeps emoji and flags as well-formed text", () => {
+  const mark = "… (avkortat)";
+  const emoji = boundEntryContent(`aaaa😀${"b".repeat(40)}`, mark.length + 5);
+  assert.equal(isWellFormed(emoji), true);
+  assert.ok(emoji.length <= mark.length + 5);
+  assert.equal(emoji, `aaaa${mark}`);
+
+  const flag = boundEntryContent("🇸🇪".repeat(8), mark.length + 3);
+  assert.equal(isWellFormed(flag), true);
+  assert.ok(flag.length <= mark.length + 3);
+  assert.equal(flag, mark);
+
+  const context = createContext("Mål", { maxEntries: 2, maxEntryChars: mark.length + 2 });
+  addEntry(context, "po-1", "po", "work", "😀".repeat(20));
+  const stored = context.entries[0]?.content ?? "";
+  assert.equal(isWellFormed(stored), true);
+  assert.ok(stored.length <= mark.length + 2);
 });
 
 test("defaults cover one dev-flow run and a short context window", () => {
