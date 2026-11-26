@@ -166,7 +166,7 @@ function speakingRole(system: string): "po" | "dev" | "reviewer" {
 function nameForRole(team: ConfiguredTeam, roleId: "po" | "dev" | "reviewer"): string {
   const agent = team.agents.find((candidate) => candidate.roleId === roleId);
   if (agent === undefined) {
-    throw new Error(`Teamet saknar rollen ${roleId}`);
+    throw new Error("Teamet saknar rollen.");
   }
   return agent.name;
 }

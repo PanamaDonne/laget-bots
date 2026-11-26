@@ -68,7 +68,7 @@ export function listRoles(): readonly AgentRole[] {
 export function getRole(id: RoleId): AgentRole {
   const role = KNOWN_ROLES.find((r) => r.id === id);
   if (role === undefined) {
-    throw new Error(`Okänd roll: ${id}`);
+    throw new Error("Okänd roll.");
   }
   return role;
 }
