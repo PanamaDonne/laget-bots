@@ -313,6 +313,52 @@ test("several markers stop the run with an error event", async () => {
   assert.equal(events.some((event) => event.type === "handoff" || event.type === "done"), false);
 });
 
+test("a marker in an indented code block does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["Så här ser det ut:\n    [KLART]\nJag är inte klar än."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(result.turns, 1);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
+test("a tab-indented marker does not steer the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["\t[LÄMNAR ÖVER TILL Erik]\nInte än."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "handoff"), false);
+});
+
+test("a marker inside pre does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["<pre>\n[KLART]\n</pre>\nInte klart."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(events.some((event) => event.type === "done"), false);
+});
+
 test("a marker in a code block does not end the run", async () => {
   const team = createTestTeam();
   const events: Array<{ type: string }> = [];

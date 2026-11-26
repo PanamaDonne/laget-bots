@@ -724,6 +724,71 @@ test("parseAgentResponse ignores a marker in an indented code fence", () => {
   assert.match(parsed.error ?? "", /saknar markör/);
 });
 
+test("parseAgentResponse ignores a marker in an indented code block", () => {
+  const team = createTestTeam();
+
+  const spaces = parseAgentResponse("Så här ser det ut:\n    [KLART]\nJag är inte klar än.", team);
+  const deeper = parseAgentResponse("     [KLART]\nInte klart.", team);
+  const tabbed = parseAgentResponse("\t[LÄMNAR ÖVER TILL Erik]\nInte än.", team);
+
+  assert.equal(spaces.type, "invalid");
+  assert.match(spaces.error ?? "", /saknar markör/);
+  assert.equal(deeper.type, "invalid");
+  assert.match(deeper.error ?? "", /saknar markör/);
+  assert.equal(tabbed.type, "invalid");
+  assert.match(tabbed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse keeps a real marker beside an indented code marker", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "    [KLART]\n[LÄMNAR ÖVER TILL Erik]\nGör det",
+    team,
+  );
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
+  assert.equal(parsed.error, undefined);
+});
+
+test("parseAgentResponse still accepts a marker indented by fewer than four spaces", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("   [KLART]\nFärdigt", team);
+
+  assert.equal(parsed.type, "done");
+  assert.match(parsed.content, /Färdigt/);
+});
+
+test("parseAgentResponse ignores a marker inside a pre element", () => {
+  const team = createTestTeam();
+
+  const plain = parseAgentResponse("<pre>\n[KLART]\n</pre>\nInte klart.", team);
+  const tagged = parseAgentResponse(
+    '<PRE class="exempel">\n[FRÅGAR Anna]\n</PRE>\nFortsätt.',
+    team,
+  );
+
+  assert.equal(plain.type, "invalid");
+  assert.match(plain.error ?? "", /saknar markör/);
+  assert.equal(tagged.type, "invalid");
+  assert.match(tagged.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse keeps a real marker outside a pre element", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "<pre>\n[KLART]\n</pre>\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    team,
+  );
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
+  assert.equal(parsed.error, undefined);
+});
+
 test("parseAgentResponse ignores a marker in a quote", () => {
   const team = createTestTeam();
 

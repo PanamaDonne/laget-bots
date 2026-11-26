@@ -212,8 +212,10 @@ export function parseAgentResponse(
   team: ConfiguredTeam,
 ): ParsedAgentResponse {
   // NFC so NFD å, ä and ö from some tools match the same marker.
-  const trimmed = response.normalize("NFC").trim();
-  const hits = findMarkers(trimmed);
+  // Do not trim first: a leading indent is what makes an indented code block.
+  const normalized = response.normalize("NFC");
+  const trimmed = normalized.trim();
+  const hits = findMarkers(normalized);
   const hit = hits[0];
   if (hit === undefined) {
     return {
@@ -230,7 +232,7 @@ export function parseAgentResponse(
     };
   }
 
-  const content = textAroundMarker(trimmed, hit);
+  const content = textAroundMarker(normalized, hit);
   if (hit.kind === "done") {
     return {
       type: "done",
@@ -255,10 +257,10 @@ type FenceMark = {
 
 function findMarkers(text: string): MarkerHit[] {
   const fences = fenceSpans(text);
-  const ignored = [...fences, ...inlineCodeSpans(text, fences)];
+  const ignored = [...fences, ...inlineCodeSpans(text, fences), ...preSpans(text, fences)];
   const hits: MarkerHit[] = [];
   for (const line of splitLines(text)) {
-    if (isBlockQuote(line.text)) {
+    if (isBlockQuote(line.text) || isIndentedCodeLine(line.text)) {
       continue;
     }
     const hit = markerOnLine(line.text, line.start);
@@ -355,6 +357,56 @@ function fenceChar(token: string): FenceMark["char"] | null {
 
 function isBlockQuote(line: string): boolean {
   return /^[ \t]{0,3}>/.test(withoutCarriageReturn(line));
+}
+
+function isIndentedCodeLine(line: string): boolean {
+  return /^(?: {4}|\t)/.test(withoutCarriageReturn(line));
+}
+
+function preSpans(text: string, fences: readonly TextSpan[]): TextSpan[] {
+  const spans: TextSpan[] = [];
+  const openPattern = /<pre\b[^>]*>/giu;
+  const closePattern = /<\/pre\s*>/giu;
+  let from = 0;
+  while (from < text.length) {
+    const fence = spanAt(from, fences);
+    if (fence !== undefined) {
+      from = fence.end;
+      continue;
+    }
+    const open = nextMatchOutside(text, openPattern, from, fences);
+    if (open === null) {
+      break;
+    }
+    const close = nextMatchOutside(text, closePattern, open.end, fences);
+    if (close === null) {
+      spans.push({ start: open.start, end: text.length });
+      break;
+    }
+    spans.push({ start: open.start, end: close.end });
+    from = close.end;
+  }
+  return spans;
+}
+
+function nextMatchOutside(
+  text: string,
+  pattern: RegExp,
+  from: number,
+  fences: readonly TextSpan[],
+): { start: number; end: number } | null {
+  pattern.lastIndex = from;
+  let match = pattern.exec(text);
+  while (match !== null) {
+    const start = match.index;
+    const fence = spanAt(start, fences);
+    if (fence === undefined) {
+      return { start, end: start + match[0].length };
+    }
+    pattern.lastIndex = fence.end;
+    match = pattern.exec(text);
+  }
+  return null;
 }
 
 function withoutCarriageReturn(line: string): string {
