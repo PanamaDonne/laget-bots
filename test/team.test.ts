@@ -798,6 +798,28 @@ test("parseAgentResponse ignores a marker inside a pre element", () => {
   assert.match(tagged.error ?? "", /saknar markör/);
 });
 
+test("parseAgentResponse ignores a marker inside a code element", () => {
+  const team = createTestTeam();
+
+  const plain = parseAgentResponse("<code>\n[KLART]\n</code>\nInte klart.", team);
+  const tagged = parseAgentResponse(
+    '<CODE class="exempel">\n[FRÅGAR Anna]\n</CODE>\nFortsätt.',
+    team,
+  );
+  const besideReal = parseAgentResponse(
+    "<code>[KLART]</code>\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    team,
+  );
+
+  assert.equal(plain.type, "invalid");
+  assert.match(plain.error ?? "", /saknar markör/);
+  assert.equal(tagged.type, "invalid");
+  assert.match(tagged.error ?? "", /saknar markör/);
+  assert.equal(besideReal.type, "handoff");
+  assert.equal(besideReal.targetAgentId, "dev-1");
+  assert.equal(besideReal.error, undefined);
+});
+
 test("parseAgentResponse keeps a real marker outside a pre element", () => {
   const team = createTestTeam();
 
@@ -942,6 +964,25 @@ test("parseAgentResponse ignores markers in list items", () => {
     assert.equal(parsed.type, "invalid");
     assert.match(parsed.error ?? "", /ensam på en egen rad/);
   }
+});
+
+test("parseAgentResponse accepts a marker that continues a list item", () => {
+  const team = createTestTeam();
+
+  const dash = parseAgentResponse("- punkt\n    [KLART]\nFärdigt", team);
+  const numbered = parseAgentResponse("1. punkt\n    [LÄMNAR ÖVER TILL Erik]\nGör det", team);
+  const nestedCode = parseAgentResponse("- punkt\n      [KLART]\nInte klart.", team);
+  const example = parseAgentResponse("Exempel:\n    [KLART]\nslut", team);
+
+  assert.equal(dash.type, "done");
+  assert.match(dash.content, /punkt/);
+  assert.match(dash.content, /Färdigt/);
+  assert.equal(numbered.type, "handoff");
+  assert.equal(numbered.targetAgentId, "dev-1");
+  assert.equal(nestedCode.type, "invalid");
+  assert.match(nestedCode.error ?? "", /saknar markör/);
+  assert.equal(example.type, "invalid");
+  assert.match(example.error ?? "", /saknar markör/);
 });
 
 test("parseAgentResponse rejects a marker that shares its line", () => {

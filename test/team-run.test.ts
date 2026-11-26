@@ -113,6 +113,8 @@ test("AGENTS.md parses a marker only when it is a real marker", () => {
   );
   assert.match(agents, /four or more spaces or a tab/);
   assert.match(agents, /four-column stop/);
+  assert.match(agents, /continues a list item/);
+  assert.match(agents, /<code>/);
   assert.match(agents, /indented code blocks, list items, and a marker with other text on the same line/);
   assert.match(agents, /Normalize both the model reply and the team config/);
   assert.match(agents, /Never normalize only one side/);
@@ -392,6 +394,38 @@ test("a tab-indented marker does not steer the run", async () => {
   assert.equal(result.success, false);
   assert.match(result.error ?? "", /saknar markör/);
   assert.equal(events.some((event) => event.type === "handoff"), false);
+});
+
+test("a marker that continues a list item ends the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["- punkt\n    [KLART]\nFärdigt"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.turns, 1);
+  assert.equal(events.some((event) => event.type === "done"), true);
+  assert.equal(events.some((event) => event.type === "error"), false);
+});
+
+test("a marker inside a code element does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["<code>\n[KLART]\n</code>\nInte klart."]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /saknar markör/);
+  assert.equal(result.turns, 1);
+  assert.equal(events.some((event) => event.type === "done"), false);
 });
 
 test("a marker indented with a space and a tab does not end the run", async () => {

@@ -263,14 +263,24 @@ const LOOSE_MARKER_PATTERN = /\[LÄMNAR ÖVER TILL [^\]]*\]|\[FRÅGAR [^\]]*\]|\
 
 function scanReply(text: string): { hits: MarkerHit[]; loose: boolean } {
   const fences = fenceSpans(text);
-  const pres = preSpans(text, fences);
+  const pres = elementSpans(text, "pre", fences);
   const inlines = inlineCodeSpans(text, fences);
   const comments = commentSpans(text, [...fences, ...pres, ...inlines]);
-  const ignored = [...fences, ...pres, ...inlines, ...comments];
+  const codes = elementSpans(text, "code", [...fences, ...pres, ...inlines, ...comments]);
+  const ignored = [...fences, ...pres, ...inlines, ...comments, ...codes];
   const hits: MarkerHit[] = [];
   let loose = false;
+  let listContentColumn: number | null = null;
   for (const line of splitLines(text)) {
-    if (isBlockQuote(line.text) || isIndentedCodeLine(line.text)) {
+    const raw = withoutCarriageReturn(line.text);
+    if (raw.trim() === "") {
+      continue;
+    }
+    const indent = leadingColumns(raw);
+    if (listContentColumn !== null && indent < listContentColumn) {
+      listContentColumn = null;
+    }
+    if (isBlockQuote(raw) || isIndentedCodeLine(raw, listContentColumn)) {
       continue;
     }
     const hit = markerOnLine(line.text, line.start);
@@ -280,6 +290,10 @@ function scanReply(text: string): { hits: MarkerHit[]; loose: boolean } {
     }
     if (lineHasLooseMarker(line.text, line.start, ignored)) {
       loose = true;
+    }
+    const opened = listItemContentColumn(raw);
+    if (opened !== null) {
+      listContentColumn = opened;
     }
   }
   return { hits, loose };
@@ -372,22 +386,55 @@ function isBlockQuote(line: string): boolean {
   return /^[ \t]{0,3}>/.test(withoutCarriageReturn(line));
 }
 
-function isIndentedCodeLine(line: string): boolean {
-  const raw = withoutCarriageReturn(line);
+function leadingColumns(line: string): number {
   let column = 0;
-  for (const char of raw) {
+  for (const char of line) {
     if (char === " ") {
       column += 1;
     } else if (char === "\t") {
       column += 4 - (column % 4);
     } else {
-      return false;
-    }
-    if (column >= 4) {
-      return true;
+      break;
     }
   }
-  return false;
+  return column;
+}
+
+function isIndentedCodeLine(line: string, listContentColumn: number | null): boolean {
+  const indent = leadingColumns(line);
+  const codeAt = listContentColumn === null ? 4 : listContentColumn + 4;
+  return indent >= codeAt;
+}
+
+function listItemContentColumn(line: string): number | null {
+  const match = /^( {0,3})([-+*]|\d{1,9}[.)])(.*)$/.exec(line);
+  if (match === null) {
+    return null;
+  }
+  const indent = match[1]?.length ?? 0;
+  const marker = match[2] ?? "";
+  const rest = match[3] ?? "";
+  if (rest.length === 0 || (rest[0] !== " " && rest[0] !== "\t")) {
+    return null;
+  }
+  const markerEnd = indent + marker.length;
+  let column = markerEnd;
+  let padding = 0;
+  for (const char of rest) {
+    if (char !== " " && char !== "\t") {
+      break;
+    }
+    const advance = char === " " ? 1 : 4 - (column % 4);
+    if (padding + advance > 4) {
+      return markerEnd + 1;
+    }
+    column += advance;
+    padding += advance;
+  }
+  if (padding < 1) {
+    return null;
+  }
+  return column;
 }
 
 function lineHasLooseMarker(line: string, lineStart: number, ignored: readonly TextSpan[]): boolean {
@@ -455,22 +502,22 @@ function indexOfOutside(
   return -1;
 }
 
-function preSpans(text: string, fences: readonly TextSpan[]): TextSpan[] {
+function elementSpans(text: string, tag: string, blocked: readonly TextSpan[]): TextSpan[] {
   const spans: TextSpan[] = [];
-  const openPattern = /<pre\b[^>]*>/giu;
-  const closePattern = /<\/pre\s*>/giu;
+  const openPattern = new RegExp(`<${tag}\\b[^>]*>`, "giu");
+  const closePattern = new RegExp(`</${tag}\\s*>`, "giu");
   let from = 0;
   while (from < text.length) {
-    const fence = spanAt(from, fences);
-    if (fence !== undefined) {
-      from = fence.end;
+    const block = spanAt(from, blocked);
+    if (block !== undefined) {
+      from = block.end;
       continue;
     }
-    const open = nextMatchOutside(text, openPattern, from, fences);
+    const open = nextMatchOutside(text, openPattern, from, blocked);
     if (open === null) {
       break;
     }
-    const close = nextMatchOutside(text, closePattern, open.end, fences);
+    const close = nextMatchOutside(text, closePattern, open.end, blocked);
     if (close === null) {
       spans.push({ start: open.start, end: text.length });
       break;
