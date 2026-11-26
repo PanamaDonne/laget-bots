@@ -207,9 +207,32 @@ function applySelection(
     agents: config.agents.map((agent) => ({
       ...agent,
       providerId: providerId ?? blankToUndefined(agent.providerId),
-      model: model ?? agent.model,
+      model: selectedModel(agent, config, providerId, model),
     })),
   };
+}
+
+function selectedModel(
+  agent: AgentConfig,
+  config: TeamConfig,
+  providerId: string | undefined,
+  model: string | undefined,
+): string | undefined {
+  if (model !== undefined || providerId === undefined) {
+    return model ?? agent.model;
+  }
+  const previous = blankToUndefined(agent.providerId) ?? blankToUndefined(config.defaultProviderId);
+  if (providerId === previous) {
+    return agent.model;
+  }
+  const known = getProvider(providerId);
+  if (known === null) {
+    return agent.model;
+  }
+  if (known.defaultModel === undefined) {
+    throw new Error("Den valda leverantören saknar standardmodell. Ange --model <id>.");
+  }
+  return known.defaultModel;
 }
 
 function chosenProviderId(agent: AgentConfig, config: TeamConfig): string | undefined {
@@ -226,6 +249,10 @@ function resolveRun(config: TeamConfig, requestedLive: boolean): ResolvedRun {
       live: false,
       notice: named ? MOCK_OPT_IN : "Leverantör: Mock",
     };
+  }
+
+  if (ids.every((id) => id === undefined)) {
+    throw new Error("--live kräver en leverantör i teamfilen eller --provider <id>.");
   }
 
   const missingEnv: string[] = [];
@@ -395,6 +422,26 @@ export async function runTeamFromFile(
   });
 
   write("");
-  write(formatRunResult(result));
+  write(formatTeamOutcome(result, successMode(resolved)));
   return redactResult(result, secrets);
+}
+
+function successMode(resolved: ResolvedRun): string {
+  if (!resolved.live) {
+    return "mock";
+  }
+  const labels = [...new Set(resolved.team.agents.map((agent) => formatProviderLabel(agent.provider)))];
+  const only = labels[0];
+  if (labels.length === 1 && only !== undefined) {
+    return `live, ${only}`;
+  }
+  return "live";
+}
+
+function formatTeamOutcome(result: RunResult, mode: string): string {
+  const formatted = formatRunResult(result);
+  if (!result.success) {
+    return formatted;
+  }
+  return formatted.replace("✓ Teamet slutförde målet", `✓ Teamet slutförde målet (${mode})`);
 }

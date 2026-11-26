@@ -48,6 +48,7 @@ What makes the collaboration reliable (building blocks, not the product itself):
 * With one default (EU or Swedish) key, the test-bench team is ready to run when the command asks for a real provider. Changing an agent's model is a setup change, not a code change.
 * Keys are only read from env. Secrets never go in config, code or traces.
 * `npm run team` calls a provider only after an explicit choice (`--live` or `--provider`). A key in the environment alone leaves that command on the mock. A live run sends the goal and the messages to that provider, and the user pays with their own key.
+* `--live` with no provider in the team file is an error and makes no call. `--provider` that changes the provider, without `--model`, uses that provider's default model. A provider without a default model requires `--model` and makes no call. The success line says whether the run was mock or live.
 
 ### 3.2 Collaboration
 
@@ -195,5 +196,6 @@ To keep costs down, CI runs the full eval only on PRs that touch engine code or 
 * The user plugs in their own key and any OpenAI-compatible provider. EU and Swedish providers are listed first and are the defaults (Berget, then Mistral). Non-EU providers such as Grok are allowed and clearly flagged as non-EU.
 * The first test bench is the dev flow. Agent-Ante's four skills are used.
 * 2026-11-26: `npm run team` calls a real provider only after `--live` or `--provider`. A key in the environment does not by itself start a paid call. A live run sends the goal and the messages to the provider, and the user pays with their own key.
+* 2026-11-26: `--live` with no provider in the team file is an error and makes no call. `--provider` without `--model` uses the new provider's default model when the team file names another provider. A provider with no default model requires `--model`. The success line says mock or live.
 
 **Open:** none right now.

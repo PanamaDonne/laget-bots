@@ -235,7 +235,7 @@ test("npm run team accepts an NFD team file", async () => {
     { cwd: root, env: providerFreeEnv() },
   );
 
-  assert.match(stdout, /slutförde målet/);
+  assert.match(stdout, /slutförde målet \(mock\)/);
   assert.equal(stdout.includes("Okänd mottagare"), false);
 });
 
@@ -267,7 +267,7 @@ test("npm run team prints the example team run without a live model", async () =
   assert.match(stdout, /Anna \(PO-agent\) lämnar över/);
   assert.match(stdout, /Erik \(Dev-agent\) frågar/);
   assert.match(stdout, /Lisa \(Gransknings-agent\) klar/);
-  assert.match(stdout, /slutförde målet/);
+  assert.match(stdout, /slutförde målet \(mock\)/);
   assert.equal(output.includes("fake-team-demo-key"), false);
   assert.equal(output.includes("fake-test-key"), false);
 });

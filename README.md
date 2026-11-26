@@ -18,9 +18,11 @@ Every run stops at a token cap, default 100000, or `maxTokens` in the team file.
 
 ## Real model
 
-The same command calls a real model only when you pass `--live` or `--provider <id>`, and that provider's API key is set in the environment. The key is read only from the environment and is never printed. Without that choice, or without the key, the run stays on the mock.
+The same command calls a real model only when you pass `--live` or `--provider <id>`, and that provider's API key is set in the environment. `--provider <id>` is an explicit choice, the same as `--live`. The key is read only from the environment and is never printed. Without that choice, or without the key, the run stays on the mock. `--live` with no provider in the team file and no `--provider` stops with an error and does not call the network.
 
-A real run sends the goal to the provider and costs money. Grok and OpenAI are non-EU.
+`--provider <id>` without `--model` uses that provider's default model when the team file names a different provider: Berget `google/gemma-4-31B-it`, Mistral `mistral-large-4-0`. Grok and OpenAI have no default model, so the command stops until you pass `--model <id>`. A model you pass with `--model` is sent as given.
+
+A real run sends the goal to the provider and costs money. Grok and OpenAI are non-EU. The success line says `(mock)` or `(live, <provider>)`.
 
 ```bash
 BERGET_API_KEY=... npm run team -- example-team.json "Bygg en funktion" --live

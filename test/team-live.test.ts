@@ -171,6 +171,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
       assert.equal(result.success, true);
       assert.equal(calls.length, 0);
       shows(output, MOCK_OPT_IN);
+      shows(output, "✓ Teamet slutförde målet (mock)");
       shows(output, "Anna (PO-agent) lämnar över");
       shows(output, "Vilket format ska resultatet ha?");
       assert.equal(output.includes("ska inte anropas"), false);
@@ -241,6 +242,97 @@ describe("team run against a real provider", { concurrency: false }, () => {
     });
   });
 
+  test("--live with no provider is an error and makes no call", async () => {
+    const path = writeTeam({
+      namn: "Utan leverantör",
+      beskrivning: "ingen leverantör",
+      agenter: [
+        { id: "po-1", roll: "PO-agent", namn: "Anna" },
+        { id: "dev-1", roll: "Dev-agent", namn: "Erik" },
+        { id: "reviewer-1", roll: "Gransknings-agent", namn: "Lisa" },
+      ],
+    });
+    const lines: string[] = [];
+    await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nnej"], async (calls) => {
+      await assert.rejects(
+        () => runTeamFromFile(path, "Mål", { live: true, write: (line) => lines.push(line) }),
+        (error: Error) => {
+          assert.equal(error.message, "--live kräver en leverantör i teamfilen eller --provider <id>.");
+          return true;
+        },
+      );
+      assert.equal(calls.length, 0);
+      assert.equal(lines.length, 0);
+    });
+
+    const cli = await runCli([path, "Mål", "--live"]);
+    assert.equal(cli.code, 1);
+    shows(cli.stderr, "--live kräver en leverantör i teamfilen eller --provider <id>.");
+    assert.equal(cli.stdout.includes("Teamkörning"), false);
+  });
+
+  test("--provider without --model uses the new provider's default model", async () => {
+    const lines: string[] = [];
+    await withScriptedFetch(
+      { MISTRAL_API_KEY: FAKE_MISTRAL },
+      FAKE_MISTRAL,
+      ["[KLART]\nStandardmodell"],
+      async (calls) => {
+        const result = await runTeamFromFile(exampleTeam, "Mål", {
+          providerId: "mistral",
+          write: (line) => lines.push(line),
+        });
+        const output = lines.join("\n");
+
+        assert.equal(result.success, true);
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0]?.model, "mistral-large-4-0");
+        assert.equal(calls[0]?.url, "https://api.mistral.ai/v1/chat/completions");
+        shows(output, "Leverantör: Mistral, modell mistral-large-4-0");
+        shows(output, "✓ Teamet slutförde målet (live, Mistral)");
+        assert.equal(output.includes("google/gemma-4-31B-it"), false);
+      },
+    );
+  });
+
+  test("the same provider keeps the team file's model", async () => {
+    const path = writeTeam({
+      namn: "Bergetteam",
+      beskrivning: "samma leverantör",
+      standardLeverantör: "berget",
+      agenter: [
+        { id: "po-1", roll: "PO-agent", namn: "Anna", modell: "modell-po" },
+        { id: "dev-1", roll: "Dev-agent", namn: "Erik", modell: "modell-dev" },
+        { id: "reviewer-1", roll: "Gransknings-agent", namn: "Lisa", modell: "modell-po" },
+      ],
+    });
+    await withScriptedFetch(
+      { BERGET_API_KEY: FAKE_BERGET },
+      FAKE_BERGET,
+      ["[KLART]\nKlart"],
+      async (calls) => {
+        await runTeamFromFile(path, "Mål", { providerId: "berget", write: () => undefined });
+        assert.equal(calls[0]?.model, "modell-po");
+      },
+    );
+  });
+
+  test("--provider without a default model is an error and makes no call", async () => {
+    const lines: string[] = [];
+    await withScriptedFetch({ XAI_API_KEY: FAKE_XAI }, FAKE_XAI, ["[KLART]\nnej"], async (calls) => {
+      await assert.rejects(
+        () => runTeamFromFile(exampleTeam, "Mål", { providerId: "grok", write: (line) => lines.push(line) }),
+        (error: Error) => {
+          assert.equal(error.message, "Den valda leverantören saknar standardmodell. Ange --model <id>.");
+          assert.equal(error.message.includes("google/gemma-4-31B-it"), false);
+          return true;
+        },
+      );
+      assert.equal(calls.length, 0);
+      assert.equal(lines.length, 0);
+    });
+  });
+
   test("calls the configured provider and uses each agent's model", async () => {
     const path = writeTeam({
       namn: "Bergetteam",
@@ -277,6 +369,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
         shows(output, "Erik: Berget, modell modell-dev");
         shows(output, "Live-överlämning från po");
         shows(output, "Live-klart från dev");
+        shows(output, "✓ Teamet slutförde målet (live, Berget)");
         assert.equal(output.includes("Vilket format ska resultatet ha?"), false);
         hides(output, FAKE_BERGET);
         hides(output, FAKE_FILE);
@@ -333,6 +426,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
         assert.equal(calls[0]?.url, "https://api.x.ai/v1/chat/completions");
         assert.equal(calls[0]?.authMatches, true);
         shows(output, "Leverantör: Grok (xAI) [non-EU], modell fake-model-277");
+        shows(output, "✓ Teamet slutförde målet (live, Grok (xAI) [non-EU])");
         hides(output, FAKE_XAI);
       },
     );
@@ -668,6 +762,30 @@ describe("team run against a real provider", { concurrency: false }, () => {
     }
   });
 
+  test("a tab around the key does not let the trimmed key appear", async () => {
+    const secret = "fake-tab-key-277";
+    const lines: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (() => {
+      throw new Error(`nekad ${secret}`);
+    }) as typeof fetch;
+
+    try {
+      await withProviderEnv({ BERGET_API_KEY: `\t${secret}\r` }, async () => {
+        const result = await runTeamFromFile(exampleTeam, "Mål", {
+          live: true,
+          write: (line) => lines.push(line),
+        });
+        const output = lines.join("\n");
+        hides(output, secret);
+        hides(result.error ?? "", secret);
+        hides(output, `\t${secret}\r`);
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("an unknown provider id that is the API key is not printed", async () => {
     const lines: string[] = [];
     await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nnej"], async (calls) => {
@@ -701,6 +819,10 @@ describe("team run against a real provider", { concurrency: false }, () => {
     shows(readme, "costs money");
     shows(readme, "sends the goal");
     shows(readme, "non-EU");
+    shows(readme, "default model");
+    shows(readme, "mistral-large-4-0");
+    shows(readme, "(mock)");
+    shows(spec, "default model");
     shows(spec, "--live");
     shows(spec, "--provider");
     shows(agents, "fixed text");
