@@ -84,6 +84,8 @@ const KNOWN_PROVIDERS: readonly Provider[] = [
     region: "US",
     isEU: false,
     envKey: "XAI_API_KEY",
+    // Grok 4.7 - https://docs.x.ai/developers/models
+    defaultModel: "grok-4.7",
   },
   {
     id: "openai",

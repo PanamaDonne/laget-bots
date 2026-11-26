@@ -464,10 +464,10 @@ test("Berget defaultModel is google/gemma-4-31B-it", () => {
   assert.equal(berget.defaultModel, "google/gemma-4-31B-it");
 });
 
-test("Grok defaultModel is undefined until confirmed", () => {
+test("Grok defaultModel is grok-4.7", () => {
   const grok = getProvider("grok");
   assert.ok(grok);
-  assert.equal(grok.defaultModel, undefined);
+  assert.equal(grok.defaultModel, "grok-4.7");
 });
 
 test("Mistral defaultModel is mistral-large-4-0", () => {
@@ -682,7 +682,7 @@ test("client calls correct Grok endpoint with mocked fetch and verifies auth and
         id: "chatcmpl-123",
         object: "chat.completion",
         created: 1234567890,
-        model: "grok-4",
+        model: "grok-4.7",
         choices: [
           {
             index: 0,
@@ -697,7 +697,7 @@ test("client calls correct Grok endpoint with mocked fetch and verifies auth and
 
   const client = createClient(configured, { fetch: mockFetch });
   await client.chatCompletion({
-    model: "grok-4",
+    model: "grok-4.7",
     messages: [{ role: "user", content: "Hello" }],
   });
 
@@ -705,7 +705,7 @@ test("client calls correct Grok endpoint with mocked fetch and verifies auth and
   assert.equal(capturedHeaders?.["Authorization"], "Bearer grok-test");
   assert.equal(capturedHeaders?.["Content-Type"], "application/json");
   const body = JSON.parse(capturedBody ?? "{}");
-  assert.equal(body.model, "grok-4");
+  assert.equal(body.model, "grok-4.7");
   assert.deepEqual(body.messages, [{ role: "user", content: "Hello" }]);
 
   if (original !== undefined) {
