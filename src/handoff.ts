@@ -211,7 +211,8 @@ export function parseAgentResponse(
   response: string,
   team: ConfiguredTeam,
 ): ParsedAgentResponse {
-  const trimmed = response.trim();
+  // NFC so NFD å, ä and ö from some tools match the same marker.
+  const trimmed = response.normalize("NFC").trim();
   const hits = findMarkers(trimmed);
   const hit = hits[0];
   if (hit === undefined) {
@@ -239,23 +240,191 @@ export function parseAgentResponse(
   return parseAddressed(team, hit.kind, hit.target, content);
 }
 
+const MARKER_LINE =
+  /^(?:\[LÄMNAR ÖVER TILL ([^\]]*)\]|\[FRÅGAR ([^\]]*)\]|\[KLART\])$/iu;
+
+type TextSpan = {
+  start: number;
+  end: number;
+};
+
+type FenceMark = {
+  char: "`" | "~";
+  size: number;
+};
+
 function findMarkers(text: string): MarkerHit[] {
-  const pattern = /\[LÄMNAR ÖVER TILL ([^\]]*)\]|\[FRÅGAR ([^\]]*)\]|\[KLART\]/giu;
+  const fences = fenceSpans(text);
+  const ignored = [...fences, ...inlineCodeSpans(text, fences)];
   const hits: MarkerHit[] = [];
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index;
-    if (index === undefined) {
+  for (const line of splitLines(text)) {
+    if (isBlockQuote(line.text)) {
       continue;
     }
-    const kind = markerKind(match);
-    hits.push({
-      kind,
-      target: markerTarget(kind, match),
-      index,
-      length: match[0].length,
-    });
+    const hit = markerOnLine(line.text, line.start);
+    if (hit === null || overlapsSpan(hit.index, hit.length, ignored)) {
+      continue;
+    }
+    hits.push(hit);
   }
   return hits;
+}
+
+function splitLines(text: string): Array<{ text: string; start: number }> {
+  const lines: Array<{ text: string; start: number }> = [];
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "\n") {
+      lines.push({ text: text.slice(start, index), start });
+      start = index + 1;
+    }
+  }
+  lines.push({ text: text.slice(start), start });
+  return lines;
+}
+
+function markerOnLine(line: string, lineStart: number): MarkerHit | null {
+  const match = MARKER_LINE.exec(line.trim());
+  if (match === null) {
+    return null;
+  }
+  const leading = line.length - line.trimStart().length;
+  const kind = markerKind(match);
+  return {
+    kind,
+    target: markerTarget(kind, match),
+    index: lineStart + leading,
+    length: match[0].length,
+  };
+}
+
+function fenceSpans(text: string): TextSpan[] {
+  const spans: TextSpan[] = [];
+  let open: (FenceMark & { start: number }) | null = null;
+  for (const line of splitLines(text)) {
+    const lineEnd = line.start + line.text.length;
+    if (open === null) {
+      const fence = openingFence(line.text);
+      if (fence !== null) {
+        open = { ...fence, start: line.start };
+      }
+      continue;
+    }
+    if (closingFence(line.text, open)) {
+      spans.push({ start: open.start, end: lineEnd });
+      open = null;
+    }
+  }
+  if (open !== null) {
+    spans.push({ start: open.start, end: text.length });
+  }
+  return spans;
+}
+
+function openingFence(line: string): FenceMark | null {
+  const match = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(withoutCarriageReturn(line));
+  if (match === null) {
+    return null;
+  }
+  const token = match[2] ?? "";
+  const rest = match[3] ?? "";
+  const char = fenceChar(token);
+  if (char === null || (char === "`" && rest.includes("`"))) {
+    return null;
+  }
+  return { char, size: token.length };
+}
+
+function closingFence(line: string, open: FenceMark): boolean {
+  const match = /^( {0,3})(`{3,}|~{3,})[ \t]*$/.exec(withoutCarriageReturn(line));
+  if (match === null) {
+    return false;
+  }
+  const token = match[2] ?? "";
+  const char = fenceChar(token);
+  return char === open.char && token.length >= open.size;
+}
+
+function fenceChar(token: string): FenceMark["char"] | null {
+  const char = token[0];
+  if (char === "`" || char === "~") {
+    return char;
+  }
+  return null;
+}
+
+function isBlockQuote(line: string): boolean {
+  return /^[ \t]{0,3}>/.test(withoutCarriageReturn(line));
+}
+
+function withoutCarriageReturn(line: string): string {
+  return line.endsWith("\r") ? line.slice(0, -1) : line;
+}
+
+function inlineCodeSpans(text: string, fences: readonly TextSpan[]): TextSpan[] {
+  const spans: TextSpan[] = [];
+  let index = 0;
+  while (index < text.length) {
+    const fence = spanAt(index, fences);
+    if (fence !== undefined) {
+      index = fence.end;
+      continue;
+    }
+    if (text[index] !== "`") {
+      index += 1;
+      continue;
+    }
+    let size = 0;
+    while (index + size < text.length && text[index + size] === "`") {
+      size += 1;
+    }
+    const closer = findBacktickRun(text, index + size, size, fences);
+    if (closer === -1) {
+      index += size;
+      continue;
+    }
+    spans.push({ start: index, end: closer + size });
+    index = closer + size;
+  }
+  return spans;
+}
+
+function findBacktickRun(
+  text: string,
+  from: number,
+  size: number,
+  fences: readonly TextSpan[],
+): number {
+  let index = from;
+  while (index < text.length) {
+    const fence = spanAt(index, fences);
+    if (fence !== undefined) {
+      index = fence.end;
+      continue;
+    }
+    if (text[index] !== "`") {
+      index += 1;
+      continue;
+    }
+    let run = 0;
+    while (index + run < text.length && text[index + run] === "`") {
+      run += 1;
+    }
+    if (run === size) {
+      return index;
+    }
+    index += run;
+  }
+  return -1;
+}
+
+function spanAt(index: number, spans: readonly TextSpan[]): TextSpan | undefined {
+  return spans.find((span) => index >= span.start && index < span.end);
+}
+
+function overlapsSpan(index: number, length: number, spans: readonly TextSpan[]): boolean {
+  const end = index + length;
+  return spans.some((span) => index < span.end && end > span.start);
 }
 
 function markerKind(match: RegExpMatchArray): MarkerHit["kind"] {

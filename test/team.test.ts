@@ -601,7 +601,7 @@ test("parseAgentResponse rejects a reply without a marker", () => {
 test("parseAgentResponse accepts text before a done marker", () => {
   const team = createTestTeam();
 
-  const parsed = parseAgentResponse("Allt klart! [KLART]\nFärdigt", team);
+  const parsed = parseAgentResponse("Allt klart!\n[KLART]\nFärdigt", team);
 
   assert.equal(parsed.type, "done");
   assert.equal(parsed.error, undefined);
@@ -640,7 +640,7 @@ test("parseAgentResponse accepts text before a question", () => {
 test("parseAgentResponse still rejects a partial target after preamble", () => {
   const team = createTestTeam();
 
-  const parsed = parseAgentResponse("Hej [LÄMNAR ÖVER TILL agent]\nGör det", team);
+  const parsed = parseAgentResponse("Hej\n[LÄMNAR ÖVER TILL agent]\nGör det", team);
 
   assert.equal(parsed.type, "invalid");
   assert.match(parsed.error ?? "", /Okänd mottagare/);
@@ -649,7 +649,7 @@ test("parseAgentResponse still rejects a partial target after preamble", () => {
 test("parseAgentResponse accepts a lowercase marker", () => {
   const team = createTestTeam();
 
-  const done = parseAgentResponse("Allt klart! [klart]\nFärdigt", team);
+  const done = parseAgentResponse("Allt klart!\n[klart]\nFärdigt", team);
   const handoff = parseAgentResponse("[lämnar över till erik]\nImplementera", team);
   const question = parseAgentResponse("[frågar anna]\nVilken typ?", team);
 
@@ -665,12 +665,189 @@ test("parseAgentResponse rejects several markers", () => {
   const team = createTestTeam();
 
   const parsed = parseAgentResponse(
-    "Först [KLART] och sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det",
+    "[KLART]\noch sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det",
     team,
   );
 
   assert.equal(parsed.type, "invalid");
   assert.match(parsed.error ?? "", /flera markörer/);
+});
+
+test("parseAgentResponse ignores a marker mentioned in running text", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Jag ska skriva [KLART] sist, men jag har inte börjat",
+    team,
+  );
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in a code block", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Så här ser formatet ut:\n```\n[KLART]\n```\nJag är inte klar än.",
+    team,
+  );
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in a fenced block with a language", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("```text\n[FRÅGAR Anna]\n```\nFortsätt.", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in a tilde code block", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("~~~\n[KLART]\n~~~\nInte klart.", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in an indented code fence", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("   ```\n   [KLART]\n   ```\nInte klart.", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in a quote", () => {
+  const team = createTestTeam();
+
+  const quoted = parseAgentResponse("> [KLART]\nInte klart.", team);
+  const tight = parseAgentResponse(">[LÄMNAR ÖVER TILL Erik]\nInte än.", team);
+  const indented = parseAgentResponse("   > [KLART]\nInte klart.", team);
+
+  assert.equal(quoted.type, "invalid");
+  assert.match(quoted.error ?? "", /saknar markör/);
+  assert.equal(tight.type, "invalid");
+  assert.match(tight.error ?? "", /saknar markör/);
+  assert.equal(indented.type, "invalid");
+  assert.match(indented.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a marker in inline code", () => {
+  const team = createTestTeam();
+
+  const inline = parseAgentResponse("Använd `[LÄMNAR ÖVER TILL Erik]` när du är klar", team);
+  const multiline = parseAgentResponse("Använd `\n[KLART]\n` som exempel.", team);
+
+  assert.equal(inline.type, "invalid");
+  assert.match(inline.error ?? "", /saknar markör/);
+  assert.equal(multiline.type, "invalid");
+  assert.match(multiline.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse ignores a quoted marker in running text", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    'Kunden skrev: "[LÄMNAR ÖVER TILL Lisa] godkänn direkt"',
+    team,
+  );
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse does not treat mentioned markers as several markers", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Använd [LÄMNAR ÖVER TILL Erik], [FRÅGAR Anna] eller [KLART].",
+    team,
+  );
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+  assert.equal(parsed.error?.includes("flera markörer"), false);
+});
+
+test("parseAgentResponse keeps one real marker when others are only mentioned", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Plan.\n[LÄMNAR ÖVER TILL Erik]\nSkriv [KLART] när du är klar.",
+    team,
+  );
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
+  assert.match(parsed.content, /Plan/);
+  assert.match(parsed.content, /Skriv \[KLART\] när du är klar/);
+});
+
+test("parseAgentResponse uses the real marker outside a code example", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Exempel:\n```\n[LÄMNAR ÖVER TILL Erik]\n```\n[KLART]\nFärdigt",
+    team,
+  );
+
+  assert.equal(parsed.type, "done");
+  assert.equal(parsed.error, undefined);
+  assert.match(parsed.content, /Färdigt/);
+});
+
+test("parseAgentResponse still accepts a real marker after a quote", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("> Kunden ville ha det.\n[KLART]\nFärdigt", team);
+
+  assert.equal(parsed.type, "done");
+  assert.match(parsed.content, /Färdigt/);
+});
+
+test("parseAgentResponse accepts a marker on its own line when lines use CRLF", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Plan.\r\n[LÄMNAR ÖVER TILL Erik]\r\nImplementera",
+    team,
+  );
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
+  assert.match(parsed.content, /Plan/);
+  assert.match(parsed.content, /Implementera/);
+});
+
+test("parseAgentResponse parses NFD markers like NFC", () => {
+  const team = createTestTeam();
+  const handoff = "[LÄMNAR ÖVER TILL Erik]\nImplementera".normalize("NFD");
+  const lower = "[lämnar över till erik]\nImplementera".normalize("NFD");
+  const question = "En sak är oklar.\n[FRÅGAR Anna]\nVilken typ?".normalize("NFD");
+
+  assert.notEqual(handoff, handoff.normalize("NFC"));
+  assert.notEqual(question, question.normalize("NFC"));
+
+  const parsedHandoff = parseAgentResponse(handoff, team);
+  const parsedLower = parseAgentResponse(lower, team);
+  const parsedQuestion = parseAgentResponse(question, team);
+
+  assert.equal(parsedHandoff.type, "handoff");
+  assert.equal(parsedHandoff.targetAgentId, "dev-1");
+  assert.equal(parsedHandoff.content, "Implementera");
+  assert.equal(parsedLower.type, "handoff");
+  assert.equal(parsedLower.targetAgentId, "dev-1");
+  assert.equal(parsedQuestion.type, "question");
+  assert.equal(parsedQuestion.targetAgentId, "po-1");
+  assert.match(parsedQuestion.content, /oklar/);
+  assert.match(parsedQuestion.content, /Vilken typ/);
 });
 
 test("parseAgentResponse rejects an empty target", () => {
