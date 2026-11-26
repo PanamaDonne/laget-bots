@@ -10,8 +10,9 @@ import {
   parseAgentResponse,
   recordAnswer,
   recordWork,
+  type ParsedAgentResponse,
 } from "./handoff.ts";
-import { getRole } from "./roles.ts";
+import { getRole, type RoleId } from "./roles.ts";
 import type { ConfiguredAgent, ConfiguredTeam } from "./team.ts";
 
 export type RunnerOptions = {
@@ -24,7 +25,7 @@ export type TurnEvent = {
   turn: number;
   agentId: string;
   agentName: string;
-  roleId: string;
+  roleId: RoleId;
   type: "start" | "response" | "handoff" | "question" | "answer" | "done" | "error";
   content: string;
 };
@@ -52,6 +53,8 @@ export type RunnerState = {
 };
 
 const DEFAULT_MAX_TURNS = 20;
+const runningTeams = new WeakSet<ConfiguredTeam>();
+const TEAM_BUSY = "Teamet körs redan. En agent jobbar i taget.";
 
 export function createInitialState(
   team: ConfiguredTeam,
@@ -148,12 +151,11 @@ export function processAgentResponse(
   const parsed = parseAgentResponse(response, team);
 
   switch (parsed.type) {
-    case "work": {
-      recordWork(agent.id, team, state.context, parsed.content);
+    case "invalid": {
       return {
         ...state,
         turn: state.turn + 1,
-        pendingQuestion: null,
+        error: parsed.error ?? "Ogiltigt svar",
       };
     }
 
@@ -251,10 +253,49 @@ export function processAnswerAndResume(
   };
 }
 
+function turnEventType(type: ParsedAgentResponse["type"]): TurnEvent["type"] {
+  switch (type) {
+    case "handoff":
+    case "question":
+    case "done":
+      return type;
+    case "invalid":
+      return "error";
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
+  }
+}
+
 export async function runTeam(
   team: ConfiguredTeam,
   goal: string,
   options: RunnerOptions = {},
+): Promise<RunResult> {
+  if (runningTeams.has(team)) {
+    const context = createContext(goal);
+    return {
+      success: false,
+      turns: 0,
+      context,
+      finalSummary: createSnapshot(context).summary,
+      error: TEAM_BUSY,
+    };
+  }
+
+  runningTeams.add(team);
+  try {
+    return await runTeamOnce(team, goal, options);
+  } finally {
+    runningTeams.delete(team);
+  }
+}
+
+async function runTeamOnce(
+  team: ConfiguredTeam,
+  goal: string,
+  options: RunnerOptions,
 ): Promise<RunResult> {
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
   const onTurn = options.onTurn;
@@ -335,14 +376,14 @@ export async function runTeam(
       state = processAgentResponse(agent, team, state, response);
       const parsed = parseAgentResponse(response, team);
 
-      if (onTurn !== undefined && parsed.type !== "work") {
+      if (onTurn !== undefined) {
         onTurn({
           turn: state.turn - 1,
           agentId: agent.id,
           agentName: agent.name,
           roleId: agent.roleId,
-          type: parsed.type === "done" ? "done" : parsed.type,
-          content: parsed.content,
+          type: turnEventType(parsed.type),
+          content: parsed.type === "invalid" ? (parsed.error ?? parsed.content) : parsed.content,
         });
       }
     }

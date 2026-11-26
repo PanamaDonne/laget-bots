@@ -44,7 +44,7 @@ import {
 } from "../src/runner.ts";
 import { ConfiguredProvider, createCustomProvider, toSafeProvider } from "../src/providers.ts";
 import { createClient } from "../src/client.ts";
-import type { ConfiguredTeam, TeamConfigInput } from "../src/team.ts";
+import type { ConfiguredTeam, TeamConfig, TeamConfigInput } from "../src/team.ts";
 import type { ProviderClient } from "../src/client.ts";
 
 function createMockProvider(id: string = "test-provider"): ConfiguredProvider {
@@ -349,6 +349,8 @@ test("configureTeam uses agent-specific model when provided", () => {
     beskrivning: "Test",
     agenter: [
       { id: "po-1", roll: "po", namn: "Anna", modell: "custom-model" },
+      { id: "dev-1", roll: "dev", namn: "Erik" },
+      { id: "reviewer-1", roll: "reviewer", namn: "Lisa" },
     ],
   };
   const config = parseTeamConfig(input);
@@ -362,7 +364,11 @@ test("configureTeam throws when provider not found", () => {
   const input: TeamConfigInput = {
     namn: "Team",
     beskrivning: "Test",
-    agenter: [{ id: "po-1", roll: "po", namn: "Anna" }],
+    agenter: [
+      { id: "po-1", roll: "po", namn: "Anna" },
+      { id: "dev-1", roll: "dev", namn: "Erik" },
+      { id: "reviewer-1", roll: "reviewer", namn: "Lisa" },
+    ],
   };
   const config = parseTeamConfig(input);
 
@@ -410,17 +416,32 @@ test("getAgentsByRole finds all agents with role", () => {
 });
 
 test("validateTeamConfig reports missing roles", () => {
-  const input: TeamConfigInput = {
-    namn: "Team",
-    beskrivning: "Test",
-    agenter: [{ id: "po-1", roll: "po", namn: "Anna" }],
+  const config: TeamConfig = {
+    name: "Team",
+    description: "Test",
+    agents: [{ id: "po-1", roleId: "po", name: "Anna" }],
   };
-  const config = parseTeamConfig(input);
 
   const errors = validateTeamConfig(config);
 
   assert.ok(errors.some((e) => e.includes("Dev-agent")));
   assert.ok(errors.some((e) => e.includes("Gransknings-agent")));
+});
+
+test("parseTeamConfig rejects a team that lacks a required role", () => {
+  const input: TeamConfigInput = {
+    namn: "Team",
+    beskrivning: "Test",
+    agenter: [
+      { id: "po-1", roll: "po", namn: "Anna" },
+      { id: "dev-1", roll: "dev", namn: "Erik" },
+    ],
+  };
+
+  assert.throws(
+    () => parseTeamConfig(input),
+    /Teamet saknar en Gransknings-agent/,
+  );
 });
 
 test("validateTeamConfig returns empty for complete team", () => {
@@ -568,14 +589,52 @@ test("recordAnswer adds answer entry to context", () => {
   assert.equal(context.entries[0]?.action, "answer");
 });
 
-test("parseAgentResponse parses work response", () => {
+test("parseAgentResponse rejects a reply without a marker", () => {
   const team = createTestTeam();
 
   const parsed = parseAgentResponse("Jag arbetade med detta.", team);
 
-  assert.equal(parsed.type, "work");
-  assert.equal(parsed.content, "Jag arbetade med detta.");
-  assert.equal(parsed.targetAgentId, undefined);
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /saknar markör/);
+});
+
+test("parseAgentResponse rejects an empty target", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("[FRÅGAR ]\nVad menar du?", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.equal(parsed.error, "Mottagaren saknas");
+});
+
+test("parseAgentResponse rejects a partial target", () => {
+  const team = createTestTeam();
+
+  const byFragment = parseAgentResponse("[LÄMNAR ÖVER TILL agent]\nGör det", team);
+  const byPrefix = parseAgentResponse("[FRÅGAR an]\nHej?", team);
+
+  assert.equal(byFragment.type, "invalid");
+  assert.match(byFragment.error ?? "", /Okänd mottagare/);
+  assert.equal(byPrefix.type, "invalid");
+  assert.match(byPrefix.error ?? "", /Okänd mottagare/);
+});
+
+test("parseAgentResponse matches a role alias exactly", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("[LÄMNAR ÖVER TILL Granskare]\nKontrollera", team);
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "reviewer-1");
+});
+
+test("parseAgentResponse matches a name regardless of case", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("[LÄMNAR ÖVER TILL erik]\nImplementera", team);
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
 });
 
 test("parseAgentResponse parses handoff by agent name", () => {
@@ -688,7 +747,7 @@ test("buildAgentPrompt includes pending question when present", () => {
   assert.ok(messages[1]?.content.includes("Vad menar du?"));
 });
 
-test("processAgentResponse handles work response", () => {
+test("processAgentResponse stops on a reply without a marker", () => {
   const team = createTestTeam();
   const state = createInitialState(team, "Mål");
   const agent = team.agents[0]!;
@@ -696,8 +755,8 @@ test("processAgentResponse handles work response", () => {
   const newState = processAgentResponse(agent, team, state, "Jag gjorde något.");
 
   assert.equal(newState.turn, 1);
-  assert.equal(newState.context.entries.length, 1);
-  assert.equal(newState.context.entries[0]?.action, "work");
+  assert.match(newState.error ?? "", /saknar markör/);
+  assert.equal(newState.context.entries.length, 0);
 });
 
 test("processAgentResponse handles handoff response", () => {

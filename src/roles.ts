@@ -96,3 +96,36 @@ export function formatRoleList(roles: readonly AgentRole[]): string {
 export function isValidRoleId(id: string): id is RoleId {
   return KNOWN_ROLES.some((r) => r.id === id);
 }
+
+const ROLE_ALIASES: Readonly<Record<string, RoleId>> = {
+  "po-agent": "po",
+  "produktägare": "po",
+  "dev-agent": "dev",
+  "utvecklare": "dev",
+  "utvecklar-agent": "dev",
+  "gransknings-agent": "reviewer",
+  "granskare": "reviewer",
+  "granskar-agent": "reviewer",
+};
+
+export function resolveRoleId(input: string): RoleId | null {
+  const normalized = input.toLowerCase().trim();
+  if (normalized === "") {
+    return null;
+  }
+  if (isValidRoleId(normalized)) {
+    return normalized;
+  }
+  return ROLE_ALIASES[normalized] ?? null;
+}
+
+export function exactRoleLabels(roleId: RoleId): readonly string[] {
+  const role = getRole(roleId);
+  const labels = new Set<string>([role.id, role.name.toLowerCase()]);
+  for (const [alias, id] of Object.entries(ROLE_ALIASES)) {
+    if (id === roleId) {
+      labels.add(alias);
+    }
+  }
+  return [...labels];
+}

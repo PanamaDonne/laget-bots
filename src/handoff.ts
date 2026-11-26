@@ -1,7 +1,7 @@
 import type { ConfiguredAgent, ConfiguredTeam } from "./team.ts";
 import type { SharedContext } from "./context.ts";
 import { addEntry } from "./context.ts";
-import { getRole } from "./roles.ts";
+import { exactRoleLabels, getRole } from "./roles.ts";
 
 export type HandoffType = "work" | "question";
 
@@ -143,10 +143,14 @@ export function recordWork(
 }
 
 export type ParsedAgentResponse = {
-  type: "work" | "handoff" | "question" | "done";
+  type: "handoff" | "question" | "done" | "invalid";
   content: string;
   targetAgentId?: string;
+  error?: string;
 };
+
+const MISSING_MARKER =
+  "Svaret saknar markör. Använd [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART].";
 
 export function parseAgentResponse(
   response: string,
@@ -154,36 +158,14 @@ export function parseAgentResponse(
 ): ParsedAgentResponse {
   const trimmed = response.trim();
 
-  const handoffMatch = trimmed.match(
-    /^\[LÄMNAR ÖVER TILL ([^\]]+)\]\s*(.*)$/s,
-  );
+  const handoffMatch = trimmed.match(/^\[LÄMNAR ÖVER TILL ([^\]]*)\]\s*(.*)$/s);
   if (handoffMatch) {
-    const targetName = handoffMatch[1]?.trim() ?? "";
-    const content = handoffMatch[2]?.trim() ?? "";
-    const targetAgent = findAgentByReference(team, targetName);
-    if (targetAgent !== null) {
-      return {
-        type: "handoff",
-        content,
-        targetAgentId: targetAgent.id,
-      };
-    }
+    return parseAddressed(team, "handoff", handoffMatch[1] ?? "", handoffMatch[2] ?? "");
   }
 
-  const questionMatch = trimmed.match(
-    /^\[FRÅGAR ([^\]]+)\]\s*(.*)$/s,
-  );
+  const questionMatch = trimmed.match(/^\[FRÅGAR ([^\]]*)\]\s*(.*)$/s);
   if (questionMatch) {
-    const targetName = questionMatch[1]?.trim() ?? "";
-    const content = questionMatch[2]?.trim() ?? "";
-    const targetAgent = findAgentByReference(team, targetName);
-    if (targetAgent !== null) {
-      return {
-        type: "question",
-        content,
-        targetAgentId: targetAgent.id,
-      };
-    }
+    return parseAddressed(team, "question", questionMatch[1] ?? "", questionMatch[2] ?? "");
   }
 
   const doneMatch = trimmed.match(/^\[KLART\]\s*(.*)$/s);
@@ -195,40 +177,65 @@ export function parseAgentResponse(
   }
 
   return {
-    type: "work",
+    type: "invalid",
     content: trimmed,
+    error: MISSING_MARKER,
   };
 }
 
-function findAgentByReference(
+function parseAddressed(
   team: ConfiguredTeam,
-  reference: string,
-): ConfiguredAgent | null {
-  const normalized = reference.toLowerCase().trim();
+  type: "handoff" | "question",
+  rawTarget: string,
+  rawContent: string,
+): ParsedAgentResponse {
+  const content = rawContent.trim();
+  const match = matchAgent(team, rawTarget);
+  if (!match.ok) {
+    return {
+      type: "invalid",
+      content,
+      error: match.error,
+    };
+  }
+  return {
+    type,
+    content,
+    targetAgentId: match.agent.id,
+  };
+}
 
-  const byId = team.agents.find((a) => a.id.toLowerCase() === normalized);
-  if (byId !== undefined) {
-    return byId;
+type AgentMatch =
+  | { ok: true; agent: ConfiguredAgent }
+  | { ok: false; error: string };
+
+function matchAgent(team: ConfiguredTeam, reference: string): AgentMatch {
+  const trimmed = reference.trim();
+  if (trimmed === "") {
+    return { ok: false, error: "Mottagaren saknas" };
   }
 
-  const byName = team.agents.find((a) => a.name.toLowerCase() === normalized);
-  if (byName !== undefined) {
-    return byName;
+  const key = trimmed.toLowerCase();
+  const hits = team.agents.filter((agent) => agentMatchesReference(agent, key));
+  if (hits.length === 0) {
+    return { ok: false, error: `Okänd mottagare: ${trimmed}` };
+  }
+  if (hits.length > 1) {
+    return { ok: false, error: `Tvetydig mottagare: ${trimmed}` };
   }
 
-  const byRole = team.agents.find((a) => {
-    const role = getRole(a.roleId);
-    return (
-      role.id === normalized ||
-      role.name.toLowerCase() === normalized ||
-      role.name.toLowerCase().includes(normalized)
-    );
-  });
-  if (byRole !== undefined) {
-    return byRole;
+  const agent = hits[0];
+  if (agent === undefined) {
+    return { ok: false, error: `Okänd mottagare: ${trimmed}` };
   }
+  return { ok: true, agent };
+}
 
-  return null;
+function agentMatchesReference(agent: ConfiguredAgent, key: string): boolean {
+  if (agent.id.toLowerCase() === key || agent.name.toLowerCase() === key) {
+    return true;
+  }
+  return exactRoleLabels(agent.roleId).includes(key);
 }
 
 export function formatHandoffInstructions(team: ConfiguredTeam): string {
@@ -251,6 +258,8 @@ När du vill ställa en fråga till en annan agent, använd formatet:
 När du är klar med ditt arbete och det inte behöver lämnas vidare, använd formatet:
 [KLART]
 <sammanfattning av vad du har gjort>
+
+Mottagaren måste matcha id, namn eller roll exakt. En okänd, tom eller tvetydig mottagare är ett fel.
 
 Tillgängliga agenter i teamet:
 ${agentList}

@@ -1,5 +1,5 @@
 import type { ConfiguredProvider } from "./providers.ts";
-import { type RoleId, getRole, isValidRoleId } from "./roles.ts";
+import { type RoleId, getRole, resolveRoleId } from "./roles.ts";
 
 export type AgentConfig = {
   id: string;
@@ -46,25 +46,18 @@ export type ConfiguredTeam = {
 };
 
 function normalizeRoleId(input: string): RoleId {
-  const normalized = input.toLowerCase().trim();
-  if (isValidRoleId(normalized)) {
-    return normalized;
+  const roleId = resolveRoleId(input);
+  if (roleId === null) {
+    throw new Error(`Okänd roll: ${input}`);
   }
-  const mapping: Record<string, RoleId> = {
-    "po-agent": "po",
-    "produktägare": "po",
-    "dev-agent": "dev",
-    "utvecklare": "dev",
-    "utvecklar-agent": "dev",
-    "gransknings-agent": "reviewer",
-    "granskare": "reviewer",
-    "granskar-agent": "reviewer",
-  };
-  const mapped = mapping[normalized];
-  if (mapped !== undefined) {
-    return mapped;
+  return roleId;
+}
+
+function assertCompleteTeam(config: TeamConfig): void {
+  const errors = validateTeamConfig(config);
+  if (errors.length > 0) {
+    throw new Error(errors.join(" "));
   }
-  throw new Error(`Okänd roll: ${input}`);
 }
 
 export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
@@ -109,12 +102,14 @@ export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
     agentIds.add(agent.id);
   }
 
-  return {
+  const config: TeamConfig = {
     name: input.namn,
     description: input.beskrivning,
     agents,
     defaultProviderId: input.standardLeverantör,
   };
+  assertCompleteTeam(config);
+  return config;
 }
 
 export type ResolveProviderFn = (providerId: string | undefined) => ConfiguredProvider | null;
@@ -123,6 +118,7 @@ export function configureTeam(
   config: TeamConfig,
   resolveProvider: ResolveProviderFn,
 ): ConfiguredTeam {
+  assertCompleteTeam(config);
   const configuredAgents: ConfiguredAgent[] = [];
 
   for (const agentConfig of config.agents) {
