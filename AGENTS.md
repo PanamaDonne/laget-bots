@@ -17,14 +17,6 @@ Read secrets from the environment only. Do not put keys in config, code, traces,
 Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.
 A secret in the environment must not by itself start a paid call; an explicit choice is required.
 
-A provider default model must be a valid, current model id at the provider. Remove or leave it undefined until confirmed.
-
-Every conversation has a token cap. A turn limit does not limit model calls or cost.
-
-Truncate text per code point, never with slice on UTF-16 units.
-
-Treat every field in a provider response as untrusted: null, missing or wrong type yields the estimate or a Swedish error, never a throw.
-
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.

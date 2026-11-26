@@ -1,9 +1,9 @@
-# Radio Days — product spec v2.0 (draft)
+# Radio Days — product spec v2.0
 
-Draft successor to Laget Bots spec v1.0 in [`SPEC.md`](https://github.com/PanamaDonne/radio-days/blob/main/SPEC.md) on `main` (source of truth for v1.0: Linear PAN-267). This file is the accepted v2.0 draft. It replaces `SPEC.md` in `PanamaDonne/radio-days` once that change is merged. Linear PAN-267 tracks the product spec.
+This file is the accepted product spec for Radio Days, version 2.0, on `main`. It replaces the earlier Laget Bots spec (v1.0). Linear PAN-267 tracks this spec.
 
 **Name:** Radio Days.
-**Repo:** [https://github.com/PanamaDonne/radio-days](https://github.com/PanamaDonne/radio-days) (renamed from `PanamaDonne/laget-bots`; the rename is done).
+**Repo:** [https://github.com/PanamaDonne/radio-days](https://github.com/PanamaDonne/radio-days). The repository rename is done.
 **Visibility:** the repo stays public.
 **Owner:** Daniel Hansson. **PO:** Jörgen.
 **Date:** 2026-11-26.
@@ -31,7 +31,7 @@ v1 is wake word, spoken conversation with an AI, Spotify controlled entirely by 
 
 * Wake word, with optional push-to-talk as a backup (not as approval).
 * Spoken conversation with one AI agent.
-* Voice chain: realtime speech via Berget Pianissimo (`klang/pianissimo`). Text-to-speech is required in v1 but not yet chosen (section 5 and 14).
+* Voice chain: realtime speech via Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi, with a Swedish voice (section 5). ReadSpeaker is the fallback if quality is not good enough.
 * Spotify by voice, with no button. A Spotify Premium account is required. The user can play, skip to the next or previous track, choose artist, album and playlist by voice, and change playlists and favourites. Pause, volume and questions such as “what is playing now?” are included.
 * Long-term memory of the user, stored only on the Pi (see section 7).
 * Cloud web admin skeleton: sign-in, pairing the Pi with a device code, provider and API key, Spotify connection, connection status, viewing and deleting memory, and downloading an encrypted backup (see section 6).
@@ -48,7 +48,7 @@ v1 is wake word, spoken conversation with an AI, Spotify controlled entirely by 
 * ATECC608 required, including the option to lock the memory-database key in the chip.
 * Lamp wait-state for approval, in addition to the v1 lamp states.
 
-Calendar, weather and other later services may follow after v2; they are not committed in this draft.
+Calendar, weather and other later services may follow after v2; they are not committed in this spec.
 
 ### 2.3 Out of scope
 
@@ -85,7 +85,7 @@ Calendar, weather and other later services may follow after v2; they are not com
 * The first test bench is conversation plus Spotify by voice, plus memory, not a development flow against a sandbox repo.
 * Evals shift to intent-to-tool accuracy, latency (logged in v1), and memory quality. Button approval is a v2 requirement.
 * The repo stays public (v1.0 was already open; a later proposal to make it private is not followed).
-* Cost changes. v1.0 assumed 0 SEK/month in infrastructure. A hosted admin, voice models, embeddings and Spotify calls will add cost. Amounts are not set in this draft.
+* Cost changes. v1.0 assumed 0 SEK/month in infrastructure. A hosted admin, voice models, embeddings and Spotify calls add cost. The running-cost estimate is in section 13.
 * The product name is Radio Days, not Laget Bots. The repository is `PanamaDonne/radio-days`.
 
 ### Removed from the v1.0 spec
@@ -104,7 +104,7 @@ Spotify, memory, the voice chain and the hosted admin are new. They were not in 
 
 ## 4. Hardware
 
-Daniel finds the radio or cassette player himself. No shop prices are listed here. Compatibility between the Pi 4, the chosen amplifier, the microphone and the set Daniel finds is not verified in this draft. For a desk prototype, the Pi and a microphone are enough.
+Daniel finds the radio or cassette player himself. No shop prices are listed here. Compatibility between the Pi 4, the chosen amplifier, the microphone and the set Daniel finds is not verified here. For a desk prototype, the Pi and a microphone are enough.
 
 * Raspberry Pi 4 with 4 GB, official power supply, and a new microSD card. A Pi 5 is optional, not required.
 * The radio’s or cassette player’s own speaker, driven by a small amplifier or a HiFiBerry board (for example Amp4). Bluetooth speakers are avoided because of latency.
@@ -119,18 +119,18 @@ Daniel finds the radio or cassette player himself. No shop prices are listed her
 
 The user says the wake word. The Pi listens with a local wake-word detector (openWakeWord). Optional push-to-talk is only a backup, never an approval.
 
-Realtime speech goes through Berget: **Pianissimo** (`klang/pianissimo`). Spoken replies are in Swedish. **Text-to-speech is required in v1 but is not decided**; options are listed below, without a chosen default.
+Realtime speech goes through Berget: **Pianissimo** (`klang/pianissimo`). Spoken replies are in Swedish. **Text-to-speech in v1 is local Piper on the Raspberry Pi**, with a Swedish voice such as `sv_SE-nst-medium` or `sv_SE-alma-medium` (decision 2026-11-26, Daniel). ReadSpeaker is the fallback if that quality is not good enough. Berget’s Sten text-to-speech is not available and is not the v1 choice.
 
 Checked against Berget’s public catalogue on 2026-11-26 ([models page](https://berget.ai/en/models) and [`GET https://api.berget.ai/v1/models`](https://api.berget.ai/v1/models)). Daniel also confirmed the same day that Sten is not listed in his logged-in [Berget console](https://console.berget.ai/models).
 
 * Pianissimo is listed and active. Model id: `klang/pianissimo`. Type: speech-to-text. Licence: CC-BY-4.0. Realtime use is the OpenAI-compatible WebSocket at `wss://api.berget.ai/v1/realtime?intent=transcription`, as documented in Berget’s [API reference](https://api.berget.ai/) and the [realtime transcription announcement](https://berget.ai/en/blog/realtime-transcription-launch). List price in the catalogue is €0.00005833333 per second (the announcement states €3.50 per 1,000 minutes of audio). The announcement also cites Klang’s own throughput figure of around 3,600× real time; that is a model benchmark, not a measured end-to-end latency for this product.
 
-**TTS options (not chosen).** There is no TTS model or `/v1/audio/speech` path in Berget’s public catalogue or [OpenAPI](https://api.berget.ai/openapi.json) as of that check. A Hugging Face card for [`bergetai/sten`](https://huggingface.co/bergetai/sten) describes a hosted API, but Sten is not in the catalogue or in Daniel’s console, so it is not an option today. Realistic options, with only what the sources state:
+**Text-to-speech for v1.** There is no TTS model or `/v1/audio/speech` path in Berget’s public catalogue or [OpenAPI](https://api.berget.ai/openapi.json) as of that check. A Hugging Face card for [`bergetai/sten`](https://huggingface.co/bergetai/sten) describes a hosted API, but Sten is not in the catalogue or in Daniel’s console, so Sten is not available and is not used.
 
-1. **Local Piper on the Pi 4.** The official Piper CLI documents an arm64 binary for a 64-bit Raspberry Pi 4 ([CLI.md](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md)). The engine is GPL-3.0-or-later ([piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), [PyPI](https://pypi.org/project/piper-tts/)). Official Swedish voices in [piper-voices](https://huggingface.co/rhasspy/piper-voices) include `sv_SE-nst-medium` (quality: medium; dataset licence CC0; trained from scratch by KBLab) and `sv_SE-alma-medium` (quality: medium; model weights CC BY 4.0; trained on the NST Swedish TTS dataset, which the card describes as high-quality studio recordings of Swedish speech). Official cards: [nst](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/nst/medium/MODEL_CARD), [alma](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/alma/medium/MODEL_CARD). Samples: [piper-samples](https://rhasspy.github.io/piper-samples/). The CLI document says running Piper once per request can be slow because the voice is loaded each time, and recommends the web server for repeated use. No official end-to-end latency figure for a Pi 4 with 4 GB was found. Incremental running cost is €0 (no hosted TTS fee).
-2. **ReadSpeaker speechCloud API (EU).** ReadSpeaker AB is headquartered in Sweden (Uppsala). The [speechCloud API](https://www.readspeaker.com/products/speechcloud-api/) is described as EU-based, GDPR compliant and ISO/IEC 27001:2022 certified, and as generating “natural-sounding synthetic speech”. The [Swedish voice list](https://www.readspeaker.com/languages-voices/swedish/) has six neural sv-SE voices: Fredrik, Karin, Linnea, Maja, Majsan and Sven. Pricing is a credits model (1 credit = 1 character excluding whitespace); production credits are ordered through an account manager, and no public unit price in euro was published on that page. Latency is not stated there.
+1. **Chosen: local Piper on the Pi 4, Swedish voice.** The official Piper CLI documents an arm64 binary for a 64-bit Raspberry Pi 4 ([CLI.md](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md)). The engine is GPL-3.0-or-later ([piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), [PyPI](https://pypi.org/project/piper-tts/)). Official Swedish voices in [piper-voices](https://huggingface.co/rhasspy/piper-voices) include `sv_SE-nst-medium` (quality: medium; dataset licence CC0; trained from scratch by KBLab) and `sv_SE-alma-medium` (quality: medium; model weights CC BY 4.0; trained on the NST Swedish TTS dataset, which the card describes as high-quality studio recordings of Swedish speech). Official cards: [nst](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/nst/medium/MODEL_CARD), [alma](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/alma/medium/MODEL_CARD). Samples: [piper-samples](https://rhasspy.github.io/piper-samples/). The CLI document says running Piper once per request can be slow because the voice is loaded each time, and recommends the web server for repeated use. No official end-to-end latency figure for a Pi 4 with 4 GB was found. Incremental running cost is €0 (no hosted TTS fee).
+2. **Fallback: ReadSpeaker speechCloud API (EU).** Used only if Piper’s quality is not good enough. ReadSpeaker AB is headquartered in Sweden (Uppsala). The [speechCloud API](https://www.readspeaker.com/products/speechcloud-api/) is described as EU-based, GDPR compliant and ISO/IEC 27001:2022 certified, and as generating “natural-sounding synthetic speech”. The [Swedish voice list](https://www.readspeaker.com/languages-voices/swedish/) has six neural sv-SE voices: Fredrik, Karin, Linnea, Maja, Majsan and Sven. Pricing is a credits model (1 credit = 1 character excluding whitespace); production credits are ordered through an account manager, and no public unit price in euro was published on that page. Latency is not stated there.
 
-No option is picked here. The choice is an open question (section 14). The cost principle in section 13 is to take the cheapest option that meets the quality and latency evals.
+v1 uses local Piper. ReadSpeaker is only that quality fallback. The cost principle in section 13 is to take the cheapest option that meets the quality and latency evals; Piper has no hosted fee.
 
 One always-on voice agent runs on the Pi (TypeScript). It holds a conversation with the AI, controls Spotify by voice, and uses long-term memory (section 7). The user chooses the conversation model through their AI provider (section 8). Every conversation has a token cap.
 
@@ -174,11 +174,11 @@ The web admin reads and deletes memory via the Pi. No copy of memory is kept in 
 
 ## 8. Privacy, security and providers
 
-**Public repository.** The repo stays public, as `PanamaDonne/radio-days` (formerly `laget-bots`). Because of that, secrets, keys, device identifiers and personal data must never be committed, logged into the repo, or otherwise placed in the repository.
+**Public repository.** The repo stays public, as `PanamaDonne/radio-days`. Because of that, secrets, keys, device identifiers and personal data must never be committed, logged into the repo, or otherwise placed in the repository.
 
 **Secrets live on the Pi**, encrypted on disk. The cloud does not store API keys, OAuth tokens or memory content. It may store only what it needs to sign the user in, pair a device, and show status.
 
-**Providers, EU first.** The user brings their own key. Any OpenAI-compatible provider can be added. EU and Swedish providers are listed first and are the defaults: Berget (Swedish), then Mistral (EU). Non-EU providers such as Grok and OpenAI are allowed and clearly flagged as non-EU. Realtime speech in v1 is Berget Pianissimo (`klang/pianissimo`). TTS is required but not yet chosen (sections 5 and 14). A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required.
+**Providers, EU first.** The user brings their own key. Any OpenAI-compatible provider can be added. EU and Swedish providers are listed first and are the defaults: Berget (Swedish), then Mistral (EU). Non-EU providers such as Grok and OpenAI are allowed and clearly flagged as non-EU. Realtime speech in v1 is Berget Pianissimo (`klang/pianissimo`). Text-to-speech in v1 is local Piper on the Pi with a Swedish voice; ReadSpeaker is the fallback if quality is not good enough (section 5). Sten is not available and is not used. A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required.
 
 **ATECC608** is optional in v1 and required in v2 (see section 4).
 
@@ -242,7 +242,7 @@ Every frontend or backend item below is done only when the stated outcome is tru
 **Milestone 1: Wake word and conversation**
 
 * Local wake word, with optional push-to-talk as backup.
-* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech, and a TTS option chosen from section 14. Spoken replies in Swedish.
+* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech, and local Piper on the Pi for text-to-speech with a Swedish voice (section 5). Spoken replies in Swedish.
 * One voice agent and one provider, with a token cap and the rule that a key alone does not start a paid call.
 * Scale lamp: idle, listening, thinking.
 * Done when: after the wake word, the user can have a short spoken conversation and hear the reply from the speaker. Covered by unit tests, CI green.
@@ -294,7 +294,7 @@ These rules are unchanged from v1.0, except that the product and the repository 
 
 The product should be cheap and good. **Principle:** use the cheapest option that still meets the quality and latency evals (section 10).
 
-**Proposed cap (proposal, not locked):** €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget, and any hosted TTS if one is chosen). Spotify Premium is the user’s own subscription and sits outside the cap. Hardware, electricity and one-off purchases are also outside it.
+**Proposed cap (proposal, not locked):** €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget, with local Piper for text-to-speech). Spotify Premium is the user’s own subscription and sits outside the cap. Hardware, electricity and one-off purchases are also outside it.
 
 ### 13.1 Sources (checked 2026-11-26)
 
@@ -302,7 +302,7 @@ The product should be cheap and good. **Principle:** use the cheapest option tha
 * Vercel Hobby (free): [Hobby plan](https://vercel.com/docs/plans/hobby).
 * Supabase Free: [pricing](https://supabase.com/pricing); free projects may pause after a week of low activity ([project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)).
 * Spotify Premium Individual, Sweden: 149 SEK per month after any trial ([spotify.com/se/premium](https://www.spotify.com/se/premium/)).
-* Piper local TTS: no hosted fee (section 5). ReadSpeaker speechCloud has no public unit price, so it is not estimated.
+* Piper, the v1 text-to-speech choice: no hosted fee (section 5). ReadSpeaker speechCloud is the quality fallback and has no public unit price, so it is not in this estimate.
 
 Berget’s [pricing FAQ](https://berget.ai/en/pricing) states that Trial includes €5 starting credits and €0 per month, and that **continued API access requires an active plan from €25 per month in prepaid credits** (Starter: €25 per month, with a €25 monthly top-up). Unused credits roll over and remain valid for 12 months. Plans include prepaid tokens at a discount to list price; this estimate uses **list prices** for usage, because the size of the plan discount is not published.
 
@@ -315,7 +315,7 @@ For **one household, one device, 30 days**:
 * 20 conversational turns per day (600 turns per month).
 * Per turn, the conversation model is assumed to use 2,000 input tokens and 300 output tokens (system prompt, memories, recent turns, user text, and a short spoken reply). This is an assumption, not a measurement.
 * Embeddings: 100 input tokens to embed the query on each turn, plus 200 input tokens of extracted facts after 10 conversations per day (120,000 input tokens per month). Catalogue output price for E5 is not applied in this estimate.
-* The conversation model used for the estimate is `google/gemma-4-31B-it` (€0.25 input / €0.50 output per million tokens). It is Berget’s suggested starting point for Swedish or Scandinavian applications in [Choose a language model](https://docs.berget.ai/models/choosing-a-model), and it is already the default Berget model in this repo. If evals later show that a cheaper model is good enough, the cost principle says to switch.
+* The conversation model used for the estimate is `google/gemma-4-31B-it` (€0.25 input / €0.50 output per million tokens). The price is taken from Berget’s suggested starting point for Swedish or Scandinavian applications in [Choose a language model](https://docs.berget.ai/models/choosing-a-model). That id is only an input to this estimate. This repository does not configure a conversation model; the user chooses one (section 8). If evals later show that a cheaper model is good enough, the cost principle says to switch.
 * Web admin stays within Vercel Hobby and Supabase Free. If a Free Supabase project is paused for inactivity, that is a product risk, not a monthly fee in this estimate.
 * Electricity, the Pi, the radio and other hardware are not included.
 
@@ -326,8 +326,8 @@ For **one household, one device, 30 days**:
 | STT, Pianissimo | 450 min × €3.50 / 1,000 min | ≈ €1.58 |
 | Conversation model, `google/gemma-4-31B-it` | 1.20M input × €0.25 + 0.18M output × €0.50 | ≈ €0.39 |
 | Embeddings, `intfloat/multilingual-e5-large-instruct` | 0.12M input × €0.03 | ≈ €0.004 |
-| TTS, local Piper | No hosted fee | €0 |
-| TTS, ReadSpeaker speechCloud | No public unit price | Not estimated |
+| TTS, local Piper (v1) | No hosted fee | €0 |
+| TTS fallback, ReadSpeaker speechCloud | Not in the v1 estimate; no public unit price | Not estimated |
 | Web admin, Vercel Hobby + Supabase Free | Assumed within free tiers | €0 |
 | **Metered usage subtotal (Piper TTS)** | | **≈ €1.97** |
 
@@ -344,29 +344,28 @@ At these assumptions, metered usage is about €2 per month excluding VAT (about
 
 Trial (€0 / month, €5 starting credits) can cover a short test period at this usage, but is not the plan for ongoing household use.
 
-If a hosted TTS such as ReadSpeaker is chosen instead of Piper, its price must be added when a quote exists; the cap may then need to be revisited.
+ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fallback is used, its price must be added when a quote exists; the cap may then need to be revisited.
 
 ## 14. Decisions and open questions
 
 **Decided (2026-11-26):**
 
-* The product is called Radio Days. The repository is [`PanamaDonne/radio-days`](https://github.com/PanamaDonne/radio-days) (renamed from `laget-bots`; the rename is done).
+* The product is called Radio Days. The repository is [`PanamaDonne/radio-days`](https://github.com/PanamaDonne/radio-days). The repository rename is done.
 * A voice agent in an old radio on a Raspberry Pi 4 with 4 GB. The team engine is shut down. The pivot happens in the same repo.
 * v1: wake word, conversation with AI, Spotify controlled by voice with no button (play, next and previous track, choose artist, album and playlist, and playlist and favourite changes), long-term memory, and a cloud web admin skeleton. Gmail and the physical approval button come in v2.
 * A Spotify Premium account is required for that voice control. This follows Spotify’s Web API rule that playback-control endpoints work only for Premium users ([Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback)).
-* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech. User-facing voice text is Swedish. Pianissimo was confirmed in Berget’s public catalogue on 2026-11-26. TTS is required in v1 but not decided; Sten is not an option today (not in the catalogue, and Daniel confirmed it is not in his Berget console).
+* Voice chain: Berget Pianissimo (`klang/pianissimo`) for realtime speech. User-facing voice text is Swedish. Pianissimo was confirmed in Berget’s public catalogue on 2026-11-26. Text-to-speech for v1 is local Piper on the Raspberry Pi with a Swedish voice (`sv_SE-nst-medium` or `sv_SE-alma-medium`), decided 2026-11-26. ReadSpeaker is the fallback if quality is not good enough. Berget Sten is not available and is not the v1 choice.
 * Web admin in the cloud (Next.js on Vercel, with Supabase); secrets live on the Pi, encrypted on disk. The key is encrypted in the browser with the Pi’s public key. Spotify OAuth uses PKCE, with token exchange on the Pi. The cloud sees status, never secrets.
 * ATECC608 is optional in v1 and required in v2 (when mail and approval arrive). Daniel is buying one.
 * The repo stays public. No secrets, keys, device identifiers or personal data in the repo ever.
 * PR #13 and Laget Bots stage 1 are paused.
 * Long-term memory: SQLite on the Pi with sqlite-vec; embeddings default to Berget E5, `intfloat/multilingual-e5-large-instruct` (PO recommendation, 2026-11-26; Daniel can still object). A small local embedding model is an optional offline fallback, not required in v1. Catalogue also lists `intfloat/multilingual-e5-large`. facts extracted after each conversation; 5–10 most relevant memories retrieved into each conversation; database encrypted with SQLCipher; the key can later be locked in the ATECC608; admin reads and deletes memory via the Pi, with no copy in the cloud; the admin can download an encrypted backup. Memory content must never appear in cloud storage or logs. A backup must be encrypted and restorable.
 * Daniel finds the radio himself. A desk prototype with Pi and microphone is enough until then.
-* Running-cost principle: use the cheapest option that meets the quality and latency evals. Proposed cap: €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget Starter). Spotify Premium is outside the cap. See section 13. This cap is a proposal, not locked.
+* Running-cost principle: use the cheapest option that meets the quality and latency evals. v1 text-to-speech is local Piper, with no hosted fee. Proposed cap: €25 per device per month, excluding VAT, for Radio Days’ own cloud and model usage (Berget Starter). Spotify Premium is outside the cap. See section 13. This cap is a proposal, not locked.
 * TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges.
 
 **Open:**
 
-1. **Text-to-speech for v1.** Required, not chosen. Berget has no TTS in the public catalogue or in Daniel’s console. Options in section 5, none picked: (a) local Piper on the Pi 4 with official Swedish voices `sv_SE-nst-medium` (CC0) or `sv_SE-alma-medium` (CC BY 4.0); (b) ReadSpeaker speechCloud API (EU, six neural sv-SE voices, no public unit price). The cost principle favours the cheapest option that meets the evals (Piper has no hosted fee).
-2. **Exact wake word.** A wake word is in v1; the phrase itself is not chosen.
-3. **Proposed cost cap.** Section 13 estimates about €2 per month in metered usage (list prices, stated assumptions) and €25 per month excluding VAT as the amount actually paid on Berget Starter. The €25 cap is a proposal, pending Daniel’s ok. A hosted TTS quote, if ReadSpeaker is chosen, may change it.
-4. **Hardware fit.** Compatibility of the Pi 4, amplifier, microphone and the radio Daniel finds is not verified. It is not a blocker for the desk prototype.
+1. **Exact wake word.** A wake word is in v1; the phrase itself is not chosen.
+2. **Proposed cost cap.** Section 13 estimates about €2 per month in metered usage (list prices, stated assumptions) and €25 per month excluding VAT as the amount actually paid on Berget Starter. The €25 cap is a proposal, pending Daniel’s ok.
+3. **Hardware fit.** Compatibility of the Pi 4, amplifier, microphone and the radio Daniel finds is not verified. It is not a blocker for the desk prototype.

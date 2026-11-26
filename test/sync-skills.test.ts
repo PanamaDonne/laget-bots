@@ -30,7 +30,7 @@ function readText(path: string): string {
 }
 
 function tempRepo(): { masterDir: string; destDir: string } {
-  const dir = mkdtempSync(join(tmpdir(), "laget-skills-"));
+  const dir = mkdtempSync(join(tmpdir(), "radio-days-skills-"));
   return { masterDir: join(dir, "master"), destDir: join(dir, "dest") };
 }
 
@@ -260,7 +260,7 @@ test("committed copies match ~/Desktop/skills when the master is present", (t) =
 test("sync does not follow a file symlink in the target that points outside", () => {
   const { masterDir, destDir } = tempRepo();
   seedMasters(masterDir);
-  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "radio-days-outside-"));
   const outsideFile = join(outsideDir, "escape.txt");
   writeFileSync(outsideFile, "original outside content\n");
 
@@ -281,7 +281,7 @@ test("sync does not follow a directory symlink in the target", () => {
     "templates/guide.md": "# guide\n",
   });
 
-  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "radio-days-outside-"));
   const outsideFile = join(outsideDir, "guide.md");
   writeFileSync(outsideFile, "original outside content\n");
 
@@ -300,7 +300,7 @@ test("sync does not follow a directory symlink in the target", () => {
 test("sync replaces a symlink named PROJECT.md with the adaptation template", () => {
   const { masterDir, destDir } = tempRepo();
   seedMasters(masterDir);
-  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "radio-days-outside-"));
   const outsideFile = join(outsideDir, "escape.txt");
   writeFileSync(outsideFile, "original outside content\n");
 
@@ -322,7 +322,7 @@ test("sync does not delete outside the tree via a symlink", () => {
   syncSkills({ masterDir, destDir });
   writeFileSync(join(destDir, "agents-md-maintenance", "extra.md"), "extra\n");
 
-  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "radio-days-outside-"));
   const outsideFile = join(outsideDir, "precious.txt");
   writeFileSync(outsideFile, "do not delete\n");
 
@@ -343,7 +343,7 @@ test("sync replaces a directory symlink in the parent path", () => {
     "docs/readme.md": "# docs\n",
   });
 
-  const outsideDir = mkdtempSync(join(tmpdir(), "laget-outside-"));
+  const outsideDir = mkdtempSync(join(tmpdir(), "radio-days-outside-"));
   const outsideFile = join(outsideDir, "readme.md");
   writeFileSync(outsideFile, "original outside content\n");
   mkdirSync(join(destDir, "mr-audit-code"), { recursive: true });
