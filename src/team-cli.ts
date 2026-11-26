@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { runTeamFromFile } from "./team-run.ts";
+import { redactConfiguredSecrets, runTeamFromFile } from "./team-run.ts";
 
 const USAGE =
   'Användning: npm run team -- <konfiguration.json> "<mål>" [--live] [--provider <id>] [--model <id>] [--max-tokens <antal>]';
@@ -128,7 +128,7 @@ function isDirectRun(): boolean {
 async function main(): Promise<void> {
   const parsed = parseTeamCliArgs(process.argv.slice(2));
   if (!parsed.ok) {
-    console.error(parsed.error);
+    console.error(redactConfiguredSecrets(parsed.error));
     process.exitCode = 1;
     return;
   }
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Teamkörningen misslyckades";
-    console.error(message);
+    console.error(redactConfiguredSecrets(message));
     process.exitCode = 1;
   }
 }

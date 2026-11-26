@@ -88,7 +88,7 @@ function completion(content: string, totalTokens: number): string {
 
 async function withProviderEnv(keys: Record<string, string>, run: () => Promise<void>): Promise<void> {
   for (const value of Object.values(keys)) {
-    if (!value.startsWith("fake-")) {
+    if (!value.trim().startsWith("fake-")) {
       throw new Error("tester sätter bara fake-nycklar");
     }
   }
@@ -582,8 +582,86 @@ describe("team run against a real provider", { concurrency: false }, () => {
     hides(liveRun.stdout, "fake-cli-key-277");
   });
 
+  test("the CLI does not print an API key passed as the provider", async () => {
+    const secret = "fake-cli-provider-key-277";
+    const env = providerFreeEnv();
+    env.BERGET_API_KEY = secret;
+    let stdout: string;
+    let stderr: string;
+    let code: number;
+    try {
+      const result = await execFileAsync(
+        process.execPath,
+        ["--experimental-strip-types", "src/team-cli.ts", "example-team.json", "Mål", "--provider", secret],
+        { cwd: root, env },
+      );
+      code = 0;
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (error) {
+      const failed = error as { code?: number; stdout?: string; stderr?: string };
+      code = typeof failed.code === "number" ? failed.code : 1;
+      stdout = failed.stdout ?? "";
+      stderr = failed.stderr ?? "";
+    }
+    assert.equal(code, 1);
+    shows(stderr, "Okänd leverantör");
+    hides(stderr, secret);
+    hides(stdout, secret);
+  });
+
+  test("a padded key is trimmed, and the trimmed key stays out of errors", async () => {
+    const secret = "fake-trim-key-277";
+    const lines: string[] = [];
+    const originalFetch = globalThis.fetch;
+    let authMatchesTrimmed = false;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      authMatchesTrimmed = authorizationMatches(init?.headers, secret);
+      throw new Error(`nekad ${secret}`);
+    }) as typeof fetch;
+
+    try {
+      await withProviderEnv({ BERGET_API_KEY: `  ${secret}\r\n` }, async () => {
+        const result = await runTeamFromFile(exampleTeam, "Mål", {
+          live: true,
+          write: (line) => lines.push(line),
+        });
+        const output = lines.join("\n");
+
+        assert.equal(authMatchesTrimmed, true);
+        assert.equal(result.success, false);
+        shows(output, "[REDACTED]");
+        hides(output, secret);
+        hides(result.error ?? "", secret);
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("an unknown provider id that is the API key is not printed", async () => {
+    const lines: string[] = [];
+    await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nnej"], async (calls) => {
+      await assert.rejects(
+        () =>
+          runTeamFromFile(exampleTeam, "Mål", {
+            providerId: FAKE_BERGET,
+            write: (line) => lines.push(line),
+          }),
+        (error: Error) => {
+          assert.equal(error.message.includes("Okänd leverantör"), true);
+          assert.equal(error.message.includes(FAKE_BERGET), false);
+          return true;
+        },
+      );
+      assert.equal(calls.length, 0);
+      hides(lines.join("\n"), FAKE_BERGET);
+    });
+  });
+
   test("the README explains how to run against a real model", () => {
     const readme = readFileSync(join(root, "README.md"), "utf8");
+    const spec = readFileSync(join(root, "SPEC.md"), "utf8");
 
     shows(readme, "BERGET_API_KEY");
     shows(readme, "--live");
@@ -593,6 +671,8 @@ describe("team run against a real provider", { concurrency: false }, () => {
     shows(readme, "costs money");
     shows(readme, "sends the goal");
     shows(readme, "non-EU");
+    shows(spec, "--live");
+    shows(spec, "--provider");
     assert.equal(readme.includes("Riktig modell"), false);
     assert.equal(readme.includes(FAKE_BERGET), false);
     assert.equal(readme.includes("sk-"), false);

@@ -127,6 +127,24 @@ test("configureProvider returns configured provider when API key is set", () => 
   }
 });
 
+test("configureProvider stores a trimmed copy of the environment key", () => {
+  const original = process.env.BERGET_API_KEY;
+  const key = "fake-trim-key-277";
+  process.env.BERGET_API_KEY = `  ${key}\r\n`;
+
+  try {
+    const configured = configureProvider("berget");
+    assert.ok(configured);
+    assert.equal(configured.getApiKey(), key);
+  } finally {
+    if (original !== undefined) {
+      process.env.BERGET_API_KEY = original;
+    } else {
+      delete process.env.BERGET_API_KEY;
+    }
+  }
+});
+
 test("configureProvider returns null for unknown provider", () => {
   const configured = configureProvider("unknown-provider");
 

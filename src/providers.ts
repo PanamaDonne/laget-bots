@@ -119,10 +119,14 @@ export function getProviderByEnvKey(envKey: string): Provider | null {
 
 function readEnvKey(envKey: string): string | null {
   const value = process.env[envKey];
-  if (value === undefined || value === "" || value.trim() === "") {
+  if (value === undefined) {
     return null;
   }
-  return value;
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  return trimmed;
 }
 
 export function configureProvider(id: string): ConfiguredProvider | null {

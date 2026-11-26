@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 
 import type { ChatCompletionResponse, ProviderClient } from "./client.ts";
 import { createClient } from "./client.ts";
-import { ConfiguredProvider, configureProvider, createCustomProvider, formatProviderLabel, getProvider } from "./providers.ts";
+import {
+  ConfiguredProvider,
+  configureProvider,
+  createCustomProvider,
+  formatProviderLabel,
+  getProvider,
+  listProviders,
+} from "./providers.ts";
 import { getRole } from "./roles.ts";
 import { formatRunResult, runTeam, type RunResult, type TurnEvent } from "./runner.ts";
 import {
@@ -230,7 +237,7 @@ function resolveRun(config: TeamConfig, requestedLive: boolean): ResolvedRun {
     }
     const known = getProvider(id);
     if (known === null) {
-      throw new Error(`Okänd leverantör: ${id}`);
+      throw new Error(redactSecrets(`Okänd leverantör: ${id}`, envSecrets()));
     }
     if (configured.has(id) || missingEnv.includes(known.envKey)) {
       continue;
@@ -281,12 +288,37 @@ function formatLiveNotice(team: ConfiguredTeam): string {
   return lines.join("\n");
 }
 
-function redactSecrets(text: string, secrets: readonly string[]): string {
-  let redacted = text;
-  for (const secret of secrets) {
-    if (secret.length === 0) {
-      continue;
+function secretForms(value: string | undefined): string[] {
+  if (value === undefined || value.length === 0) {
+    return [];
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return [];
+  }
+  return value === trimmed ? [trimmed] : [value, trimmed];
+}
+
+function envSecrets(): string[] {
+  const secrets: string[] = [];
+  for (const provider of listProviders()) {
+    for (const form of secretForms(process.env[provider.envKey])) {
+      if (!secrets.includes(form)) {
+        secrets.push(form);
+      }
     }
+  }
+  return secrets;
+}
+
+export function redactConfiguredSecrets(text: string): string {
+  return redactSecrets(text, envSecrets());
+}
+
+function redactSecrets(text: string, secrets: readonly string[]): string {
+  const ordered = [...secrets].filter((secret) => secret.length > 0).sort((left, right) => right.length - left.length);
+  let redacted = text;
+  for (const secret of ordered) {
     redacted = redacted.split(secret).join("[REDACTED]");
   }
   return redacted;
@@ -332,7 +364,16 @@ export async function runTeamFromFile(
   const config = loadTeamConfig(configPath);
   const requestedLive = io.live === true || blankToUndefined(io.providerId) !== undefined;
   const resolved = resolveRun(applySelection(config, { providerId: io.providerId, model: io.model }), requestedLive);
-  const secrets = resolved.live ? uniqueSecrets(resolved.team) : [];
+  const secrets = envSecrets();
+  if (resolved.live) {
+    for (const secret of uniqueSecrets(resolved.team)) {
+      for (const form of secretForms(secret)) {
+        if (!secrets.includes(form)) {
+          secrets.push(form);
+        }
+      }
+    }
+  }
   const write = (line: string) => emit(redactSecrets(line, secrets));
 
   write(`Teamkörning: ${resolved.team.name}`);

@@ -44,10 +44,14 @@ export type ProviderClient = {
 };
 
 function scrubSecret(text: string, secret: string): string {
-  if (!secret || secret.length === 0) {
-    return text;
+  const trimmed = secret.trim();
+  const forms = [secret, trimmed].filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
+  forms.sort((left, right) => right.length - left.length);
+  let redacted = text;
+  for (const form of forms) {
+    redacted = redacted.split(form).join("[REDACTED]");
   }
-  return text.split(secret).join("[REDACTED]");
+  return redacted;
 }
 
 function sanitizeErrorChain(error: unknown, secret: string): Error {
