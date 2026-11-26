@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const root = new URL("../", import.meta.url);
 
@@ -10,6 +12,29 @@ function readText(path: string): string {
 
 function readJson(path: string): unknown {
   return JSON.parse(readText(path)) as unknown;
+}
+
+function between(text: string, start: string, end: string): string {
+  const from = text.indexOf(start);
+  assert.ok(from >= 0, `missing ${start}`);
+  const to = text.indexOf(end, from + start.length);
+  assert.ok(to >= from, `missing ${end}`);
+  return text.slice(from, to);
+}
+
+function repoFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const full = join(dir, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      found.push(...repoFiles(full));
+    } else if (entry.isFile()) {
+      found.push(full);
+    }
+  }
+  return found;
 }
 
 test("package scripts expose typecheck, lint, test, and check", () => {
@@ -65,12 +90,39 @@ test("CI scans for secrets and vulnerable dependencies", () => {
   assert.match(ci, /npm audit/);
 });
 
-test("SPEC.md is the Radio Days v2.0 product spec", () => {
+test("SPEC.md is the accepted Radio Days v2.0 product spec", () => {
   const spec = readText("SPEC.md");
+  const title = spec.split("\n", 1)[0] ?? "";
+  const preamble = spec.split("\n## ")[0] ?? "";
 
-  assert.match(spec, /^# Radio Days — product spec v2\.0 \(draft\)/);
-  assert.match(spec, /The former team engine is shut down/);
+  assert.match(title, /Radio Days/);
+  assert.match(title, /v2\.0/);
+  assert.equal(/\bdraft\b/i.test(spec), false);
+  assert.match(preamble, /v2\.0/);
+  assert.equal(preamble.includes("blob/main/SPEC.md"), false);
+  assert.equal(preamble.includes("once that change is merged"), false);
+  assert.equal(/SPEC\.md/.test(preamble) && /v1\.0/.test(preamble), false);
   assert.match(spec, /PanamaDonne\/radio-days/);
+});
+
+test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
+  const spec = readText("SPEC.md");
+  const decided = between(spec, "**Decided", "**Open:**");
+  const open = spec.slice(spec.indexOf("**Open:**"));
+
+  for (const fact of ["Piper", "sv_SE-nst-medium", "sv_SE-alma-medium", "ReadSpeaker"]) {
+    assert.equal(decided.includes(fact), true, fact);
+  }
+  assert.match(decided, /fallback/i);
+  assert.equal(/text-to-speech|\bTTS\b|Piper|ReadSpeaker|\bSten\b/i.test(open), false);
+  assert.equal(/not yet chosen|not decided|No option is picked|none picked/i.test(spec), false);
+  assert.equal(spec.includes("default Berget model in this repo"), false);
+  assert.equal(/if one is chosen|chosen instead of Piper/i.test(spec), false);
+
+  for (const line of spec.split("\n")) {
+    if (/\bsten\b/i.test(line)) assert.match(line, /\bnot\b/i);
+    if (line.includes("gemma")) assert.equal(/\bdefault\b/i.test(line), false, line);
+  }
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
@@ -82,8 +134,30 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.equal(readme.includes("npm run team"), false);
   assert.equal(readme.includes("example-team.json"), false);
   assert.match(agents, /Radio Days/);
-  assert.match(agents, /SPEC\.md is the product spec \(v2\.0\)/);
-  assert.match(agents, /team engine is shut down/);
+  assert.match(agents, /SPEC\.md/);
+  assert.match(agents, /v2\.0/);
+  assert.match(agents, /Vera/);
+  assert.match(agents, /Lazek/);
+  assert.match(agents, /sync-skills/);
+  assert.match(agents, /Linear/);
+  for (const stale of [
+    "defaultModel",
+    "maxTurns",
+    "UTF-16",
+    "code point",
+    "untrusted",
+    "ConfiguredProvider",
+  ]) {
+    assert.equal(agents.includes(stale), false, stale);
+  }
+});
+
+test("repo files do not use the retired team-engine name prefix", () => {
+  const retiredPrefix = ["laget", "-"].join("");
+  const hits = repoFiles(fileURLToPath(root)).filter((file) =>
+    readFileSync(file, "utf8").includes(retiredPrefix),
+  );
+  assert.deepEqual(hits, []);
 });
 
 test("the team engine command, config, and sources are gone", () => {
