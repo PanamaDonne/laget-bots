@@ -165,6 +165,7 @@ function nameForRole(team: ConfiguredTeam, roleId: "po" | "dev" | "reviewer"): s
 
 export type TeamRunIO = {
   write?: (line: string) => void;
+  maxTokens?: number;
 };
 
 export async function runTeamFromFile(
@@ -181,6 +182,7 @@ export async function runTeamFromFile(
   write("");
 
   const result = await runTeam(team, goal, {
+    maxTokens: io.maxTokens,
     createClientFn: createDemoClient(team),
     onTurn: (event) => {
       const line = formatDemoTurn(event);

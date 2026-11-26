@@ -19,11 +19,34 @@ export function estimateMessages(messages: readonly { content: string }[]): numb
   return total;
 }
 
-export function tokensFromUsage(usage: unknown): number | null {
-  if (usage == null || typeof usage !== "object" || !("total_tokens" in usage)) {
-    return null;
+export const MALFORMED_REPLY = "Modellsvaren har fel format.";
+
+function readField(value: unknown, key: string): unknown {
+  if (value == null || typeof value !== "object" || !Object.hasOwn(value, key)) {
+    return undefined;
   }
-  const total = usage.total_tokens;
+  return Reflect.get(value, key);
+}
+
+export type ModelReply = {
+  content: string | null;
+  usage: unknown;
+};
+
+/** Reads a provider payload without throwing. A non-string reply is null content. */
+export function readModelReply(response: unknown): ModelReply {
+  const choices = readField(response, "choices");
+  const first = Array.isArray(choices) ? choices[0] : undefined;
+  const message = readField(first, "message");
+  const content = readField(message, "content");
+  return {
+    content: typeof content === "string" ? content : null,
+    usage: readField(response, "usage"),
+  };
+}
+
+export function tokensFromUsage(usage: unknown): number | null {
+  const total = readField(usage, "total_tokens");
   if (typeof total !== "number" || !Number.isFinite(total) || total < 0) {
     return null;
   }

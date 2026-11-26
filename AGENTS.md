@@ -21,6 +21,10 @@ A handoff or question must match an agent id, name or role exactly. An unknown, 
 
 Every team run has a configurable token cap and a bound on shared-context size. maxTurns limits turns, not model calls or cost.
 
+Truncate text per code point, never with slice on UTF-16 units.
+
+Treat every field in the provider response as untrusted: null, missing or wrong type yields the estimate or a Swedish error, never a throw.
+
 Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event.
 
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.

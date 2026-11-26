@@ -2,9 +2,9 @@
   "namn": "Exempelteam",
   "beskrivning": "Ett team som demonstrerar samarbete mellan agenter",
   "standardLeverantör": "berget",
-  "tokenTak": 100000,
-  "maxAntalPoster": 12,
-  "maxTeckenPerPost": 2000,
+  "maxTokens": 100000,
+  "maxContextEntries": 12,
+  "maxEntryChars": 2000,
   "agenter": [
     {
       "id": "po-1",

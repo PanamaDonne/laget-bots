@@ -16,7 +16,6 @@ export const DEFAULT_MAX_CONTEXT_ENTRIES = 12;
 export const DEFAULT_MAX_ENTRY_CHARS = 2_000;
 
 const TRUNCATION_MARK = "… (avkortat)";
-const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export type ContextLimits = {
   maxEntries: number;
@@ -57,15 +56,15 @@ function truncateWellFormed(text: string, maxUnits: number): string {
     return "";
   }
   let units = 0;
-  let end = 0;
-  for (const { segment } of GRAPHEMES.segment(text)) {
-    if (units + segment.length > maxUnits) {
+  let kept = "";
+  for (const codePoint of text) {
+    if (units + codePoint.length > maxUnits) {
       break;
     }
-    units += segment.length;
-    end += segment.length;
+    kept += codePoint;
+    units += codePoint.length;
   }
-  return text.slice(0, end);
+  return kept;
 }
 
 export function boundEntryContent(content: string, maxChars: number): string {

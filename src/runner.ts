@@ -1,6 +1,8 @@
 import {
   estimateMessages,
   estimateTokens,
+  MALFORMED_REPLY,
+  readModelReply,
   resolveMaxTokens,
   tokenCapMessage,
   tokensFromUsage,
@@ -150,7 +152,7 @@ export async function executeAgentTurn(
   state: RunnerState,
   options: RunnerOptions,
   prepared?: PreparedTurn,
-): Promise<{ response: string; usage?: { total_tokens: number }; nextState: RunnerState }> {
+): Promise<{ response: string; usage: unknown; formatError?: string; nextState: RunnerState }> {
   const createClientFn = options.createClientFn ?? createClient;
   const client = createClientFn(agent.provider);
   const messages =
@@ -167,11 +169,19 @@ export async function executeAgentTurn(
   }
 
   const result = await client.chatCompletion(request);
-  const responseContent = result.choices[0]?.message.content ?? "";
+  const reply = readModelReply(result);
+  if (reply.content === null) {
+    return {
+      response: "",
+      usage: reply.usage,
+      formatError: MALFORMED_REPLY,
+      nextState: state,
+    };
+  }
 
   return {
-    response: responseContent,
-    usage: result.usage,
+    response: reply.content,
+    usage: reply.usage,
     nextState: state,
   };
 }
@@ -397,6 +407,25 @@ async function runTeamOnce(
       });
       response = result.response;
       callUsage = result.usage;
+      if (result.formatError !== undefined) {
+        const reported = tokensFromUsage(callUsage);
+        tokensUsed += reported === null ? promptTokens : Math.max(reported, promptTokens);
+        state = {
+          ...state,
+          error: result.formatError,
+        };
+        if (onTurn !== undefined) {
+          onTurn({
+            turn: state.turn,
+            agentId: agent.id,
+            agentName: agent.name,
+            roleId: agent.roleId,
+            type: "error",
+            content: result.formatError,
+          });
+        }
+        break;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Okänt fel";
       state = {

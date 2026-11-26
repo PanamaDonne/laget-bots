@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_MAX_TOKENS, estimateMessages, estimateTokens, tokensFromUsage } from "../src/budget.ts";
+import {
+  DEFAULT_MAX_TOKENS,
+  estimateMessages,
+  estimateTokens,
+  MALFORMED_REPLY,
+  tokensFromUsage,
+} from "../src/budget.ts";
 import type { ChatCompletionRequest, ChatCompletionResponse } from "../src/client.ts";
 import { createClient } from "../src/client.ts";
 import {
@@ -16,8 +24,11 @@ import {
   summarizeContext,
 } from "../src/context.ts";
 import { ConfiguredProvider, createCustomProvider, toSafeProvider } from "../src/providers.ts";
-import { buildAgentPrompt, createInitialState, formatRunResult, runTeam } from "../src/runner.ts";
+import { buildAgentPrompt, createInitialState, formatRunResult, runTeam, type TurnEvent } from "../src/runner.ts";
+import { parseTeamCliArgs } from "../src/team-cli.ts";
 import { configureTeam, parseTeamConfig, type ConfiguredTeam, type TeamConfigInput } from "../src/team.ts";
+
+const execFileAsync = promisify(execFile);
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -405,7 +416,7 @@ test("an invalid token cap is rejected before any model call", async () => {
 
 test("the team file can set the token cap and the context window", async () => {
   const config = parseTeamConfig(
-    teamInput({ tokenTak: 1_000, maxAntalPoster: 2, maxTeckenPerPost: 30 }),
+    teamInput({ maxTokens: 1_000, maxContextEntries: 2, maxEntryChars: 30 }),
   );
   assert.equal(config.maxTokens, 1_000);
   assert.equal(config.maxContextEntries, 2);
@@ -428,7 +439,7 @@ test("the team file can set the token cap and the context window", async () => {
   assert.ok(capped.context.entries.every((entry) => entry.content.length <= 30));
   assert.match(capped.context.entries[0]?.content ?? "", /avkortat/);
 
-  const tight = configureTeam(parseTeamConfig(teamInput({ tokenTak: 1 })), () => createMockProvider());
+  const tight = configureTeam(parseTeamConfig(teamInput({ maxTokens: 1 })), () => createMockProvider());
   const blocked = mockClient(() => completion("[KLART]\nKlar"));
   const stopped = await runTeam(tight, "Mål", { createClientFn: blocked.client });
   assert.equal(blocked.calls(), 0);
@@ -436,7 +447,7 @@ test("the team file can set the token cap and the context window", async () => {
 });
 
 test("run options override the team file cap", async () => {
-  const team = configureTeam(parseTeamConfig(teamInput({ tokenTak: 1 })), () => createMockProvider());
+  const team = configureTeam(parseTeamConfig(teamInput({ maxTokens: 1 })), () => createMockProvider());
   const mock = mockClient(() => completion("[KLART]\nKlar", 20));
 
   const result = await runTeam(team, "Mål", {
@@ -449,13 +460,13 @@ test("run options override the team file cap", async () => {
 });
 
 test("a team file rejects a token cap that is not a positive integer", () => {
-  assert.throws(() => parseTeamConfig(teamInput({ tokenTak: 0 })), /Tokentaket måste vara ett positivt heltal/);
+  assert.throws(() => parseTeamConfig(teamInput({ maxTokens: 0 })), /Tokentaket måste vara ett positivt heltal/);
   assert.throws(
-    () => parseTeamConfig(teamInput({ maxAntalPoster: 1.2 })),
+    () => parseTeamConfig(teamInput({ maxContextEntries: 1.2 })),
     /Antal poster måste vara ett positivt heltal/,
   );
   assert.throws(
-    () => parseTeamConfig(teamInput({ maxTeckenPerPost: -1 })),
+    () => parseTeamConfig(teamInput({ maxEntryChars: -1 })),
     /Tecken per post måste vara ett positivt heltal/,
   );
 });
@@ -506,9 +517,12 @@ function isWellFormed(text: string): boolean {
   return method.call(text);
 }
 
-test("truncation keeps emoji and flags as well-formed text", () => {
+test("truncation cuts on code points and does not emit a lone surrogate", () => {
   const mark = "… (avkortat)";
-  const emoji = boundEntryContent(`aaaa😀${"b".repeat(40)}`, mark.length + 5);
+  const source = `aaaa😀${"b".repeat(40)}`;
+  assert.equal(isWellFormed(source.slice(0, 5)), false);
+
+  const emoji = boundEntryContent(source, mark.length + 5);
   assert.equal(isWellFormed(emoji), true);
   assert.ok(emoji.length <= mark.length + 5);
   assert.equal(emoji, `aaaa${mark}`);
@@ -516,13 +530,43 @@ test("truncation keeps emoji and flags as well-formed text", () => {
   const flag = boundEntryContent("🇸🇪".repeat(8), mark.length + 3);
   assert.equal(isWellFormed(flag), true);
   assert.ok(flag.length <= mark.length + 3);
-  assert.equal(flag, mark);
+  assert.equal([...flag.slice(0, flag.length - mark.length)].length, 1);
+  assert.equal(flag.endsWith(mark), true);
 
   const context = createContext("Mål", { maxEntries: 2, maxEntryChars: mark.length + 2 });
   addEntry(context, "po-1", "po", "work", "😀".repeat(20));
   const stored = context.entries[0]?.content ?? "";
   assert.equal(isWellFormed(stored), true);
   assert.ok(stored.length <= mark.length + 2);
+});
+
+test("a malformed provider response returns a Swedish error instead of throwing", async () => {
+  const team = createTestTeam();
+  const payloads = [
+    { id: null, choices: null, usage: null, model: 4 },
+    {
+      choices: [{ message: { role: null, content: 12 }, finish_reason: null }],
+      usage: { prompt_tokens: null, completion_tokens: "nej", total_tokens: null },
+    },
+  ];
+
+  for (const payload of payloads) {
+    const events: TurnEvent[] = [];
+    const mock = mockClient(() => payload as unknown as ChatCompletionResponse);
+    const result = await runTeam(team, "Mål", {
+      createClientFn: mock.client,
+      onTurn: (event) => events.push(event),
+    });
+
+    assert.equal(mock.calls(), 1);
+    assert.equal(result.success, false);
+    assert.equal(result.error, MALFORMED_REPLY);
+    assert.equal(
+      events.some((event) => event.type === "error" && event.content === MALFORMED_REPLY),
+      true,
+    );
+    assert.equal(typeof result.tokensUsed, "number");
+  }
 });
 
 test("defaults cover one dev-flow run and a short context window", () => {
@@ -539,7 +583,70 @@ test("AGENTS.md and the README document the token cap and the context bound", ()
     agents,
     /Every team run has a configurable token cap and a bound on shared-context size\. maxTurns limits turns, not model calls or cost\./,
   );
-  assert.match(readme, /tokenTak/);
-  assert.match(readme, /maxAntalPoster/);
-  assert.match(readme, /`maxTurns` limits turns, not model calls or cost/);
+  assert.match(readme, /maxTokens/);
+  assert.match(readme, /maxContextEntries/);
+  assert.match(readme, /--max-tokens/);
+  assert.match(
+    agents,
+    /Truncate text per code point, never with slice on UTF-16 units\./,
+  );
+  assert.match(
+    agents,
+    /Treat every field in the provider response as untrusted: null, missing or wrong type yields the estimate or a Swedish error, never a throw\./,
+  );
+  assert.match(
+    agents,
+    /Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event\./,
+  );
 });
+
+test("the CLI honours --max-tokens and rejects an unknown flag", async () => {
+  const capped = parseTeamCliArgs(["example-team.json", "Bygg en funktion", "--max-tokens", "50"]);
+  assert.equal(capped.ok, true);
+  if (capped.ok) {
+    assert.equal(capped.maxTokens, 50);
+  }
+  assert.equal(parseTeamCliArgs(["example-team.json", "Mål", "--max-tokens", "nej"]).ok, false);
+  assert.match(cliError(["example-team.json", "Mål", "--max-tokens"]), /Tokentaket måste vara ett positivt heltal/);
+  assert.match(cliError(["example-team.json", "Mål", "--bogus"]), /Okänt argument: --bogus/);
+
+  const stopped = await runCli(["example-team.json", "Bygg en funktion", "--max-tokens", "1"]);
+  assert.equal(stopped.code, 1);
+  assert.match(`${stopped.stdout}\n${stopped.stderr}`, /Nådde taket på 1 token/);
+
+  const missing = await runCli(["example-team.json", "Bygg en funktion", "--max-tokens"]);
+  assert.equal(missing.code, 1);
+  assert.match(missing.stderr, /Tokentaket måste vara ett positivt heltal/);
+  assert.equal(missing.stdout.includes("Teamkörning"), false);
+
+  const unknownFlag = await runCli(["example-team.json", "Bygg en funktion", "--bogus"]);
+  assert.equal(unknownFlag.code, 1);
+  assert.match(unknownFlag.stderr, /Okänt argument: --bogus/);
+  assert.equal(unknownFlag.stdout.includes("Teamkörning"), false);
+});
+
+function cliError(argv: readonly string[]): string {
+  const parsed = parseTeamCliArgs(argv);
+  if (parsed.ok) {
+    return "";
+  }
+  return parsed.error;
+}
+
+async function runCli(args: readonly string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+  try {
+    const result = await execFileAsync(
+      process.execPath,
+      ["--experimental-strip-types", "src/team-cli.ts", ...args],
+      { cwd: root },
+    );
+    return { code: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const failed = error as { code?: number; stdout?: string; stderr?: string };
+    return {
+      code: typeof failed.code === "number" ? failed.code : 1,
+      stdout: failed.stdout ?? "",
+      stderr: failed.stderr ?? "",
+    };
+  }
+}

@@ -25,9 +25,9 @@ export type TeamConfigInput = {
   beskrivning: string;
   agenter: readonly AgentConfigInput[];
   standardLeverantör?: string;
-  tokenTak?: number;
-  maxAntalPoster?: number;
-  maxTeckenPerPost?: number;
+  maxTokens?: number;
+  maxContextEntries?: number;
+  maxEntryChars?: number;
 };
 
 export type AgentConfigInput = {
@@ -117,9 +117,9 @@ export function parseTeamConfig(input: TeamConfigInput): TeamConfig {
     description: input.beskrivning,
     agents,
     defaultProviderId: input.standardLeverantör,
-    maxTokens: readOptionalLimit(input.tokenTak, "Tokentaket"),
-    maxContextEntries: readOptionalLimit(input.maxAntalPoster, "Antal poster"),
-    maxEntryChars: readOptionalLimit(input.maxTeckenPerPost, "Tecken per post"),
+    maxTokens: readOptionalLimit(input.maxTokens, "Tokentaket"),
+    maxContextEntries: readOptionalLimit(input.maxContextEntries, "Antal poster"),
+    maxEntryChars: readOptionalLimit(input.maxEntryChars, "Tecken per post"),
   };
   assertCompleteTeam(config);
   return config;
