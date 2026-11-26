@@ -16,17 +16,19 @@ The output shows each handoff, question and answer, and when an agent finishes. 
 
 Every run stops at a token cap, default 100000, or `maxTokens` in the team file. Override it with `--max-tokens <antal>`. The shared context keeps a fixed window of recent entries (`maxContextEntries`, `maxEntryChars`) so later steps do not send a longer prompt. `maxTurns` limits turns, not model calls or cost.
 
-## Riktig modell
+## Real model
 
-Samma kommando anropar en riktig modell när leverantörens nyckel finns i miljön. Nyckeln läses bara därifrån och syns inte i utskrift eller fel. Utan nyckel stannar körningen på mock.
+The same command calls a real model only when you pass `--live` or `--provider <id>`, and that provider's API key is set in the environment. The key is read only from the environment and is never printed. Without that choice, or without the key, the run stays on the mock.
+
+A real run sends the goal to the provider and costs money. Grok and OpenAI are non-EU.
 
 ```bash
-BERGET_API_KEY=... npm run team -- example-team.json "Bygg en funktion"
+BERGET_API_KEY=... npm run team -- example-team.json "Bygg en funktion" --live
 ```
 
-`example-team.json` väljer Berget och varje agents modell. Byt med `--provider <id>` och `--model <id>`. Tokentaket (`maxTokens`, `--max-tokens`) stoppar körningen även här.
+`example-team.json` selects Berget and each agent's model. Change them with `--provider <id>` and `--model <id>`. The token cap (`maxTokens`, `--max-tokens`) still stops the run.
 
-Leverantörer: Berget (`BERGET_API_KEY`), Mistral (`MISTRAL_API_KEY`), Grok (`XAI_API_KEY`, non-EU) och OpenAI (`OPENAI_API_KEY`, non-EU).
+Providers: Berget (`BERGET_API_KEY`), Mistral (`MISTRAL_API_KEY`), Grok (`XAI_API_KEY`, non-EU) and OpenAI (`OPENAI_API_KEY`, non-EU).
 
 ## Checks
 

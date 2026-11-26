@@ -169,7 +169,11 @@ export type TeamRunIO = {
   maxTokens?: number;
   providerId?: string;
   model?: string;
+  /** Call the configured provider. `--provider` requests this too. */
+  live?: boolean;
 };
+
+const MOCK_OPT_IN = "Leverantör: Mock. Sätt på riktigt läge med --live eller --provider <id>.";
 
 type ResolvedRun = {
   team: ConfiguredTeam;
@@ -205,9 +209,18 @@ function chosenProviderId(agent: AgentConfig, config: TeamConfig): string | unde
   return agent.providerId ?? config.defaultProviderId;
 }
 
-/** Live only when every agent has a configured provider. Any missing key keeps the whole run on the mock. */
-function resolveRun(config: TeamConfig): ResolvedRun {
+/** Live only after an explicit request, and only when every agent has a key. */
+function resolveRun(config: TeamConfig, requestedLive: boolean): ResolvedRun {
   const ids = config.agents.map((agent) => chosenProviderId(agent, config));
+  if (!requestedLive) {
+    const named = ids.some((id) => id !== undefined);
+    return {
+      team: configureTeam(config, () => createDemoProvider()),
+      live: false,
+      notice: named ? MOCK_OPT_IN : "Leverantör: Mock",
+    };
+  }
+
   const missingEnv: string[] = [];
   const configured = new Map<string, ConfiguredProvider>();
 
@@ -317,7 +330,8 @@ export async function runTeamFromFile(
 ): Promise<Awaited<ReturnType<typeof runTeam>>> {
   const emit = io.write ?? ((line: string) => console.log(line));
   const config = loadTeamConfig(configPath);
-  const resolved = resolveRun(applySelection(config, { providerId: io.providerId, model: io.model }));
+  const requestedLive = io.live === true || blankToUndefined(io.providerId) !== undefined;
+  const resolved = resolveRun(applySelection(config, { providerId: io.providerId, model: io.model }), requestedLive);
   const secrets = resolved.live ? uniqueSecrets(resolved.team) : [];
   const write = (line: string) => emit(redactSecrets(line, secrets));
 

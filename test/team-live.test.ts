@@ -156,9 +156,11 @@ function writeTeam(contents: unknown): string {
 }
 
 const exampleTeam = join(root, "example-team.json");
+const MOCK_OPT_IN = "Leverantör: Mock. Sätt på riktigt läge med --live eller --provider <id>.";
+const FAKE_PREFIX = "fake-berget-";
 
 describe("team run against a real provider", { concurrency: false }, () => {
-  test("stays on the mock when the named provider has no key", async () => {
+  test("stays on the mock and explains live mode when it was not requested", async () => {
     const lines: string[] = [];
     await withScriptedFetch({}, FAKE_BERGET, ["[KLART]\nska inte anropas"], async (calls) => {
       const result = await runTeamFromFile(exampleTeam, "Bygg en funktion", {
@@ -168,8 +170,46 @@ describe("team run against a real provider", { concurrency: false }, () => {
 
       assert.equal(result.success, true);
       assert.equal(calls.length, 0);
-      shows(output, "Leverantör: Mock (ingen nyckel i BERGET_API_KEY)");
+      shows(output, MOCK_OPT_IN);
       shows(output, "Anna (PO-agent) lämnar över");
+      shows(output, "Vilket format ska resultatet ha?");
+      assert.equal(output.includes("ska inte anropas"), false);
+      hides(output, FAKE_BERGET);
+    });
+  });
+
+  test("an environment key without --live or --provider stays on the mock", async () => {
+    const lines: string[] = [];
+    await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nska inte anropas"], async (calls) => {
+      const result = await runTeamFromFile(exampleTeam, "Bygg en funktion", {
+        model: "fake-model-277",
+        write: (line) => lines.push(line),
+      });
+      const output = lines.join("\n");
+
+      assert.equal(result.success, true);
+      assert.equal(calls.length, 0);
+      shows(output, MOCK_OPT_IN);
+      shows(output, "Vilket format ska resultatet ha?");
+      assert.equal(output.includes("ska inte anropas"), false);
+      assert.equal(output.includes("Leverantör: Berget"), false);
+      hides(output, FAKE_BERGET);
+      hides(output, FAKE_PREFIX);
+    });
+  });
+
+  test("--live without a key stays on the mock and names the missing variable", async () => {
+    const lines: string[] = [];
+    await withScriptedFetch({}, FAKE_BERGET, ["[KLART]\nska inte anropas"], async (calls) => {
+      const result = await runTeamFromFile(exampleTeam, "Bygg en funktion", {
+        live: true,
+        write: (line) => lines.push(line),
+      });
+      const output = lines.join("\n");
+
+      assert.equal(result.success, true);
+      assert.equal(calls.length, 0);
+      shows(output, "Leverantör: Mock (ingen nyckel i BERGET_API_KEY)");
       shows(output, "Vilket format ska resultatet ha?");
       hides(output, FAKE_BERGET);
     });
@@ -219,6 +259,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
       ["[LÄMNAR ÖVER TILL Erik]\nLive-överlämning från po", "[KLART]\nLive-klart från dev"],
       async (calls) => {
         const result = await runTeamFromFile(path, "Bygg en funktion", {
+          live: true,
           write: (line) => lines.push(line),
         });
         const output = lines.join("\n");
@@ -309,7 +350,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
     });
     const lines: string[] = [];
     await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nnej"], async (calls) => {
-      const result = await runTeamFromFile(path, "Mål", { write: (line) => lines.push(line) });
+      const result = await runTeamFromFile(path, "Mål", { live: true, write: (line) => lines.push(line) });
       const output = lines.join("\n");
 
       assert.equal(result.success, true);
@@ -341,6 +382,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
     try {
       await withProviderEnv({ BERGET_API_KEY: FAKE_BERGET }, async () => {
         const result = await runTeamFromFile(exampleTeam, "Bygg en funktion", {
+          live: true,
           write: (line) => lines.push(line),
         });
         const output = lines.join("\n");
@@ -366,6 +408,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
     const lines: string[] = [];
     await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, ["[KLART]\nnej"], async (calls) => {
       const result = await runTeamFromFile(exampleTeam, "Bygg en funktion", {
+        live: true,
         maxTokens: 1,
         write: (line) => lines.push(line),
       });
@@ -385,6 +428,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
       throw new Error(`uppkopplingen misslyckades med ${FAKE_BERGET}`);
     }, async () => {
       const result = await runTeamFromFile(exampleTeam, `Mål ${FAKE_BERGET}`, {
+        live: true,
         write: (line) => lines.push(line),
       });
       const output = lines.join("\n");
@@ -405,6 +449,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
       [`[KLART]\n${FAKE_BERGET}`],
       async () => {
         const result = await runTeamFromFile(exampleTeam, "Mål", {
+          live: true,
           write: (line) => echoed.push(line),
         });
         const output = echoed.join("\n");
@@ -417,11 +462,30 @@ describe("team run against a real provider", { concurrency: false }, () => {
       },
     );
 
+    const invalid: string[] = [];
+    await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, () => {
+      return new Response(`${FAKE_BERGET} är inte json`, { status: 200 });
+    }, async () => {
+      const result = await runTeamFromFile(exampleTeam, "Mål", {
+        live: true,
+        write: (line) => invalid.push(line),
+      });
+      const output = invalid.join("\n");
+
+      assert.equal(result.success, false);
+      shows(output, "Provider berget returned invalid JSON");
+      hides(output, FAKE_BERGET);
+      hides(output, FAKE_PREFIX);
+      hides(result.error ?? "", FAKE_BERGET);
+      hides(result.error ?? "", FAKE_PREFIX);
+    });
+
     const rejected: string[] = [];
     await withScriptedFetch({ BERGET_API_KEY: FAKE_BERGET }, FAKE_BERGET, () => {
       return new Response(`{"error":"${FAKE_BERGET}"}`, { status: 401 });
     }, async () => {
       const result = await runTeamFromFile(exampleTeam, "Mål", {
+        live: true,
         write: (line) => rejected.push(line),
       });
       const output = rejected.join("\n");
@@ -497,15 +561,39 @@ describe("team run against a real provider", { concurrency: false }, () => {
     assert.equal(unknown.code, 1);
     shows(unknown.stderr, "Okänd leverantör: nope");
     assert.equal(unknown.stdout.includes("Teamkörning"), false);
+
+    const liveFlag = parseTeamCliArgs(["example-team.json", "Mål", "--live"]);
+    assert.equal(liveFlag.ok, true);
+    if (liveFlag.ok) {
+      assert.equal(liveFlag.live, true);
+    }
+
+    const leakedFlag = parseTeamCliArgs(["example-team.json", "Mål", "--key=fake-cli-key-277"]);
+    assert.equal(leakedFlag.ok, false);
+    if (!leakedFlag.ok) {
+      assert.equal(leakedFlag.error, "Okänt argument: --key");
+      hides(leakedFlag.error, "fake-cli-key-277");
+    }
+
+    const liveRun = await runCli(["example-team.json", "Bygg en funktion", "--live"]);
+    assert.equal(liveRun.code, 0);
+    shows(liveRun.stdout, "Leverantör: Mock (ingen nyckel i BERGET_API_KEY)");
+    shows(liveRun.stdout, "Anna (PO-agent) lämnar över");
+    hides(liveRun.stdout, "fake-cli-key-277");
   });
 
   test("the README explains how to run against a real model", () => {
     const readme = readFileSync(join(root, "README.md"), "utf8");
 
     shows(readme, "BERGET_API_KEY");
+    shows(readme, "--live");
     shows(readme, "--provider");
     shows(readme, "--model");
     shows(readme, "npm run team");
+    shows(readme, "costs money");
+    shows(readme, "sends the goal");
+    shows(readme, "non-EU");
+    assert.equal(readme.includes("Riktig modell"), false);
     assert.equal(readme.includes(FAKE_BERGET), false);
     assert.equal(readme.includes("sk-"), false);
   });

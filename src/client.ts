@@ -106,8 +106,8 @@ export function createClient(provider: ConfiguredProvider, options: ClientOption
       let data: ChatCompletionResponse;
       try {
         data = (await response.json()) as ChatCompletionResponse;
-      } catch (parseError) {
-        throw sanitizeErrorChain(parseError, apiKey);
+      } catch {
+        throw new Error(`Provider ${provider.id} returned invalid JSON`);
       }
       return data;
     } finally {

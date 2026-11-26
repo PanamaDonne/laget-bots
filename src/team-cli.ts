@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { runTeamFromFile } from "./team-run.ts";
 
 const USAGE =
-  'Användning: npm run team -- <konfiguration.json> "<mål>" [--provider <id>] [--model <id>] [--max-tokens <antal>]';
+  'Användning: npm run team -- <konfiguration.json> "<mål>" [--live] [--provider <id>] [--model <id>] [--max-tokens <antal>]';
 
 export type TeamCliArgs =
   | {
@@ -14,6 +14,7 @@ export type TeamCliArgs =
       maxTokens?: number;
       providerId?: string;
       model?: string;
+      live: boolean;
     }
   | { ok: false; error: string };
 
@@ -22,6 +23,7 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   let maxTokens: number | undefined;
   let providerId: string | undefined;
   let model: string | undefined;
+  let live = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] ?? "";
@@ -36,6 +38,10 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
         return parsed;
       }
       maxTokens = parsed.value;
+      continue;
+    }
+    if (arg === "--live") {
+      live = true;
       continue;
     }
     if (arg === "--provider" || arg.startsWith("--provider=")) {
@@ -59,7 +65,9 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
       continue;
     }
     if (arg.startsWith("-")) {
-      return { ok: false, error: `Okänt argument: ${arg}` };
+      const equals = arg.indexOf("=");
+      const name = equals === -1 ? arg : arg.slice(0, equals);
+      return { ok: false, error: `Okänt argument: ${name}` };
     }
     positionals.push(arg);
   }
@@ -73,7 +81,7 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   if (extra !== undefined) {
     return { ok: false, error: `Okänt argument: ${extra}` };
   }
-  return { ok: true, configPath, goal, maxTokens, providerId, model };
+  return { ok: true, configPath, goal, maxTokens, providerId, model, live };
 }
 
 function readFlagValue(
@@ -130,6 +138,7 @@ async function main(): Promise<void> {
       maxTokens: parsed.maxTokens,
       providerId: parsed.providerId,
       model: parsed.model,
+      live: parsed.live,
     });
     if (!result.success) {
       process.exitCode = 1;
