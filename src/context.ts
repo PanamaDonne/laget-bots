@@ -4,7 +4,7 @@ export type AgentEntry = {
   agentId: string;
   roleId: string;
   timestamp: Date;
-  action: "work" | "handoff" | "question" | "answer";
+  action: "work" | "handoff" | "question" | "answer" | "done";
   content: string;
 };
 
@@ -69,6 +69,8 @@ function formatActionLabel(action: AgentEntry["action"]): string {
       return "Frågar";
     case "answer":
       return "Svarar";
+    case "done":
+      return "Klar";
     default: {
       const _exhaustive: never = action;
       return _exhaustive;

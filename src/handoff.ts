@@ -73,7 +73,7 @@ export function validateHandoff(
     return {
       accepted: false,
       targetAgent: null,
-      error: "En agent kan inte lämna över till sig själv",
+      error: selfTargetError(request.type),
     };
   }
 
@@ -81,7 +81,7 @@ export function validateHandoff(
     return {
       accepted: false,
       targetAgent: null,
-      error: "Överlämningen måste ha ett innehåll",
+      error: emptyContentError(request.type),
     };
   }
 
@@ -135,11 +135,56 @@ export function recordWork(
   context: SharedContext,
   workDescription: string,
 ): void {
+  recordAgentEntry(agentId, team, context, "work", workDescription);
+}
+
+export function recordDone(
+  agentId: string,
+  team: ConfiguredTeam,
+  context: SharedContext,
+  summary: string,
+): void {
+  recordAgentEntry(agentId, team, context, "done", summary);
+}
+
+function recordAgentEntry(
+  agentId: string,
+  team: ConfiguredTeam,
+  context: SharedContext,
+  action: "work" | "done",
+  content: string,
+): void {
   const agent = team.agents.find((a) => a.id === agentId);
   if (agent === undefined) {
     throw new Error(`Okänd agent: ${agentId}`);
   }
-  addEntry(context, agent.id, agent.roleId, "work", workDescription);
+  addEntry(context, agent.id, agent.roleId, action, content);
+}
+
+function selfTargetError(type: HandoffType): string {
+  switch (type) {
+    case "question":
+      return "En agent kan inte fråga sig själv";
+    case "work":
+      return "En agent kan inte lämna över till sig själv";
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
+  }
+}
+
+function emptyContentError(type: HandoffType): string {
+  switch (type) {
+    case "question":
+      return "Frågan måste ha ett innehåll";
+    case "work":
+      return "Överlämningen måste ha ett innehåll";
+    default: {
+      const _exhaustive: never = type;
+      return _exhaustive;
+    }
+  }
 }
 
 export type ParsedAgentResponse = {
@@ -152,35 +197,102 @@ export type ParsedAgentResponse = {
 const MISSING_MARKER =
   "Svaret saknar markör. Använd [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART].";
 
+const SEVERAL_MARKERS =
+  "Svaret har flera markörer. Använd bara en av [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART].";
+
+type MarkerHit = {
+  kind: "handoff" | "question" | "done";
+  target: string;
+  index: number;
+  length: number;
+};
+
 export function parseAgentResponse(
   response: string,
   team: ConfiguredTeam,
 ): ParsedAgentResponse {
   const trimmed = response.trim();
-
-  const handoffMatch = trimmed.match(/^\[LÄMNAR ÖVER TILL ([^\]]*)\]\s*(.*)$/s);
-  if (handoffMatch) {
-    return parseAddressed(team, "handoff", handoffMatch[1] ?? "", handoffMatch[2] ?? "");
-  }
-
-  const questionMatch = trimmed.match(/^\[FRÅGAR ([^\]]*)\]\s*(.*)$/s);
-  if (questionMatch) {
-    return parseAddressed(team, "question", questionMatch[1] ?? "", questionMatch[2] ?? "");
-  }
-
-  const doneMatch = trimmed.match(/^\[KLART\]\s*(.*)$/s);
-  if (doneMatch) {
+  const hits = findMarkers(trimmed);
+  const hit = hits[0];
+  if (hit === undefined) {
     return {
-      type: "done",
-      content: doneMatch[1]?.trim() ?? "",
+      type: "invalid",
+      content: trimmed,
+      error: MISSING_MARKER,
+    };
+  }
+  if (hits.length > 1) {
+    return {
+      type: "invalid",
+      content: trimmed,
+      error: SEVERAL_MARKERS,
     };
   }
 
-  return {
-    type: "invalid",
-    content: trimmed,
-    error: MISSING_MARKER,
-  };
+  const content = textAroundMarker(trimmed, hit);
+  if (hit.kind === "done") {
+    return {
+      type: "done",
+      content,
+    };
+  }
+  return parseAddressed(team, hit.kind, hit.target, content);
+}
+
+function findMarkers(text: string): MarkerHit[] {
+  const pattern = /\[LÄMNAR ÖVER TILL ([^\]]*)\]|\[FRÅGAR ([^\]]*)\]|\[KLART\]/giu;
+  const hits: MarkerHit[] = [];
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index;
+    if (index === undefined) {
+      continue;
+    }
+    const kind = markerKind(match);
+    hits.push({
+      kind,
+      target: markerTarget(kind, match),
+      index,
+      length: match[0].length,
+    });
+  }
+  return hits;
+}
+
+function markerKind(match: RegExpMatchArray): MarkerHit["kind"] {
+  if (match[1] !== undefined) {
+    return "handoff";
+  }
+  if (match[2] !== undefined) {
+    return "question";
+  }
+  return "done";
+}
+
+function markerTarget(kind: MarkerHit["kind"], match: RegExpMatchArray): string {
+  switch (kind) {
+    case "handoff":
+      return match[1] ?? "";
+    case "question":
+      return match[2] ?? "";
+    case "done":
+      return "";
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+}
+
+function textAroundMarker(text: string, hit: MarkerHit): string {
+  const before = text.slice(0, hit.index).trim();
+  const after = text.slice(hit.index + hit.length).trim();
+  if (before === "") {
+    return after;
+  }
+  if (after === "") {
+    return before;
+  }
+  return `${before}\n${after}`;
 }
 
 function parseAddressed(
