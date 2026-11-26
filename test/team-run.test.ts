@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import type { ProviderClient } from "../src/client.ts";
 import { ConfiguredProvider, createCustomProvider, toSafeProvider } from "../src/providers.ts";
 import { runTeam } from "../src/runner.ts";
-import { configureTeam, type ConfiguredTeam } from "../src/team.ts";
+import { configureTeam, parseTeamConfig, type ConfiguredTeam, type TeamConfigInput } from "../src/team.ts";
 import { loadTeamConfig, runTeamFromFile } from "../src/team-run.ts";
 
 const execFileAsync = promisify(execFile);
@@ -91,6 +91,22 @@ test("AGENTS.md requires an exact handoff target", () => {
   );
 });
 
+test("AGENTS.md requires an error event when reply parsing fails", () => {
+  const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
+
+  assert.match(
+    agents,
+    /Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event\./,
+  );
+});
+
+test("README documents npm run team", () => {
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+
+  assert.match(readme, /npm run team/);
+  assert.match(readme, /example-team\.json/);
+});
+
 test("loadTeamConfig rejects a team without all three roles", () => {
   const dir = mkdtempSync(join(tmpdir(), "laget-team-"));
   const path = join(dir, "team.json");
@@ -146,6 +162,8 @@ test("runTeamFromFile shows a mock team run and does not call the network", asyn
     assert.match(output, /Anna \(PO-agent\) svarar/);
     assert.match(output, /Erik \(Dev-agent\) lämnar över/);
     assert.match(output, /Lisa \(Gransknings-agent\) klar/);
+    assert.match(output, /\[reviewer\] Klar: Granskningen är godkänd/);
+    assert.equal(output.includes("[reviewer] Arbete:"), false);
     assert.equal(output.includes("fake-team-demo-key"), false);
   } finally {
     globalThis.fetch = originalFetch;
@@ -216,16 +234,246 @@ test("an ambiguous role target stops the run", async () => {
   assert.equal(mock.calls(), 1);
 });
 
-test("a reply without a marker stops the run", async () => {
+test("a reply with text before the marker is parsed and the run continues", async () => {
   const team = createTestTeam();
-  const mock = mockReplies(["Allt klart! [KLART]\nFärdigt"]);
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies([
+    "Jag har förtydligat målet.\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    "Implementationen är klar.\n[LÄMNAR ÖVER TILL Lisa]\nGranska",
+    "Allt klart! [KLART]\nFärdigt",
+  ]);
 
-  const result = await runTeam(team, "Mål", { maxTurns: 20, createClientFn: mock.client });
+  const result = await runTeam(team, "Mål", {
+    maxTurns: 20,
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.turns, 3);
+  assert.equal(mock.calls(), 3);
+  assert.match(result.finalSummary, /\[reviewer\] Klar:/);
+  assert.match(result.finalSummary, /Färdigt/);
+  assert.equal(result.finalSummary.includes("Arbete"), false);
+  assert.equal(events.some((event) => event.type === "handoff"), true);
+  assert.equal(events.some((event) => event.type === "done"), true);
+  assert.equal(events.some((event) => event.type === "error"), false);
+});
+
+test("a reply with no marker stops the run with an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["Jag gjorde arbetet utan markör"]);
+
+  const result = await runTeam(team, "Mål", {
+    maxTurns: 20,
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
 
   assert.equal(result.success, false);
   assert.match(result.error ?? "", /saknar markör/);
   assert.equal(result.turns, 1);
   assert.equal(mock.calls(), 1);
+  assert.equal(result.context.entries.length, 0);
+  assert.equal(events.some((event) => event.type === "error"), true);
+  assert.equal(events.some((event) => event.type === "handoff" || event.type === "question"), false);
+});
+
+test("several markers stop the run with an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies(["Först [KLART] och sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /flera markörer/);
+  assert.equal(result.turns, 1);
+  assert.equal(mock.calls(), 1);
+  assert.equal(result.context.entries.length, 0);
+  const failure = events.find((event) => event.type === "error");
+  assert.equal(failure?.content, result.error);
+  assert.equal(events.some((event) => event.type === "handoff" || event.type === "done"), false);
+});
+
+function routingEvents(events: ReadonlyArray<{ type: string }>): string[] {
+  return events
+    .filter((event) => event.type === "handoff" || event.type === "question" || event.type === "error")
+    .map((event) => event.type);
+}
+
+test("self-handoff yields an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies(["[LÄMNAR ÖVER TILL Anna]\nJag fortsätter själv"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /sig själv/);
+  assert.equal(result.turns, 1);
+  assert.equal(mock.calls(), 1);
+  assert.equal(result.context.entries.length, 0);
+  assert.deepEqual(routingEvents(events), ["error"]);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+});
+
+test("a self-question yields an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies([
+    "[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    "[FRÅGAR Erik]\nSka jag fråga mig?",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /sig själv/);
+  assert.equal(result.turns, 2);
+  assert.equal(mock.calls(), 2);
+  assert.equal(result.context.entries.length, 1);
+  assert.deepEqual(routingEvents(events), ["handoff", "error"]);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+});
+
+test("an empty handoff yields an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies(["[LÄMNAR ÖVER TILL Erik]"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.error, "Överlämningen måste ha ett innehåll");
+  assert.equal(result.turns, 1);
+  assert.equal(result.context.entries.length, 0);
+  assert.deepEqual(routingEvents(events), ["error"]);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+});
+
+test("an empty question yields an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies([
+    "[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    "[FRÅGAR Anna]",
+  ]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.error, "Frågan måste ha ett innehåll");
+  assert.equal(result.turns, 2);
+  assert.equal(result.context.entries.length, 1);
+  assert.deepEqual(routingEvents(events), ["handoff", "error"]);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+});
+
+test("an unknown handoff target yields an error event", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string }> = [];
+  const mock = mockReplies(["[LÄMNAR ÖVER TILL Ghost]\nGör något"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /Okänd mottagare/);
+  assert.deepEqual(routingEvents(events), ["error"]);
+});
+
+function configureNamedTeam(name: string, description: string): ConfiguredTeam {
+  const input: TeamConfigInput = {
+    namn: name,
+    beskrivning: description,
+    agenter: [
+      { id: "po-1", roll: "PO-agent", namn: "Anna", modell: "test-model" },
+      { id: "dev-1", roll: "Dev-agent", namn: "Erik", modell: "test-model" },
+      { id: "reviewer-1", roll: "Gransknings-agent", namn: "Lisa", modell: "test-model" },
+    ],
+  };
+  return configureTeam(parseTeamConfig(input), () => createMockProvider());
+}
+
+function slowDoneClient(counter: { calls: number; inFlight: number; maxInFlight: number }) {
+  return (() => ({
+    provider: toSafeProvider(createMockProvider()),
+    chatCompletion: async () => {
+      counter.calls += 1;
+      counter.inFlight += 1;
+      counter.maxInFlight = Math.max(counter.maxInFlight, counter.inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      counter.inFlight -= 1;
+      return completion("[KLART]\nKlar");
+    },
+  })) as typeof import("../src/client.ts").createClient;
+}
+
+test("two teams from the same config cannot run at the same time", async () => {
+  const teamA = configureNamedTeam("Samma config", "Två körningar");
+  const teamB = configureNamedTeam("Samma config", "Två körningar");
+  assert.notEqual(teamA, teamB);
+  const counter = { calls: 0, inFlight: 0, maxInFlight: 0 };
+  const client = slowDoneClient(counter);
+
+  const first = runTeam(teamA, "Mål", { createClientFn: client });
+  const second = runTeam(teamB, "Mål", { createClientFn: client });
+  const raced = await Promise.race([
+    second.then((result) => ({ kind: "second" as const, result })),
+    new Promise<{ kind: "timeout" }>((resolve) => setTimeout(() => resolve({ kind: "timeout" }), 20)),
+  ]);
+
+  assert.equal(raced.kind, "second");
+  if (raced.kind === "second") {
+    assert.equal(raced.result.success, false);
+    assert.match(raced.result.error ?? "", /körs redan/);
+    assert.equal(raced.result.turns, 0);
+  }
+
+  const firstResult = await first;
+  assert.equal(firstResult.success, true);
+  assert.equal(counter.calls, 1);
+  assert.equal(counter.maxInFlight, 1);
+
+  const after = await runTeam(teamB, "Mål", { createClientFn: client });
+  assert.equal(after.success, true);
+  assert.equal(counter.calls, 2);
+});
+
+test("two teams from different configs can run at the same time", async () => {
+  const teamA = configureNamedTeam("Team A", "Första");
+  const teamB = configureNamedTeam("Team B", "Andra");
+  const counter = { calls: 0, inFlight: 0, maxInFlight: 0 };
+  const client = slowDoneClient(counter);
+
+  const [first, second] = await Promise.all([
+    runTeam(teamA, "Mål", { createClientFn: client }),
+    runTeam(teamB, "Mål", { createClientFn: client }),
+  ]);
+
+  assert.equal(first.success, true);
+  assert.equal(second.success, true);
+  assert.equal(counter.calls, 2);
+  assert.equal(counter.maxInFlight, 2);
 });
 
 test("two concurrent runTeam calls on the same team do not run in parallel", async () => {

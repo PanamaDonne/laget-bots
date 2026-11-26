@@ -33,6 +33,7 @@ export {
   executeHandoff,
   recordAnswer,
   recordWork,
+  recordDone,
   parseAgentResponse,
   formatHandoffInstructions,
 } from "./handoff.ts";

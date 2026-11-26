@@ -9,7 +9,7 @@ import {
   formatHandoffInstructions,
   parseAgentResponse,
   recordAnswer,
-  recordWork,
+  recordDone,
   type ParsedAgentResponse,
 } from "./handoff.ts";
 import { getRole, type RoleId } from "./roles.ts";
@@ -53,8 +53,17 @@ export type RunnerState = {
 };
 
 const DEFAULT_MAX_TURNS = 20;
-const runningTeams = new WeakSet<ConfiguredTeam>();
+const runningTeamKeys = new Set<string>();
 const TEAM_BUSY = "Teamet körs redan. En agent jobbar i taget.";
+
+function teamRunKey(team: ConfiguredTeam): string {
+  const agents = team.agents
+    .map((agent) =>
+      [agent.id, agent.roleId, agent.name, agent.model, agent.provider.id].join("\u001f"),
+    )
+    .join("\u001e");
+  return [team.name, team.description, agents].join("\u001d");
+}
 
 export function createInitialState(
   team: ConfiguredTeam,
@@ -219,7 +228,7 @@ export function processAgentResponse(
     }
 
     case "done": {
-      recordWork(agent.id, team, state.context, parsed.content);
+      recordDone(agent.id, team, state.context, parsed.content);
       return {
         ...state,
         turn: state.turn + 1,
@@ -273,7 +282,8 @@ export async function runTeam(
   goal: string,
   options: RunnerOptions = {},
 ): Promise<RunResult> {
-  if (runningTeams.has(team)) {
+  const key = teamRunKey(team);
+  if (runningTeamKeys.has(key)) {
     const context = createContext(goal);
     return {
       success: false,
@@ -284,11 +294,11 @@ export async function runTeam(
     };
   }
 
-  runningTeams.add(team);
+  runningTeamKeys.add(key);
   try {
     return await runTeamOnce(team, goal, options);
   } finally {
-    runningTeams.delete(team);
+    runningTeamKeys.delete(key);
   }
 }
 
@@ -377,13 +387,14 @@ async function runTeamOnce(
       const parsed = parseAgentResponse(response, team);
 
       if (onTurn !== undefined) {
+        const failed = state.error !== null;
         onTurn({
           turn: state.turn - 1,
           agentId: agent.id,
           agentName: agent.name,
           roleId: agent.roleId,
-          type: turnEventType(parsed.type),
-          content: parsed.type === "invalid" ? (parsed.error ?? parsed.content) : parsed.content,
+          type: failed ? "error" : turnEventType(parsed.type),
+          content: failed ? (state.error ?? "") : parsed.content,
         });
       }
     }

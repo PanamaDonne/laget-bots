@@ -598,6 +598,81 @@ test("parseAgentResponse rejects a reply without a marker", () => {
   assert.match(parsed.error ?? "", /saknar markör/);
 });
 
+test("parseAgentResponse accepts text before a done marker", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("Allt klart! [KLART]\nFärdigt", team);
+
+  assert.equal(parsed.type, "done");
+  assert.equal(parsed.error, undefined);
+  assert.match(parsed.content, /Färdigt/);
+  assert.match(parsed.content, /Allt klart!/);
+});
+
+test("parseAgentResponse accepts text before a handoff", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Jag har förtydligat målet.\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    team,
+  );
+
+  assert.equal(parsed.type, "handoff");
+  assert.equal(parsed.targetAgentId, "dev-1");
+  assert.match(parsed.content, /förtydligat/);
+  assert.match(parsed.content, /Implementera/);
+});
+
+test("parseAgentResponse accepts text before a question", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "En sak är oklar.\n[FRÅGAR Anna]\nVilken typ?",
+    team,
+  );
+
+  assert.equal(parsed.type, "question");
+  assert.equal(parsed.targetAgentId, "po-1");
+  assert.match(parsed.content, /oklar/);
+  assert.match(parsed.content, /Vilken typ/);
+});
+
+test("parseAgentResponse still rejects a partial target after preamble", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("Hej [LÄMNAR ÖVER TILL agent]\nGör det", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /Okänd mottagare/);
+});
+
+test("parseAgentResponse accepts a lowercase marker", () => {
+  const team = createTestTeam();
+
+  const done = parseAgentResponse("Allt klart! [klart]\nFärdigt", team);
+  const handoff = parseAgentResponse("[lämnar över till erik]\nImplementera", team);
+  const question = parseAgentResponse("[frågar anna]\nVilken typ?", team);
+
+  assert.equal(done.type, "done");
+  assert.match(done.content, /Färdigt/);
+  assert.equal(handoff.type, "handoff");
+  assert.equal(handoff.targetAgentId, "dev-1");
+  assert.equal(question.type, "question");
+  assert.equal(question.targetAgentId, "po-1");
+});
+
+test("parseAgentResponse rejects several markers", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse(
+    "Först [KLART] och sedan\n[LÄMNAR ÖVER TILL Erik]\nGör det",
+    team,
+  );
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /flera markörer/);
+});
+
 test("parseAgentResponse rejects an empty target", () => {
   const team = createTestTeam();
 
@@ -809,6 +884,25 @@ test("processAgentResponse handles done response", () => {
 
   assert.equal(newState.done, true);
   assert.equal(newState.context.entries.length, 1);
+});
+
+test("processAgentResponse records a finished reply as klar", () => {
+  const team = createTestTeam();
+  const state = createInitialState(team, "Mål", "reviewer-1");
+  const agent = team.agents[2]!;
+
+  const newState = processAgentResponse(
+    agent,
+    team,
+    state,
+    "[KLART]\nGranskningen är godkänd",
+  );
+
+  assert.equal(newState.done, true);
+  assert.equal(newState.context.entries[0]?.action, "done");
+  const summary = summarizeContext(newState.context);
+  assert.match(summary, /\[reviewer\] Klar: Granskningen är godkänd/);
+  assert.equal(summary.includes("Arbete"), false);
 });
 
 test("processAnswerAndResume returns to asking agent", () => {

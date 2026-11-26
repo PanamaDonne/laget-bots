@@ -19,6 +19,8 @@ Provider `defaultModel` must be a valid, current model id at the provider. Remov
 
 A handoff or question must match an agent id, name or role exactly. An unknown, empty or ambiguous target is an error, never silent work or first partial match.
 
+Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event.
+
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.
