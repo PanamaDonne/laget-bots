@@ -197,6 +197,9 @@ export type ParsedAgentResponse = {
 const MISSING_MARKER =
   "Svaret saknar markör. Använd [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART].";
 
+const LOOSE_MARKER =
+  "Markören måste stå ensam på en egen rad. Använd [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART] utan annan text på samma rad.";
+
 const SEVERAL_MARKERS =
   "Svaret har flera markörer. Använd bara en av [LÄMNAR ÖVER TILL …], [FRÅGAR …] eller [KLART].";
 
@@ -215,13 +218,14 @@ export function parseAgentResponse(
   // Do not trim first: a leading indent is what makes an indented code block.
   const normalized = response.normalize("NFC");
   const trimmed = normalized.trim();
-  const hits = findMarkers(normalized);
+  const scanned = scanReply(normalized);
+  const hits = scanned.hits;
   const hit = hits[0];
   if (hit === undefined) {
     return {
       type: "invalid",
       content: trimmed,
-      error: MISSING_MARKER,
+      error: scanned.loose ? LOOSE_MARKER : MISSING_MARKER,
     };
   }
   if (hits.length > 1) {
@@ -255,21 +259,30 @@ type FenceMark = {
   size: number;
 };
 
-function findMarkers(text: string): MarkerHit[] {
+const LOOSE_MARKER_PATTERN = /\[LÄMNAR ÖVER TILL [^\]]*\]|\[FRÅGAR [^\]]*\]|\[KLART\]/giu;
+
+function scanReply(text: string): { hits: MarkerHit[]; loose: boolean } {
   const fences = fenceSpans(text);
-  const ignored = [...fences, ...inlineCodeSpans(text, fences), ...preSpans(text, fences)];
+  const pres = preSpans(text, fences);
+  const inlines = inlineCodeSpans(text, fences);
+  const comments = commentSpans(text, [...fences, ...pres, ...inlines]);
+  const ignored = [...fences, ...pres, ...inlines, ...comments];
   const hits: MarkerHit[] = [];
+  let loose = false;
   for (const line of splitLines(text)) {
     if (isBlockQuote(line.text) || isIndentedCodeLine(line.text)) {
       continue;
     }
     const hit = markerOnLine(line.text, line.start);
-    if (hit === null || overlapsSpan(hit.index, hit.length, ignored)) {
+    if (hit !== null && !overlapsSpan(hit.index, hit.length, ignored)) {
+      hits.push(hit);
       continue;
     }
-    hits.push(hit);
+    if (lineHasLooseMarker(line.text, line.start, ignored)) {
+      loose = true;
+    }
   }
-  return hits;
+  return { hits, loose };
 }
 
 function splitLines(text: string): Array<{ text: string; start: number }> {
@@ -360,7 +373,72 @@ function isBlockQuote(line: string): boolean {
 }
 
 function isIndentedCodeLine(line: string): boolean {
-  return /^(?: {4}|\t)/.test(withoutCarriageReturn(line));
+  return /^(?: {4,}|\t)/.test(withoutCarriageReturn(line));
+}
+
+function lineHasLooseMarker(line: string, lineStart: number, ignored: readonly TextSpan[]): boolean {
+  const raw = withoutCarriageReturn(line);
+  LOOSE_MARKER_PATTERN.lastIndex = 0;
+  for (const match of raw.matchAll(LOOSE_MARKER_PATTERN)) {
+    const index = match.index;
+    if (index === undefined) {
+      continue;
+    }
+    if (!overlapsSpan(lineStart + index, match[0].length, ignored)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function commentSpans(text: string, blocked: readonly TextSpan[]): TextSpan[] {
+  const spans: TextSpan[] = [];
+  let from = 0;
+  while (from < text.length) {
+    const block = spanAt(from, blocked);
+    if (block !== undefined) {
+      from = block.end;
+      continue;
+    }
+    const open = indexOfOutside(text, "<!--", from, blocked);
+    if (open === -1) {
+      break;
+    }
+    const close = indexOfOutside(text, "-->", open + 4, blocked);
+    if (close === -1) {
+      spans.push({ start: open, end: text.length });
+      break;
+    }
+    spans.push({ start: open, end: close + 3 });
+    from = close + 3;
+  }
+  return spans;
+}
+
+function indexOfOutside(
+  text: string,
+  needle: string,
+  from: number,
+  blocked: readonly TextSpan[],
+): number {
+  let index = from;
+  while (index < text.length) {
+    const block = spanAt(index, blocked);
+    if (block !== undefined) {
+      index = block.end;
+      continue;
+    }
+    const found = text.indexOf(needle, index);
+    if (found === -1) {
+      return -1;
+    }
+    const foundBlock = spanAt(found, blocked);
+    if (foundBlock === undefined) {
+      return found;
+    }
+    index = foundBlock.end;
+  }
+  return -1;
 }
 
 function preSpans(text: string, fences: readonly TextSpan[]): TextSpan[] {
@@ -548,7 +626,7 @@ function matchAgent(team: ConfiguredTeam, reference: string): AgentMatch {
     return { ok: false, error: "Mottagaren saknas" };
   }
 
-  const key = trimmed.toLowerCase();
+  const key = foldKey(trimmed);
   const hits = team.agents.filter((agent) => agentMatchesReference(agent, key));
   if (hits.length === 0) {
     return { ok: false, error: `Okänd mottagare: ${trimmed}` };
@@ -564,11 +642,15 @@ function matchAgent(team: ConfiguredTeam, reference: string): AgentMatch {
   return { ok: true, agent };
 }
 
+function foldKey(value: string): string {
+  return value.normalize("NFC").toLowerCase();
+}
+
 function agentMatchesReference(agent: ConfiguredAgent, key: string): boolean {
-  if (agent.id.toLowerCase() === key || agent.name.toLowerCase() === key) {
+  if (foldKey(agent.id) === key || foldKey(agent.name) === key) {
     return true;
   }
-  return exactRoleLabels(agent.roleId).includes(key);
+  return exactRoleLabels(agent.roleId).some((label) => foldKey(label) === key);
 }
 
 export function formatHandoffInstructions(team: ConfiguredTeam): string {
@@ -591,6 +673,8 @@ När du vill ställa en fråga till en annan agent, använd formatet:
 När du är klar med ditt arbete och det inte behöver lämnas vidare, använd formatet:
 [KLART]
 <sammanfattning av vad du har gjort>
+
+Markören ska stå ensam på en egen rad. Annan text på samma rad räknas inte.
 
 Mottagaren måste matcha id, namn eller roll exakt. En okänd, tom eller tvetydig mottagare är ett fel.
 

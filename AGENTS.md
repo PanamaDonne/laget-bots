@@ -21,8 +21,6 @@ A handoff or question must match an agent id, name or role exactly. An unknown, 
 
 Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event.
 
-Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code. A marker that is only mentioned in running text must never end or steer the run.
-
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.
@@ -34,6 +32,14 @@ Update skills from `~/Desktop/skills` with `npm run sync-skills`. Edit adaptatio
 When you add TypeScript outside `src/` and `test/`, add that path to `include` in `tsconfig.json`.
 
 When writing files to a target directory, do not follow existing symlinks and verify that every resolved path stays inside the directory. Replace symlinks instead of following them, and use path separator in prefix checks to avoid false positives.
+
+## Markers
+
+Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code. A marker that is only mentioned in running text must never end or steer the run.
+
+Ignore a marker on a line that starts with four or more spaces or a tab. Test indented code blocks, list items, and a marker with other text on the same line.
+
+Normalize both the model reply and the team config (name, id and role) to NFC before comparing them. Never normalize only one side.
 
 ## Handoffs
 

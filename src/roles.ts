@@ -109,7 +109,7 @@ const ROLE_ALIASES: Readonly<Record<string, RoleId>> = {
 };
 
 export function resolveRoleId(input: string): RoleId | null {
-  const normalized = input.toLowerCase().trim();
+  const normalized = input.normalize("NFC").toLowerCase().trim();
   if (normalized === "") {
     return null;
   }

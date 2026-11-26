@@ -111,6 +111,10 @@ test("AGENTS.md parses a marker only when it is a real marker", () => {
     agents,
     /A marker that is only mentioned in running text must never end or steer the run\./,
   );
+  assert.match(agents, /four or more spaces or a tab/);
+  assert.match(agents, /indented code blocks, list items, and a marker with other text on the same line/);
+  assert.match(agents, /Normalize both the model reply and the team config/);
+  assert.match(agents, /Never normalize only one side/);
 });
 
 test("README documents npm run team", () => {
@@ -181,6 +185,51 @@ test("runTeamFromFile shows a mock team run and does not call the network", asyn
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("npm run team accepts an NFD team file", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "laget-nfd-"));
+  const path = join(dir, "team.json");
+  const devId = "dev-ö".normalize("NFD");
+  const devName = "Östen".normalize("NFD");
+  writeFileSync(
+    path,
+    JSON.stringify({
+      namn: "NFD-team",
+      beskrivning: "Namn med NFD",
+      agenter: [
+        { id: "po-1", roll: "produktägare".normalize("NFD"), namn: "Åsa".normalize("NFD") },
+        { id: devId, roll: "Dev-agent", namn: devName },
+        { id: "reviewer-1", roll: "Gransknings-agent", namn: "Ärla".normalize("NFD") },
+      ],
+    }),
+  );
+  assert.notEqual(devName, devName.normalize("NFC"));
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["--experimental-strip-types", "src/team-cli.ts", path, "Bygg en funktion"],
+    { cwd: root },
+  );
+
+  assert.match(stdout, /slutförde målet/);
+  assert.equal(stdout.includes("Okänd mottagare"), false);
+});
+
+test("a marker that shares its line does not end the run", async () => {
+  const team = createTestTeam();
+  const events: Array<{ type: string; content: string }> = [];
+  const mock = mockReplies(["[KLART] Allt klart"]);
+
+  const result = await runTeam(team, "Mål", {
+    createClientFn: mock.client,
+    onTurn: (event) => events.push({ type: event.type, content: event.content }),
+  });
+
+  assert.equal(result.success, false);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
+  assert.equal(events.find((event) => event.type === "error")?.content, result.error);
+  assert.equal(events.some((event) => event.type === "done"), false);
 });
 
 test("npm run team prints the example team run without a live model", async () => {
@@ -419,7 +468,7 @@ test("a marker mentioned in running text does not end the run", async () => {
   });
 
   assert.equal(result.success, false);
-  assert.match(result.error ?? "", /saknar markör/);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
   assert.equal(events.some((event) => event.type === "done"), false);
 });
 
@@ -436,7 +485,7 @@ test("a reply that only mentions markers does not stop for several markers", asy
   });
 
   assert.equal(result.success, false);
-  assert.match(result.error ?? "", /saknar markör/);
+  assert.match(result.error ?? "", /ensam på en egen rad/);
   assert.equal(result.error?.includes("flera markörer"), false);
   assert.equal(result.turns, 1);
   assert.equal(

@@ -682,7 +682,7 @@ test("parseAgentResponse ignores a marker mentioned in running text", () => {
   );
 
   assert.equal(parsed.type, "invalid");
-  assert.match(parsed.error ?? "", /saknar markör/);
+  assert.match(parsed.error ?? "", /ensam på en egen rad/);
 });
 
 test("parseAgentResponse ignores a marker in a code block", () => {
@@ -727,7 +727,7 @@ test("parseAgentResponse ignores a marker in an indented code fence", () => {
 test("parseAgentResponse ignores a marker in an indented code block", () => {
   const team = createTestTeam();
 
-  const spaces = parseAgentResponse("Så här ser det ut:\n    [KLART]\nJag är inte klar än.", team);
+  const spaces = parseAgentResponse("Exempel:\n    [KLART]\nslut", team);
   const deeper = parseAgentResponse("     [KLART]\nInte klart.", team);
   const tabbed = parseAgentResponse("\t[LÄMNAR ÖVER TILL Erik]\nInte än.", team);
 
@@ -825,7 +825,7 @@ test("parseAgentResponse ignores a quoted marker in running text", () => {
   );
 
   assert.equal(parsed.type, "invalid");
-  assert.match(parsed.error ?? "", /saknar markör/);
+  assert.match(parsed.error ?? "", /ensam på en egen rad/);
 });
 
 test("parseAgentResponse does not treat mentioned markers as several markers", () => {
@@ -837,7 +837,7 @@ test("parseAgentResponse does not treat mentioned markers as several markers", (
   );
 
   assert.equal(parsed.type, "invalid");
-  assert.match(parsed.error ?? "", /saknar markör/);
+  assert.match(parsed.error ?? "", /ensam på en egen rad/);
   assert.equal(parsed.error?.includes("flera markörer"), false);
 });
 
@@ -889,6 +889,91 @@ test("parseAgentResponse accepts a marker on its own line when lines use CRLF", 
   assert.equal(parsed.targetAgentId, "dev-1");
   assert.match(parsed.content, /Plan/);
   assert.match(parsed.content, /Implementera/);
+});
+
+test("parseAgentResponse ignores a marker in an HTML comment", () => {
+  const team = createTestTeam();
+
+  const block = parseAgentResponse("<!--\n[KLART]\n-->\nInte klart.", team);
+  const line = parseAgentResponse("<!-- [KLART] -->\nInte klart.", team);
+  const withReal = parseAgentResponse(
+    "<!--\n[KLART]\n-->\n[LÄMNAR ÖVER TILL Erik]\nImplementera",
+    team,
+  );
+
+  assert.equal(block.type, "invalid");
+  assert.match(block.error ?? "", /saknar markör/);
+  assert.equal(line.type, "invalid");
+  assert.match(line.error ?? "", /saknar markör/);
+  assert.equal(withReal.type, "handoff");
+  assert.equal(withReal.targetAgentId, "dev-1");
+});
+
+test("parseAgentResponse ignores markers in list items", () => {
+  const team = createTestTeam();
+
+  const dash = parseAgentResponse("- [KLART]\nInte klart.", team);
+  const star = parseAgentResponse("* [LÄMNAR ÖVER TILL Erik]\nInte än.", team);
+  const numbered = parseAgentResponse("1. [KLART]\nInte klart.", team);
+
+  for (const parsed of [dash, star, numbered]) {
+    assert.equal(parsed.type, "invalid");
+    assert.match(parsed.error ?? "", /ensam på en egen rad/);
+  }
+});
+
+test("parseAgentResponse rejects a marker that shares its line", () => {
+  const team = createTestTeam();
+
+  const parsed = parseAgentResponse("[KLART] Allt klart", team);
+
+  assert.equal(parsed.type, "invalid");
+  assert.match(parsed.error ?? "", /ensam på en egen rad/);
+  assert.equal(parsed.error?.includes("saknar markör"), false);
+});
+
+test("parseAgentResponse matches NFD names and ids in the team config", () => {
+  const provider = createMockProvider();
+  const devId = "dev-ö".normalize("NFD");
+  const team: ConfiguredTeam = {
+    name: "NFD",
+    description: "Test",
+    agents: [
+      { id: "po-1", roleId: "po", name: "Åsa".normalize("NFD"), model: "m", provider },
+      { id: devId, roleId: "dev", name: "Östen".normalize("NFD"), model: "m", provider },
+      { id: "reviewer-1", roleId: "reviewer", name: "Ärla".normalize("NFD"), model: "m", provider },
+    ],
+  };
+  assert.notEqual(team.agents[1]?.name, team.agents[1]?.name.normalize("NFC"));
+
+  const fromNfc = parseAgentResponse("[LÄMNAR ÖVER TILL Östen]\nImplementera", team);
+  const fromNfd = parseAgentResponse("[LÄMNAR ÖVER TILL Östen]\nImplementera".normalize("NFD"), team);
+  const byId = parseAgentResponse(`[LÄMNAR ÖVER TILL ${devId}]\nImplementera`, team);
+  const byRole = parseAgentResponse("[LÄMNAR ÖVER TILL produktägare]\nHej".normalize("NFD"), team);
+
+  assert.equal(fromNfc.type, "handoff");
+  assert.equal(fromNfc.targetAgentId, devId);
+  assert.equal(fromNfd.type, "handoff");
+  assert.equal(fromNfd.targetAgentId, devId);
+  assert.equal(byId.type, "handoff");
+  assert.equal(byId.targetAgentId, devId);
+  assert.equal(byRole.type, "handoff");
+  assert.equal(byRole.targetAgentId, "po-1");
+});
+
+test("parseTeamConfig accepts an NFD role alias", () => {
+  const config = parseTeamConfig({
+    namn: "T",
+    beskrivning: "D",
+    agenter: [
+      { id: "po-1", roll: "produktägare".normalize("NFD"), namn: "Åsa".normalize("NFD") },
+      { id: "dev-1", roll: "Dev-agent", namn: "Östen".normalize("NFD") },
+      { id: "reviewer-1", roll: "Gransknings-agent", namn: "Ärla".normalize("NFD") },
+    ],
+  });
+
+  assert.equal(config.agents[0]?.roleId, "po");
+  assert.equal(config.agents[1]?.name, "Östen".normalize("NFD"));
 });
 
 test("parseAgentResponse parses NFD markers like NFC", () => {
@@ -1015,6 +1100,7 @@ test("formatHandoffInstructions includes all agents", () => {
   assert.ok(instructions.includes("[LÄMNAR ÖVER TILL"));
   assert.ok(instructions.includes("[FRÅGAR"));
   assert.ok(instructions.includes("[KLART]"));
+  assert.match(instructions, /ensam på en egen rad/);
 });
 
 test("createInitialState creates state with first agent", () => {
