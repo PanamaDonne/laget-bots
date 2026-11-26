@@ -40,14 +40,14 @@ export function loadTeamConfig(path: string): TeamConfig {
   try {
     text = readFileSync(path, "utf8");
   } catch {
-    throw new Error(`Kunde inte läsa teamfilen: ${path}`);
+    throw new Error("Kunde inte läsa teamfilen.");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error(`Teamfilen är inte giltig JSON: ${path}`);
+    throw new Error("Teamfilen är inte giltig JSON.");
   }
   if (typeof parsed !== "object" || parsed === null) {
     throw new Error("Teamfilen har fel format");
@@ -237,7 +237,7 @@ function resolveRun(config: TeamConfig, requestedLive: boolean): ResolvedRun {
     }
     const known = getProvider(id);
     if (known === null) {
-      throw new Error(redactSecrets(`Okänd leverantör: ${id}`, envSecrets()));
+      throw new Error("Okänd leverantör.");
     }
     if (configured.has(id) || missingEnv.includes(known.envKey)) {
       continue;

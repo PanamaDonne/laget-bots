@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -506,7 +506,11 @@ describe("team run against a real provider", { concurrency: false }, () => {
             providerId: "nope",
             write: (line) => lines.push(line),
           }),
-        /Okänd leverantör: nope/,
+        (error: Error) => {
+          assert.equal(error.message, "Okänd leverantör.");
+          assert.equal(error.message.includes("nope"), false);
+          return true;
+        },
       );
       assert.equal(calls.length, 0);
       assert.equal(lines.length, 0);
@@ -559,7 +563,8 @@ describe("team run against a real provider", { concurrency: false }, () => {
 
     const unknown = await runCli(["example-team.json", "Bygg en funktion", "--provider", "nope"]);
     assert.equal(unknown.code, 1);
-    shows(unknown.stderr, "Okänd leverantör: nope");
+    shows(unknown.stderr, "Okänd leverantör.");
+    hides(unknown.stderr, "nope");
     assert.equal(unknown.stdout.includes("Teamkörning"), false);
 
     const liveFlag = parseTeamCliArgs(["example-team.json", "Mål", "--live"]);
@@ -575,6 +580,13 @@ describe("team run against a real provider", { concurrency: false }, () => {
       hides(leakedFlag.error, "fake-cli-key-277");
     }
 
+    const extraArg = parseTeamCliArgs(["example-team.json", "Mål", "fake-cli-key-277"]);
+    assert.equal(extraArg.ok, false);
+    if (!extraArg.ok) {
+      assert.equal(extraArg.error, "Okänt argument.");
+      hides(extraArg.error, "fake-cli-key-277");
+    }
+
     const liveRun = await runCli(["example-team.json", "Bygg en funktion", "--live"]);
     assert.equal(liveRun.code, 0);
     shows(liveRun.stdout, "Leverantör: Mock (ingen nyckel i BERGET_API_KEY)");
@@ -586,28 +598,45 @@ describe("team run against a real provider", { concurrency: false }, () => {
     const secret = "fake-cli-provider-key-277";
     const env = providerFreeEnv();
     env.BERGET_API_KEY = secret;
-    let stdout: string;
-    let stderr: string;
-    let code: number;
-    try {
-      const result = await execFileAsync(
-        process.execPath,
-        ["--experimental-strip-types", "src/team-cli.ts", "example-team.json", "Mål", "--provider", secret],
-        { cwd: root, env },
-      );
-      code = 0;
-      stdout = result.stdout;
-      stderr = result.stderr;
-    } catch (error) {
-      const failed = error as { code?: number; stdout?: string; stderr?: string };
-      code = typeof failed.code === "number" ? failed.code : 1;
-      stdout = failed.stdout ?? "";
-      stderr = failed.stderr ?? "";
+
+    for (const args of [
+      ["example-team.json", "Mål", "--provider", secret],
+      ["example-team.json", "Mål", `--provider=${secret}`],
+    ]) {
+      const result = await runCli(args, env);
+      assert.equal(result.code, 1);
+      shows(result.stderr, "Okänd leverantör.");
+      hides(result.stderr, secret);
+      hides(result.stdout, secret);
     }
-    assert.equal(code, 1);
-    shows(stderr, "Okänd leverantör");
-    hides(stderr, secret);
-    hides(stdout, secret);
+  });
+
+  test("a missing or invalid team file uses a fixed error", async () => {
+    const secret = "fake-file-body-277";
+    await assert.rejects(
+      () => runTeamFromFile(secret, "Mål"),
+      (error: Error) => {
+        assert.equal(error.message, "Kunde inte läsa teamfilen.");
+        assert.equal(error.message.includes(secret), false);
+        return true;
+      },
+    );
+
+    const dir = mkdtempSync(join(tmpdir(), "team-json-"));
+    try {
+      const file = join(dir, "team.json");
+      writeFileSync(file, `${secret} är inte json`);
+      await assert.rejects(
+        () => runTeamFromFile(file, "Mål"),
+        (error: Error) => {
+          assert.equal(error.message, "Teamfilen är inte giltig JSON.");
+          assert.equal(error.message.includes(secret), false);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("a padded key is trimmed, and the trimmed key stays out of errors", async () => {
@@ -649,7 +678,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
             write: (line) => lines.push(line),
           }),
         (error: Error) => {
-          assert.equal(error.message.includes("Okänd leverantör"), true);
+          assert.equal(error.message, "Okänd leverantör.");
           assert.equal(error.message.includes(FAKE_BERGET), false);
           return true;
         },
@@ -662,6 +691,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
   test("the README explains how to run against a real model", () => {
     const readme = readFileSync(join(root, "README.md"), "utf8");
     const spec = readFileSync(join(root, "SPEC.md"), "utf8");
+    const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
 
     shows(readme, "BERGET_API_KEY");
     shows(readme, "--live");
@@ -673,6 +703,9 @@ describe("team run against a real provider", { concurrency: false }, () => {
     shows(readme, "non-EU");
     shows(spec, "--live");
     shows(spec, "--provider");
+    shows(agents, "fixed text");
+    shows(agents, "trimmed form");
+    shows(agents, "--live");
     assert.equal(readme.includes("Riktig modell"), false);
     assert.equal(readme.includes(FAKE_BERGET), false);
     assert.equal(readme.includes("sk-"), false);
@@ -687,12 +720,15 @@ function cliError(argv: readonly string[]): string {
   return parsed.error;
 }
 
-async function runCli(args: readonly string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function runCli(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = providerFreeEnv(),
+): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
     const result = await execFileAsync(
       process.execPath,
       ["--experimental-strip-types", "src/team-cli.ts", ...args],
-      { cwd: root, env: providerFreeEnv() },
+      { cwd: root, env },
     );
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {

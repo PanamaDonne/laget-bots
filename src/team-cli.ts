@@ -79,7 +79,7 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
   }
   const extra = positionals[2];
   if (extra !== undefined) {
-    return { ok: false, error: `Okänt argument: ${extra}` };
+    return { ok: false, error: "Okänt argument." };
   }
   return { ok: true, configPath, goal, maxTokens, providerId, model, live };
 }
