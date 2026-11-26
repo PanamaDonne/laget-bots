@@ -617,7 +617,7 @@ test("the CLI honours --max-tokens and rejects an unknown flag", async () => {
   }
   assert.equal(parseTeamCliArgs(["example-team.json", "Mål", "--max-tokens", "nej"]).ok, false);
   assert.match(cliError(["example-team.json", "Mål", "--max-tokens"]), /Tokentaket måste vara ett positivt heltal/);
-  assert.match(cliError(["example-team.json", "Mål", "--bogus"]), /Okänt argument: --bogus/);
+  assert.equal(cliError(["example-team.json", "Mål", "--bogus"]), "Okänt argument.");
 
   const stopped = await runCli(["example-team.json", "Bygg en funktion", "--max-tokens", "1"]);
   assert.equal(stopped.code, 1);
@@ -630,7 +630,7 @@ test("the CLI honours --max-tokens and rejects an unknown flag", async () => {
 
   const unknownFlag = await runCli(["example-team.json", "Bygg en funktion", "--bogus"]);
   assert.equal(unknownFlag.code, 1);
-  assert.match(unknownFlag.stderr, /Okänt argument: --bogus/);
+  assert.match(unknownFlag.stderr, /^Okänt argument\.\n?$/);
   assert.equal(unknownFlag.stdout.includes("Teamkörning"), false);
 });
 

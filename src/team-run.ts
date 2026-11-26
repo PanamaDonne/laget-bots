@@ -264,7 +264,7 @@ function resolveRun(config: TeamConfig, requestedLive: boolean): ResolvedRun {
     }
     const known = getProvider(id);
     if (known === null) {
-      throw new Error("Okänd leverantör.");
+      throw new Error("Okänd leverantör. Giltiga: berget, mistral, grok, openai.");
     }
     if (configured.has(id) || missingEnv.includes(known.envKey)) {
       continue;

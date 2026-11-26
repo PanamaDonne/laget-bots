@@ -156,6 +156,7 @@ function writeTeam(contents: unknown): string {
 }
 
 const exampleTeam = join(root, "example-team.json");
+const UNKNOWN_PROVIDER = "Okänd leverantör. Giltiga: berget, mistral, grok, openai.";
 const MOCK_OPT_IN = "Leverantör: Mock. Sätt på riktigt läge med --live eller --provider <id>.";
 const FAKE_PREFIX = "fake-berget-";
 
@@ -320,14 +321,17 @@ describe("team run against a real provider", { concurrency: false }, () => {
   test("--provider without a default model is an error and makes no call", async () => {
     const lines: string[] = [];
     await withScriptedFetch({ XAI_API_KEY: FAKE_XAI }, FAKE_XAI, ["[KLART]\nnej"], async (calls) => {
-      await assert.rejects(
-        () => runTeamFromFile(exampleTeam, "Mål", { providerId: "grok", write: (line) => lines.push(line) }),
-        (error: Error) => {
-          assert.equal(error.message, "Den valda leverantören saknar standardmodell. Ange --model <id>.");
-          assert.equal(error.message.includes("google/gemma-4-31B-it"), false);
-          return true;
-        },
-      );
+      for (const providerId of ["grok", "openai"]) {
+        await assert.rejects(
+          () => runTeamFromFile(exampleTeam, "Mål", { providerId, write: (line) => lines.push(line) }),
+          (error: Error) => {
+            assert.equal(error.message, "Den valda leverantören saknar standardmodell. Ange --model <id>.");
+            assert.equal(error.message.includes("google/gemma-4-31B-it"), false);
+            assert.equal(error.message.includes(providerId), false);
+            return true;
+          },
+        );
+      }
       assert.equal(calls.length, 0);
       assert.equal(lines.length, 0);
     });
@@ -601,7 +605,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
             write: (line) => lines.push(line),
           }),
         (error: Error) => {
-          assert.equal(error.message, "Okänd leverantör.");
+          assert.equal(error.message, UNKNOWN_PROVIDER);
           assert.equal(error.message.includes("nope"), false);
           return true;
         },
@@ -657,7 +661,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
 
     const unknown = await runCli(["example-team.json", "Bygg en funktion", "--provider", "nope"]);
     assert.equal(unknown.code, 1);
-    shows(unknown.stderr, "Okänd leverantör.");
+    shows(unknown.stderr, UNKNOWN_PROVIDER);
     hides(unknown.stderr, "nope");
     assert.equal(unknown.stdout.includes("Teamkörning"), false);
 
@@ -670,8 +674,16 @@ describe("team run against a real provider", { concurrency: false }, () => {
     const leakedFlag = parseTeamCliArgs(["example-team.json", "Mål", "--key=fake-cli-key-277"]);
     assert.equal(leakedFlag.ok, false);
     if (!leakedFlag.ok) {
-      assert.equal(leakedFlag.error, "Okänt argument: --key");
+      assert.equal(leakedFlag.error, "Okänt argument.");
       hides(leakedFlag.error, "fake-cli-key-277");
+      hides(leakedFlag.error, "--key");
+    }
+
+    const leakedName = parseTeamCliArgs(["example-team.json", "Mål", "--fake-cli-key-277"]);
+    assert.equal(leakedName.ok, false);
+    if (!leakedName.ok) {
+      assert.equal(leakedName.error, "Okänt argument.");
+      hides(leakedName.error, "fake-cli-key-277");
     }
 
     const extraArg = parseTeamCliArgs(["example-team.json", "Mål", "fake-cli-key-277"]);
@@ -699,7 +711,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
     ]) {
       const result = await runCli(args, env);
       assert.equal(result.code, 1);
-      shows(result.stderr, "Okänd leverantör.");
+      shows(result.stderr, UNKNOWN_PROVIDER);
       hides(result.stderr, secret);
       hides(result.stdout, secret);
     }
@@ -796,7 +808,7 @@ describe("team run against a real provider", { concurrency: false }, () => {
             write: (line) => lines.push(line),
           }),
         (error: Error) => {
-          assert.equal(error.message, "Okänd leverantör.");
+          assert.equal(error.message, UNKNOWN_PROVIDER);
           assert.equal(error.message.includes(FAKE_BERGET), false);
           return true;
         },
@@ -825,7 +837,10 @@ describe("team run against a real provider", { concurrency: false }, () => {
     shows(spec, "default model");
     shows(spec, "--live");
     shows(spec, "--provider");
+    shows(readme, "explicit choice");
     shows(agents, "fixed text");
+    shows(agents, "unknown key");
+    shows(agents, "raw user input");
     shows(agents, "trimmed form");
     shows(agents, "--live");
     assert.equal(readme.includes("Riktig modell"), false);

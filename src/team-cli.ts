@@ -65,9 +65,7 @@ export function parseTeamCliArgs(argv: readonly string[]): TeamCliArgs {
       continue;
     }
     if (arg.startsWith("-")) {
-      const equals = arg.indexOf("=");
-      const name = equals === -1 ? arg : arg.slice(0, equals);
-      return { ok: false, error: `Okänt argument: ${name}` };
+      return { ok: false, error: "Okänt argument." };
     }
     positionals.push(arg);
   }
