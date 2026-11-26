@@ -1,7 +1,14 @@
-import type { ChatMessage } from "./client.ts";
+import {
+  estimateMessages,
+  estimateTokens,
+  resolveMaxTokens,
+  tokenCapMessage,
+  tokensFromUsage,
+} from "./budget.ts";
+import type { ChatCompletionRequest, ChatMessage } from "./client.ts";
 import { createClient } from "./client.ts";
-import type { SharedContext, ContextSnapshot } from "./context.ts";
-import { createContext, createSnapshot } from "./context.ts";
+import type { ContextLimits, ContextSnapshot, SharedContext } from "./context.ts";
+import { createContext, createSnapshot, resolveContextLimits } from "./context.ts";
 import {
   createQuestionHandoff,
   createWorkHandoff,
@@ -17,6 +24,10 @@ import type { ConfiguredAgent, ConfiguredTeam } from "./team.ts";
 
 export type RunnerOptions = {
   maxTurns?: number;
+  /** Total tokens for the run, prompt plus completion. Overrides the team config. */
+  maxTokens?: number;
+  maxContextEntries?: number;
+  maxEntryChars?: number;
   createClientFn?: typeof createClient;
   onTurn?: (event: TurnEvent) => void;
 };
@@ -36,6 +47,7 @@ export type RunResult = {
   context: SharedContext;
   finalSummary: string;
   error?: string;
+  tokensUsed?: number;
 };
 
 export type PendingQuestion = {
@@ -52,6 +64,7 @@ export type RunnerState = {
   error: string | null;
 };
 
+/** Caps turns, not model calls. A question spends a second call on the answer. Cost is capped by maxTokens. */
 const DEFAULT_MAX_TURNS = 20;
 const runningTeamKeys = new Set<string>();
 const TEAM_BUSY = "Teamet körs redan. En agent jobbar i taget.";
@@ -69,8 +82,9 @@ export function createInitialState(
   team: ConfiguredTeam,
   goal: string,
   startAgentId?: string,
+  limits?: Partial<ContextLimits>,
 ): RunnerState {
-  const context = createContext(goal);
+  const context = createContext(goal, limits);
   const firstAgent = startAgentId
     ? team.agents.find((a) => a.id === startAgentId)
     : team.agents[0];
@@ -125,28 +139,39 @@ ${snapshot.summary}`,
   return messages;
 }
 
+type PreparedTurn = {
+  messages: ChatMessage[];
+  maxCompletionTokens: number;
+};
+
 export async function executeAgentTurn(
   agent: ConfiguredAgent,
   team: ConfiguredTeam,
   state: RunnerState,
   options: RunnerOptions,
-): Promise<{ response: string; nextState: RunnerState }> {
+  prepared?: PreparedTurn,
+): Promise<{ response: string; usage?: { total_tokens: number }; nextState: RunnerState }> {
   const createClientFn = options.createClientFn ?? createClient;
   const client = createClientFn(agent.provider);
+  const messages =
+    prepared?.messages ??
+    buildAgentPrompt(agent, team, createSnapshot(state.context), state.pendingQuestion);
 
-  const snapshot = createSnapshot(state.context);
-  const messages = buildAgentPrompt(agent, team, snapshot, state.pendingQuestion);
-
-  const result = await client.chatCompletion({
+  const request: ChatCompletionRequest = {
     model: agent.model,
     messages,
     temperature: 0.7,
-  });
+  };
+  if (prepared !== undefined) {
+    request.max_tokens = prepared.maxCompletionTokens;
+  }
 
+  const result = await client.chatCompletion(request);
   const responseContent = result.choices[0]?.message.content ?? "";
 
   return {
     response: responseContent,
+    usage: result.usage,
     nextState: state,
   };
 }
@@ -282,6 +307,11 @@ export async function runTeam(
   goal: string,
   options: RunnerOptions = {},
 ): Promise<RunResult> {
+  const maxTokens = resolveMaxTokens(options.maxTokens ?? team.maxTokens);
+  const contextLimits = resolveContextLimits({
+    maxEntries: options.maxContextEntries ?? team.maxContextEntries,
+    maxEntryChars: options.maxEntryChars ?? team.maxEntryChars,
+  });
   const key = teamRunKey(team);
   if (runningTeamKeys.has(key)) {
     const context = createContext(goal);
@@ -291,12 +321,13 @@ export async function runTeam(
       context,
       finalSummary: createSnapshot(context).summary,
       error: TEAM_BUSY,
+      tokensUsed: 0,
     };
   }
 
   runningTeamKeys.add(key);
   try {
-    return await runTeamOnce(team, goal, options);
+    return await runTeamOnce(team, goal, options, maxTokens, contextLimits);
   } finally {
     runningTeamKeys.delete(key);
   }
@@ -306,11 +337,14 @@ async function runTeamOnce(
   team: ConfiguredTeam,
   goal: string,
   options: RunnerOptions,
+  maxTokens: number,
+  contextLimits: ContextLimits,
 ): Promise<RunResult> {
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
   const onTurn = options.onTurn;
 
-  let state = createInitialState(team, goal);
+  let state = createInitialState(team, goal, undefined, contextLimits);
+  let tokensUsed = 0;
 
   while (!state.done && state.error === null && state.turn < maxTurns) {
     const agent = team.agents.find((a) => a.id === state.currentAgentId);
@@ -319,6 +353,25 @@ async function runTeamOnce(
         ...state,
         error: `Okänd agent: ${state.currentAgentId}`,
       };
+      break;
+    }
+
+    const snapshot = createSnapshot(state.context);
+    const messages = buildAgentPrompt(agent, team, snapshot, state.pendingQuestion);
+    const promptTokens = estimateMessages(messages);
+    if (tokensUsed + promptTokens >= maxTokens) {
+      const error = tokenCapMessage(maxTokens, tokensUsed, promptTokens);
+      state = { ...state, error };
+      if (onTurn !== undefined) {
+        onTurn({
+          turn: state.turn,
+          agentId: agent.id,
+          agentName: agent.name,
+          roleId: agent.roleId,
+          type: "error",
+          content: error,
+        });
+      }
       break;
     }
 
@@ -336,9 +389,14 @@ async function runTeamOnce(
     }
 
     let response: string;
+    let callUsage: { total_tokens: number } | undefined;
     try {
-      const result = await executeAgentTurn(agent, team, state, options);
+      const result = await executeAgentTurn(agent, team, state, options, {
+        messages,
+        maxCompletionTokens: maxTokens - tokensUsed - promptTokens,
+      });
       response = result.response;
+      callUsage = result.usage;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Okänt fel";
       state = {
@@ -358,6 +416,11 @@ async function runTeamOnce(
       }
       break;
     }
+
+    const estimate = promptTokens + estimateTokens(response);
+    const reported = tokensFromUsage(callUsage);
+    // Prefer the larger figure so a missing or too-low usage report cannot keep spending.
+    tokensUsed += reported === null ? estimate : Math.max(reported, estimate);
 
     if (onTurn !== undefined) {
       onTurn({
@@ -398,6 +461,22 @@ async function runTeamOnce(
         });
       }
     }
+
+    if (state.error === null && tokensUsed > maxTokens) {
+      const error = tokenCapMessage(maxTokens, tokensUsed);
+      state = { ...state, error };
+      if (onTurn !== undefined) {
+        onTurn({
+          turn: state.turn,
+          agentId: agent.id,
+          agentName: agent.name,
+          roleId: agent.roleId,
+          type: "error",
+          content: error,
+        });
+      }
+      break;
+    }
   }
 
   if (!state.done && state.error === null && state.turn >= maxTurns) {
@@ -415,6 +494,7 @@ async function runTeamOnce(
     context: state.context,
     finalSummary: snapshot.summary,
     error: state.error ?? undefined,
+    tokensUsed,
   };
 }
 
@@ -430,6 +510,9 @@ export function formatRunResult(result: RunResult): string {
   }
 
   lines.push(`Antal omgångar: ${result.turns}`);
+  if (result.tokensUsed !== undefined) {
+    lines.push(`Använda tokens: ${result.tokensUsed}`);
+  }
   lines.push("");
   lines.push(result.finalSummary);
 

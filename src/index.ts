@@ -11,6 +11,7 @@ export type {
   AgentEntry,
   SharedContext,
   ContextSnapshot,
+  ContextLimits,
 } from "./context.ts";
 export {
   createContext,
@@ -18,7 +19,20 @@ export {
   getLatestEntries,
   summarizeContext,
   createSnapshot,
+  resolveContextLimits,
+  boundEntryContent,
+  DEFAULT_MAX_CONTEXT_ENTRIES,
+  DEFAULT_MAX_ENTRY_CHARS,
 } from "./context.ts";
+
+export {
+  DEFAULT_MAX_TOKENS,
+  estimateTokens,
+  estimateMessages,
+  resolveMaxTokens,
+  tokenCapMessage,
+  tokensFromUsage,
+} from "./budget.ts";
 
 export type {
   HandoffType,
