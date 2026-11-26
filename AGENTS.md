@@ -11,43 +11,29 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 
 ## Decisions
 
-SPEC.md is the product spec, Linear PAN-267 is its source, and both must be kept in sync.
+Radio Days is a voice agent in an old radio on a Raspberry Pi 4. SPEC.md is the product spec (v2.0). Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
 
-Read secrets from the environment only. Do not put keys in config, code, or traces. `ConfiguredProvider` is safe to serialize (redacts the key), but never include raw API keys in logs, errors, or telemetry. Never expose a `ConfiguredProvider` on a public client surface; use `toSafeProvider()` instead. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on; use the `sanitizeErrorChain` pattern to replace the key with `[REDACTED]`.
+Read secrets from the environment only. Do not put keys in config, code, traces, or the public repo. Never include raw API keys in logs, errors, or telemetry. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on, and replace the key with `[REDACTED]`.
 Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.
-A secret in the environment must not by itself start a paid call; require an explicit choice such as `--live` or `--provider`.
+A secret in the environment must not by itself start a paid call; an explicit choice is required.
 
-Provider `defaultModel` must be a valid, current model id at the provider. Remove or leave undefined until confirmed.
+A provider default model must be a valid, current model id at the provider. Remove or leave it undefined until confirmed.
 
-A handoff or question must match an agent id, name or role exactly. An unknown, empty or ambiguous target is an error, never silent work or first partial match.
-
-Every team run has a configurable token cap and a bound on shared-context size. maxTurns limits turns, not model calls or cost.
+Every conversation has a token cap. A turn limit does not limit model calls or cost.
 
 Truncate text per code point, never with slice on UTF-16 units.
 
-Treat every field in the provider response as untrusted: null, missing or wrong type yields the estimate or a Swedish error, never a throw.
-
-Every failure in parsing the model's reply must produce an error event, not a regular handoff or question event.
+Treat every field in a provider response as untrusted: null, missing or wrong type yields the estimate or a Swedish error, never a throw.
 
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.
-
-The dev flow runs against a sandbox repo only.
 
 Update skills from `~/Desktop/skills` with `npm run sync-skills`. Edit adaptations only in `.cursor/skills/<name>/PROJECT.md`.
 
 When you add TypeScript outside `src/` and `test/`, add that path to `include` in `tsconfig.json`.
 
 When writing files to a target directory, do not follow existing symlinks and verify that every resolved path stays inside the directory. Replace symlinks instead of following them, and use path separator in prefix checks to avoid false positives.
-
-## Markers
-
-Parse a marker in the model's reply only when it stands alone on its own line, outside code blocks, quotes and inline code. A marker that is only mentioned in running text must never end or steer the run.
-
-Ignore a marker on a line that starts with four or more spaces or a tab, except when the indent only continues a list item. A code block nested in the list still does not count. A tab advances to the next four-column stop, so a space followed by a tab is indented code too. Ignore a marker inside a `<code>` element. Test indented code blocks, list items, and a marker with other text on the same line.
-
-Normalize both the model reply and the team config (name, id and role) to NFC before comparing them. Never normalize only one side.
 
 ## Handoffs
 

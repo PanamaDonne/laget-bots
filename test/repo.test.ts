@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
@@ -63,4 +63,53 @@ test("CI scans for secrets and vulnerable dependencies", () => {
 
   assert.match(ci, /gitleaks detect --source \. --redact --exit-code 1/);
   assert.match(ci, /npm audit/);
+});
+
+test("SPEC.md is the Radio Days v2.0 product spec", () => {
+  const spec = readText("SPEC.md");
+
+  assert.match(spec, /^# Radio Days — product spec v2\.0 \(draft\)/);
+  assert.match(spec, /The former team engine is shut down/);
+  assert.match(spec, /PanamaDonne\/radio-days/);
+});
+
+test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
+  const readme = readText("README.md");
+  const agents = readText("AGENTS.md");
+
+  assert.match(readme, /Radio Days/);
+  assert.match(readme, /\[SPEC\.md\]\(SPEC\.md\)/);
+  assert.equal(readme.includes("npm run team"), false);
+  assert.equal(readme.includes("example-team.json"), false);
+  assert.match(agents, /Radio Days/);
+  assert.match(agents, /SPEC\.md is the product spec \(v2\.0\)/);
+  assert.match(agents, /team engine is shut down/);
+});
+
+test("the team engine command, config, and sources are gone", () => {
+  const pkg = readJson("package.json") as {
+    name?: string;
+    description?: string;
+    scripts?: Record<string, string>;
+  };
+
+  assert.equal(pkg.name, "radio-days");
+  assert.equal(pkg.scripts?.team, undefined);
+  assert.equal(pkg.description?.includes("team of agents"), false);
+  for (const path of [
+    "example-team.json",
+    "src/team-cli.ts",
+    "src/team-run.ts",
+    "src/team.ts",
+    "src/providers.ts",
+    "src/runner.ts",
+    "src/handoff.ts",
+    "src/roles.ts",
+    "src/client.ts",
+    "src/budget.ts",
+    "src/context.ts",
+    "src/index.ts",
+  ]) {
+    assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, path);
+  }
 });
