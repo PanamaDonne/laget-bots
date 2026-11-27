@@ -7,7 +7,7 @@ This file is the accepted product spec for Radio Days, version 2.0, on `main`. I
 **Visibility:** the repo stays public.
 **Owner:** Daniel Hansson. **PO:** Jörgen.
 **Date:** 2026-11-26.
-**Revision:** 2026-11-27 (Daniel, PAN-299). Target board is a Raspberry Pi 4 Model B. The build and the running cost stay low. The voice stays local. Same day: Spotify is not in v1. v1 is conversation, email, calendar, and web search. Speech-to-text is local. The chat model is EU-hosted and pay-as-you-go.
+**Revision:** 2026-11-27 (Daniel, PAN-299). Target board is a Raspberry Pi 4 Model B. The build and the running cost stay low. The voice stays local. 2026-11-27 (Daniel, PAN-298): Spotify is not in v1. v1 is conversation, email, calendar, and web search. Speech-to-text is local. The chat model is EU-hosted and pay-as-you-go.
 **Language in the product:** code identifiers in English; user-facing voice and admin text in Swedish.
 
 ---
@@ -60,7 +60,7 @@ Weather and other later services may follow after v2; they are not committed in 
 
 ### 2.3 Out of scope
 
-* Spotify. A later version may control Spotify by voice, including playlist and favourite changes. It is not in v1. Spotify’s [Developer Policy](https://developer.spotify.com/policy) (III.3, effective 15 May 2025) forbids a voice-enabled app that controls Spotify, including in development mode (Daniel, 2026-11-27).
+* Spotify, including playlist and favourite changes. It is not in v1. Spotify’s [Developer Policy](https://developer.spotify.com/policy) (III.3, effective 15 May 2025) forbids a voice-enabled app that controls Spotify. That text does not mention a development-mode exception. A later version needs a change to that policy or written permission from Spotify. Waiting does not change III.3 (Daniel, 2026-11-27).
 * Further work on the Laget Bots team engine (roles, handoff contracts, questions between agents, the PO/dev/reviewer development flow, MAST collaboration metrics as CI gates).
 * PR #13 and the remaining Laget Bots stage-1 work stay paused.
 * A local admin UI as the primary surface (replaced by the hosted web admin).
@@ -142,20 +142,20 @@ Daniel set the v1 scope of this autonomy on 2026-11-26. On 2026-11-27 he added t
 
 Habit data is never sent to the AI provider in a prompt, and it is not sent as text to embed. The cloud admin sees only status. A morning brief that uses a habit is assembled on the Pi and spoken by local Piper. The habit is not put in the provider prompt to write the brief.
 
-**Consent.** The radio does not store a habit until the user agrees. It says, in Swedish, that it will learn habits, keep them on the Pi until the user deletes them, and not send them on. The user agrees by voice or in the web admin. Until then the radio still answers, and it still does what the user just asked. It does not store a habit and it does not act on one. The user can withdraw agreement by turning autonomous behaviour off or by deleting habits. v1 has one user: the person who sets the radio up. Someone else who speaks in the room does not get a habit profile. Their speech is not stored as a habit.
+**Consent.** The radio does not store a habit until the user agrees. It says, in Swedish, that it will learn habits, keep them on the Pi until the user deletes them, and not send them on. The user agrees by voice or in the web admin. Until then the radio still answers, and it still does what the user just asked. It does not store a habit and it does not act on one. The user can withdraw agreement by turning autonomous behaviour off or by deleting habits. v1 has one user: the person who sets the radio up. The radio does not tell speakers apart and does not use voice recognition. Speech from someone else in the room is not stored as a second profile.
 
 **Audio and transcripts.** Radio Days does not store raw audio or transcripts, on the Pi, in the cloud admin, or in the repo. Speech-to-text runs on the Pi (section 6). Audio for a turn is not sent to the chat provider and is not kept by Radio Days after the turn. The transcript is not written to memory or to logs. The text of the turn is the conversation with the chat model. Habit data is not part of that prompt.
 
 **Important proactive announcements.** These are not required to be learned. They are not secondary. Both are in v1.
 
-* **Calendar reminders.** The radio speaks what is on the calendar and gives reminders. Quiet hours and the limit on how often still apply.
+* **Calendar reminders.** The radio speaks what is on the calendar and gives reminders. Quiet hours and the limit on how often still apply. No calendar vendor is locked. Tokens stay on the Pi. The Pi fetches the entries it will speak, including title, time, and attendees. Local Piper speaks them. That text is not sent to the chat model, is not written to memory, and is not kept after the speaking ends. Calendar text is untrusted. It can never start an action.
 * **Incoming email from senders the user marks as important.** Reading the email aloud is read-only and needs no approval button. Acting on the email, such as sending or replying, still requires the physical approval button (section 10).
 
 The user chooses which senders count as important, by voice and in the web admin. The radio may suggest a sender from a habit the user already has. The user decides which suggestions to keep. That list stays in the encrypted memory database on the Pi with the other learned habit data. The cloud sees only status.
 
-**Mail when it is read aloud.** The message body is fetched to the Pi with the read-only Gmail scope `https://www.googleapis.com/auth/gmail.readonly`. Local Piper speaks it. People in the room hear the reading. The body is not sent to the AI provider, to the web admin, or to ReadSpeaker. It is not written to memory, and it is not kept after the reading ends. If local Piper cannot speak, the radio says that mail is waiting and does not send the body anywhere else. Sending or replying uses a separate scope, `https://www.googleapis.com/auth/gmail.send`, and the physical approval button. Mail text is untrusted. It can never start an action: not a habit, not a reply, and not any other action. Only the user’s own request, or a habit that was not taken from mail text, can start an action.
+**Mail when it is read aloud.** The Pi polls Gmail for new mail. The message body is fetched to the Pi with the read-only scope `https://www.googleapis.com/auth/gmail.readonly`. Local Piper speaks it. People in the room hear the reading. The body is not sent to the AI provider, to the web admin, or to ReadSpeaker. It is not written to memory, and it is not kept after the reading ends. If local Piper cannot speak, the radio says that mail is waiting and does not send the body anywhere else. Sending or replying uses a separate scope, `https://www.googleapis.com/auth/gmail.send`, and the physical approval button. The user dictates the reply. The original body is not sent to the chat model to draft it. Before the Gmail connection is built, check the Google OAuth app’s publishing status. A refresh token for an app that is still in testing expires after seven days. Mail text is untrusted. It can never start an action: not a habit, not a reply, and not any other action. Only the user’s own request, or a habit that was not taken from mail text, can start an action.
 
-**Web search.** When the user asks, the radio searches the web and speaks the answer in Swedish. A search the user did not ask for is not started from mail text or from an unread habit.
+**Web search.** No search service is locked. When the user asks, the Pi sends that turn’s words as the query. Habit data and other memory are not added to the query. Results come back to the Pi. Local Piper speaks them in Swedish. Results are not sent to the chat model, are not written to memory, and are not kept after the reply. Search text is untrusted and can never start an action. The search fee, if there is one, counts toward the 99 SEK cap (section 14).
 
 **Secondary: other proactive speech.** Other unprompted speech is secondary to learning habits. A morning brief is an example. It is not an important announcement, and it is not a learned suggestion. It follows the guardrails below.
 
@@ -177,7 +177,7 @@ The clock times for quiet hours, and the maximum number of unprompted turns, are
 
 The user says the wake word. In v1 the wake word is fixed: “Kör Radio”. Choosing a wake word from a list in the web admin is v2 (Linear PAN-301). The Pi listens with a local wake-word detector (openWakeWord). Optional push-to-talk is only a backup, never an approval.
 
-Speech-to-text in v1 is local on the Pi 4 Model B, in Swedish: KB-Whisper tiny or base (Daniel, 2026-11-27). Latency is measured in Linear PAN-300. Audio is not sent to the chat provider. Spoken replies are in Swedish. **Text-to-speech in v1 is local Piper on the Pi 4 Model B**, with a Swedish medium voice: `sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium` (Daniel, 2026-11-26 and 2026-11-27). Swedish Piper voices exist only at medium quality. There is no low or x_low Swedish voice. The voice stays loaded in memory between replies. ReadSpeaker is the fallback if that quality is not good enough.
+Speech-to-text in v1 is local on the Pi 4 Model B, in Swedish: KB-Whisper tiny or base (Daniel, 2026-11-27). The model card for [KBLab/kb-whisper-tiny](https://huggingface.co/KBLab/kb-whisper-tiny) lists the licence as Apache-2.0. The same card’s Word Error Rate table, checked 2026-11-27, gives tiny as 13.2 on FLEURS, 12.9 on CommonVoice, and 11.2 on NST, and base as 9.1, 8.7, and 7.8 on those three sets. Latency on this Pi is measured in Linear PAN-300. Audio is not sent to the chat provider. Spoken replies are in Swedish. **Text-to-speech in v1 is local Piper on the Pi 4 Model B**, with a Swedish medium voice: `sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium` (Daniel, 2026-11-26 and 2026-11-27). Swedish Piper voices exist only at medium quality. There is no low or x_low Swedish voice. The voice stays loaded in memory between replies. ReadSpeaker is the fallback if that quality is not good enough.
 
 **Text-to-speech for v1.**
 
@@ -213,7 +213,7 @@ The API key is encrypted in the browser with the Pi’s public key. The cloud fo
 
 Turning autonomous behaviour off, and correcting or deleting a learned habit, are done here as well as by voice. Both go through the Pi. Learned habit data stays on the device until the user deletes it, and it is not sent to the AI provider. The cloud sees only status.
 
-In v1 a skeleton is enough: sign-in, pairing, provider and key, email connection, status, memory view and delete, turning autonomous behaviour off, correcting or deleting a learned habit, important senders, and encrypted backup download. Those habit controls are part of milestone 4, together with long-term memory. The wake-word list is not in this skeleton. It is v2 (Linear PAN-301).
+In v1 a skeleton is enough: sign-in, pairing, provider and key, email connection, status, memory view and delete, turning autonomous behaviour off, correcting or deleting a learned habit, important senders, and encrypted backup download. Those habit controls are part of milestone 3, together with long-term memory. The wake-word list is not in this skeleton. It is v2 (Linear PAN-301).
 
 The radio may suggest senders from learned habits. Those choices stay on the device. The cloud sees only status.
 
@@ -221,7 +221,7 @@ The radio may suggest senders from learned habits. Those choices stay on the dev
 
 ## 8. Long-term memory
 
-The agent has long-term memory about the user, for example name, habits and earlier conversations. Habits and preferences the agent learns (section 5) are part of this memory. Learned habits, and the list of important senders, stay in the encrypted memory database on the Pi until the user deletes them. They are never sent to the AI provider, in a prompt or as text to embed. The cloud sees only status. Other memories may still be retrieved into a conversation. Habits are left out of that retrieval. Daniel has prior experience of memory and RAG from Präpp; that experience may inform the work, but this product’s rules are the ones below.
+The agent has long-term memory about the user, for example name, habits and earlier conversations. Habits and preferences the agent learns (section 5) are part of this memory. Learned habits, and the list of important senders, stay in the encrypted memory database on the Pi until the user deletes them. They are never sent to the AI provider, in a prompt or as text to embed. The cloud sees only status. Other memories may still be retrieved into a conversation. A habit is a preference the Pi applies locally, such as how the user likes to be answered. It is not one of those retrieved facts. The habit text is not sent to the chat model. Daniel has prior experience of memory and RAG from Präpp; that experience may inform the work, but this product’s rules are the ones below.
 
 Memory is stored only on the Pi, in SQLite with sqlite-vec for semantic search. Vectors and memory stay encrypted on the Pi. After each conversation, facts are extracted. The 5–10 most relevant memories are retrieved into each new conversation. Embeddings stay on the Pi and are not a cloud call. A hosted embedding call is not the v1 path. Which model fits in 1 GB or 2 GB, beside the Swedish Piper voice that stays loaded and local speech-to-text, is open until Linear PAN-300 measures it (section 15).
 
@@ -237,7 +237,7 @@ The web admin reads and deletes memory via the Pi. No copy of memory is kept in 
 
 **Secrets live on the Pi**, encrypted on disk. The cloud does not store API keys, mail tokens, memory content, or learned habit data. It may store only what it needs to sign the user in, pair a device, and show status.
 
-**Chat provider.** Berget is not the provider, and the Berget Starter plan is not used (Daniel, 2026-11-27). The v1 chat model is EU-hosted and pay-as-you-go. EU data residency is preferred. No specific vendor is required. Examples are Scaleway and OVH. The user brings their own key. A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required. Speech-to-text and text-to-speech stay on the Pi (section 6). ReadSpeaker is the speech fallback if Piper’s quality is not good enough. The running cost stays inside the cap in section 14.
+**Chat provider.** Berget is not the provider, and the Berget Starter plan is not used (Daniel, 2026-11-27). The v1 chat model is EU-hosted and pay-as-you-go. EU data residency is preferred. No specific vendor is required. Examples are Scaleway and OVH. Before the first paid call, the chosen provider must have a data processing agreement the household can accept, must not train a model on the household’s prompts or replies, and must state how long it keeps that text and where it is processed. The user brings their own key. A key in the environment or in the admin is not enough on its own to start a paid call; an explicit choice is required. Speech-to-text and text-to-speech stay on the Pi (section 6). ReadSpeaker is the speech fallback if Piper’s quality is not good enough. The running cost stays inside the cap in section 14.
 
 **ATECC608** is optional in v1 and required in v2 (see section 4).
 
@@ -279,13 +279,15 @@ Sending mail, or any other action that leaves the radio, requires the physical a
 | Eval | Metric | Gate |
 | -- | -- | -- |
 | Intent to tool | Share of utterances that lead to the right tool (or to no tool, when the turn is only conversation) | Threshold after the first baseline |
-| Latency | Time from end of speech after the wake word to first audio in the reply | Logged in v1; threshold after a baseline |
+| Latency | Time from end of speech after the wake word to first audio in the reply, including local speech-to-text | Logged in v1. The goal is that a short turn does not feel stalled. The threshold in seconds is set after Linear PAN-300 measures KB-Whisper tiny and base on this Pi. Until then it is not a pass/fail gate |
 | Memory recall | Stored facts that should be recalled are recalled correctly in a later turn | Threshold after the first baseline |
 | Memory invention | The agent must not present invented personal facts as memory | 0 invented “memories” on the test set |
 | Memory deletion | A fact or learned habit the user deleted, or told the radio to forget, is no longer retrievable or spoken | 100 % |
 | Memory privacy | Memory content must not appear in cloud storage or in cloud or repo logs. Habit data must not appear in a prompt, or in text sent to embed, to the AI provider | 0 leaks on the test set |
 | Audio and transcripts | Raw audio or transcripts stored by Radio Days, on the Pi, in the cloud, or in the repo | 0 |
 | Mail text | Mail text starts an action, or is sent to the AI provider or to ReadSpeaker | 0 |
+| Calendar text | Calendar text starts an action, or is sent to the chat provider | 0 |
+| Web search text | A search result starts an action, or is sent to the chat provider | 0 |
 | Encrypted backup | A downloaded backup is encrypted (not readable as cleartext) and restorable on the Pi | 100 % |
 | Approval safety | Acting on mail, or any other action with consequences outside the radio, including when the agent is acting on its own, without a physical button press. Reading an email aloud is read-only and is outside this gate | 0 (100 %) |
 
@@ -299,7 +301,7 @@ Thresholds that are not already 100 % or 0 are set after a first baseline. Evals
 
 The plan takes the time it takes. Each milestone is done only when its done criterion is met, not when a date passes. PR #13 and remaining Laget Bots stage-1 work stay paused. The team engine is not developed further.
 
-A first thin slice should still be possible to wake and talk to, with email, calendar, and web search next, and with admin and memory following as their own milestones. The behaviour in section 5 is v1 product behaviour. Storing habits, asking for consent, and acting on habits wait until milestone 4, where the memory store exists. Milestones 1 and 2 do not require that store. Mounting in the radio cabinet is outside the software milestones and waits until Daniel has a radio.
+A first thin slice should still be possible to wake and talk to. The web admin and the memory store come before email, calendar, and web search, because those three need a connected account and the list of important senders. The behaviour in section 5 is v1 product behaviour. Storing habits, asking for consent, and acting on habits wait until milestone 3, where the memory store exists. Milestones 1 and 2 do not require that store. Mounting in the radio cabinet is outside the software milestones and waits until Daniel has a radio.
 
 Every frontend or backend item below is done only when the stated outcome is true **and** it is covered by unit tests, with CI green.
 
@@ -307,32 +309,32 @@ Every frontend or backend item below is done only when the stated outcome is tru
 
 * Local wake word “Kör Radio”, with optional push-to-talk as backup.
 * Voice chain: local Swedish speech-to-text on the Pi (KB-Whisper tiny or base), and local Piper on the Pi for text-to-speech with a Swedish medium voice that stays loaded between replies (section 6). Spoken replies in Swedish.
-* One voice agent that holds a spoken conversation. Learning habits, storing them, and acting on them are milestone 4. This milestone does not require that store. Email, calendar, and web search are milestone 2.
+* One voice agent that holds a spoken conversation. Learning habits, storing them, and acting on them are milestone 3. This milestone does not require that store. Email, calendar, and web search are milestone 4.
 * Multi-step goal planning is not in v1. Spotify is not in v1.
 * One pay-as-you-go chat provider, with a token cap and the rule that a key alone does not start a paid call.
 * Scale lamp: idle, listening, thinking, and the wait-state used when the button is required.
 * Done when: after “Kör Radio”, the user can have a short spoken conversation and hear the reply from the speaker. Raw audio and transcripts are not stored. It does not carry out multi-step goal planning, and it does not act on a stored habit. Covered by unit tests, CI green.
 
-**Milestone 2: Email, calendar, and web search**
-
-* Email as in section 5. Reading an important sender’s message aloud uses local Piper and needs no button. Sending or replying needs the physical button. Mail text can never start an action.
-* Calendar reminders, and speaking what is on the calendar. These are important announcements (section 5).
-* Web search when the user asks, with the answer spoken in Swedish.
-* Done when: the user can hear an important email read aloud, hear a calendar reminder, and ask for a web search. Mail text does not start an action. Sending mail does not run without the button. Covered by unit tests, CI green.
-
-**Milestone 3: Web admin skeleton**
+**Milestone 2: Web admin skeleton**
 
 * Hosted admin (Next.js on Vercel, with Supabase): sign-in from any computer, pairing the Pi with a device code, provider and API key, email connection, and status.
 * The key is encrypted in the browser with the Pi’s public key. Mail tokens stay on the Pi. The cloud shows status, never secrets in cleartext.
 * Done when: the user can sign in, pair the Pi, set a key, and connect email, and secrets are not stored in the cloud in cleartext. Covered by unit tests, CI green.
 
-**Milestone 4: Long-term memory**
+**Milestone 3: Long-term memory**
 
 * SQLite on the Pi with sqlite-vec. Embeddings stay on the Pi and are not a cloud call (section 8). Which model fits is open until Linear PAN-300.
 * Facts extracted after each conversation; the 5–10 most relevant memories retrieved into each conversation.
 * Database encrypted with SQLCipher. Admin reads and deletes memory via the Pi; no copy in the cloud. Encrypted backup can be downloaded and restored.
-* Learned habits and preferences (section 5) are stored in that on-device encrypted memory, and only after the user agrees. They are kept until the user deletes them. They are not sent to the AI provider. The user can turn autonomous behaviour off in the web admin, and can correct or delete a learned habit there, as well as by voice. The cloud sees only status.
+* Learned habits and preferences (section 5) are stored in that on-device encrypted memory, and only after the user agrees. They are kept until the user deletes them. They are not sent to the AI provider. The user can turn autonomous behaviour off in the web admin, and can correct or delete a learned habit there, as well as by voice. The list of important senders is stored here. The cloud sees only status.
 * Done when: facts persist and are recalled in a later conversation; the user can view and delete memory in admin; deletion is effective; a backup is encrypted and restorable; memory content never appears in cloud storage or logs. The user can turn autonomous behaviour off, and can correct or delete a learned habit, in the admin and by voice. A deleted habit is not used again, and it is not sent to the AI provider. The cloud sees only status. Covered by unit tests, CI green.
+
+**Milestone 4: Email, calendar, and web search**
+
+* Email as in section 5. This uses the email connection from milestone 2 and the sender list from milestone 3. Reading an important sender’s message aloud uses local Piper and needs no button. Sending or replying needs the physical button. The user dictates the reply. Mail text can never start an action.
+* Calendar reminders, and speaking what is on the calendar. These are important announcements (section 5). Calendar text is not sent to the chat model.
+* Web search when the user asks, with the answer spoken in Swedish. Results are not sent to the chat model.
+* Done when: the user can hear an important email read aloud, hear a calendar reminder, and ask for a web search. Mail text does not start an action. Sending mail does not run without the button. Raw audio and transcripts are not stored. Covered by unit tests, CI green.
 
 **Milestone 5: Evals and CI gate**
 
@@ -363,7 +365,7 @@ The product should be cheap to build and cheap to run. Build cost is a parts goa
 
 Speech-to-text, text-to-speech, and embeddings stay on the Pi and have zero monthly cost. The chat model is EU-hosted and pay-as-you-go. That use stays within the cap below.
 
-**Cap (locked, Daniel, 2026-11-27):** 99 SEK per month for the user, for Radio Days’ own running cost. This replaces the proposed €25 per device per month, excluding VAT. Hardware, electricity and one-off purchases are outside the cap. A plan whose price is above 99 SEK is outside the cap. Berget is not the provider, and the Berget Starter plan (€25 per month excluding VAT) is not used. No chat-vendor price is locked. The household picks a pay-as-you-go model that stays inside the cap. Text-to-speech in v1 is local Piper and has no hosted fee. Speech-to-text in v1 is local and has no hosted fee.
+**Cap (locked, Daniel, 2026-11-27):** 99 SEK per month including VAT, the amount the user pays, for Radio Days’ own running cost. This replaces the proposed €25 per device per month, excluding VAT. A provider price in euro is counted in the SEK the household is actually charged. Hardware, electricity and one-off purchases are outside the cap. A plan whose price is above 99 SEK is outside the cap. Berget is not the provider, and the Berget Starter plan (€25 per month excluding VAT) is not used. No chat-vendor price is locked, so the cap is not an estimate that use will land under 99 SEK by itself. The radio counts paid use during the month. When that count reaches 99 SEK, it stops new calls to the chat model and to web search, tells the user the cap is reached, and still wakes, transcribes, and speaks that notice with local Piper. That stop is the hard limit. Text-to-speech in v1 is local Piper and has no hosted fee. Speech-to-text in v1 is local and has no hosted fee. There is also a token cap on each conversation.
 
 ### 14.1 Sources (checked 2026-11-26, provider decision 2026-11-27)
 
@@ -389,7 +391,7 @@ For **one household, one device**:
 | Item | Basis | Monthly estimate |
 | -- | -- | -- |
 | Speech-to-text, local KB-Whisper | No hosted fee (section 6) | €0 |
-| Conversation model, EU-hosted pay-as-you-go | No vendor price locked; must stay inside the cap | Inside 99 SEK |
+| Conversation model, EU-hosted pay-as-you-go | No vendor price locked. The radio stops new paid calls at the cap | Hard stop at 99 SEK |
 | Embeddings, on the Pi | No hosted fee (section 8) | €0 |
 | TTS, local Piper (v1) | No hosted fee | €0 |
 | TTS fallback, ReadSpeaker speechCloud | Not in the v1 estimate; no public unit price | Not estimated |
@@ -401,7 +403,7 @@ Local speech-to-text, local text-to-speech, and on-device embeddings can start a
 
 | Item | Monthly | Notes |
 | -- | -- | -- |
-| Chat model, EU-hosted pay-as-you-go | Inside the cap | EU data residency is preferred. Vendor is not locked. Examples: Scaleway, OVH. |
+| Chat model, EU-hosted pay-as-you-go | Stops at the cap | EU data residency is preferred. Vendor is not locked. Examples: Scaleway, OVH. |
 | Vercel Hobby + Supabase Free | €0 (assumption: within free limits) | [Hobby](https://vercel.com/docs/plans/hobby), [Supabase Free](https://supabase.com/pricing). |
 | **Radio Days running cost (cap)** | **99 SEK** | Locked cap for the user (Daniel, 2026-11-27). Ideally about 0 to start. Berget Starter is not used. |
 
@@ -432,7 +434,8 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 * Habits are kept until the user deletes them. There is no automatic expiry.
 * The wake word in v1 is fixed: “Kör Radio”. Choosing a wake word from a list in the web admin is v2 (Linear PAN-301). Language stays Swedish.
 * v1 capabilities are conversation, email, calendar, and web search.
-* Spotify is not in v1. Playlist and favourite changes are not a v1 flow. Spotify’s Developer Policy III.3 forbids a voice-enabled app that controls Spotify, including in development mode. Spotify is a later version (section 2.3).
+* Spotify is not in v1. Playlist and favourite changes are not a v1 flow. Spotify’s Developer Policy III.3 forbids a voice-enabled app that controls Spotify. A later version needs a change to that policy or written permission from Spotify (section 2.3).
+* When paid use in a month reaches 99 SEK including VAT, the radio stops new calls to the chat model and to web search and tells the user. Local wake word, speech-to-text, and Piper still work.
 * Berget is not the provider. The Berget Starter plan is not used. Speech-to-text is local on the Pi: KB-Whisper tiny or base. Latency is measured in Linear PAN-300. The chat model is EU-hosted and pay-as-you-go, for example Scaleway or OVH. EU data residency is preferred. No vendor is required.
 * The running-cost cap is 99 SEK per month for the user. It replaces the proposed €25 per device per month excluding VAT. The goal is about 0 to start, as cheap as possible while the radio still works.
 

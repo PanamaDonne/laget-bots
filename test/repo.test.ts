@@ -221,7 +221,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   const memory = section(spec, "Long-term memory", "Privacy, security and providers");
   const cost = section(spec, "Running cost", "Decisions and open questions");
   const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
-  const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
+  const milestone3 = between(spec, "**Milestone 3:", "**Milestone 4:");
   const milestone4 = between(spec, "**Milestone 4:", "**Milestone 5:");
   const decided = between(spec, "**Decided", "**Open:**");
   const open = spec.slice(spec.indexOf("**Open:**"));
@@ -260,7 +260,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   for (const fact of ["Kör Radio", "PAN-301", "conversation", "email", "calendar", "web search"]) {
     assert.equal(v1Scope.includes(fact), true, `v1 scope missing ${fact}`);
   }
-  for (const fact of ["Spotify", "III.3", "development mode"]) {
+  for (const fact of ["Spotify", "III.3", "written permission"]) {
     assert.equal(later.includes(fact), true, `later missing ${fact}`);
   }
 
@@ -272,13 +272,13 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
   }
 
-  for (const fact of ["Kör Radio", "milestone 4"]) {
+  for (const fact of ["Kör Radio", "milestone 3"]) {
     assert.equal(milestone1.includes(fact), true, `milestone 1 missing ${fact}`);
   }
-  for (const fact of ["email", "calendar", "web search"]) {
-    assert.equal(milestone2.includes(fact), true, `milestone 2 missing ${fact}`);
-  }
   for (const fact of ["agrees", "deletes"]) {
+    assert.equal(milestone3.includes(fact), true, `milestone 3 missing ${fact}`);
+  }
+  for (const fact of ["email", "calendar", "web search", "not stored"]) {
     assert.equal(milestone4.includes(fact), true, `milestone 4 missing ${fact}`);
   }
 
