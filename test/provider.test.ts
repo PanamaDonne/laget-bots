@@ -205,6 +205,7 @@ test("returning to idle starts the token cap over and leaves the monthly cost", 
     used = usageAfterTurn(used, result.usedTokens, true);
   }
 
+  assert.equal(called.length >= 3, true);
   assert.deepEqual(called, [true, true, true, true]);
   assert.equal(used, 0);
   assert.equal(ledger.spentOre, 6_000);

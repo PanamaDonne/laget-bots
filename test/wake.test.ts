@@ -38,7 +38,16 @@ test("the wake phrase alone wakes and waits for speech", () => {
 });
 
 test("radio, kör, and a phrase in the middle do not wake", () => {
-  for (const text of ["radio", "Kör", "Jag lyssnar på radio", "Jag kör radio ikväll", "kör radioaktiv", "Kör radiosändning"]) {
+  for (const text of [
+    "radio",
+    "Kör",
+    "Jag lyssnar på radio",
+    "Jag kör radio ikväll",
+    "kör radioaktiv",
+    "Kör radiosändning",
+    "Kör radion högre",
+    "Kör radion klockan åtta",
+  ]) {
     const heard = hear({ text, playbackActive: false });
     assert.equal(heard.woke, false, text);
     assert.equal(heard.command, "");
