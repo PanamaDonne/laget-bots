@@ -237,6 +237,8 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const later = section(spec, "Out of scope", "What changes");
   const changes = section(spec, "What changes", "Hardware");
   const quiet = between(scope, "**Quiet hours and the unprompted cap", "Mail text");
+  const v1Scope = section(spec, "In scope for v1", "Out of scope");
+  const preamble = spec.slice(0, headingIndex(spec, "What it is"));
   const hardware = section(spec, "Hardware", "Architecture");
   const voice = section(spec, "Architecture", "The agent, memory");
   const agent = section(spec, "The agent, memory", "Web admin");
@@ -251,6 +253,8 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     "These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
   const notCounted =
     "These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
+  const scheduled =
+    "The morning broadcast and the evening summary are spoken at the time the user scheduled, including during quiet hours.";
   const held =
     "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
   const berget =
@@ -261,10 +265,12 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, unprompted);
   says(quiet, quietHours);
   says(quiet, notCounted);
+  says(quiet, scheduled);
   says(quiet, held);
   says(pan312, unprompted);
   says(pan312, quietHours);
   says(pan312, notCounted);
+  says(pan312, scheduled);
   says(pan312, held);
   says(later, "English is the v1 default.");
   says(changes, "English is the default language.");
@@ -286,6 +292,25 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, otherProviders);
   says(cost, "99 SEK per month including 25 % VAT.");
   says(cost, "It resets at the start of each calendar month in Europe/Stockholm.");
+  says(cost, "At 90 % the radio tells the user.");
+  says(cost, "At 100 % paid cloud calls pause until the next month.");
+  says(cost, "An unreadable ledger stops paid calls.");
+  says(cost, "The counter never goes backwards to an earlier month.");
+  says(cost, "Every paid provider call counts: STT, LLM, TTS, a search API, and Supabase.");
+  says(cost, "A spend cap or prepaid limit is set at each provider, as a backstop to the ledger.");
+  says(admin, "Being on the tailnet is not enough.");
+  says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
+  says(admin, "Tailscale Funnel is not used for the admin.");
+  says(admin, "The service binds to the tailnet interface or localhost only.");
+  says(admin, "It does not listen on the LAN or on a public address.");
+  says(voice, "The device verifies that it is talking to the paired Mac mini with a pinned certificate or a challenge.");
+  says(voice, "The audio stream is encrypted (TLS or equivalent).");
+  says(voice, "a pairing key is set in the web admin.");
+  says(privacy, "A backup of memory is encrypted.");
+  says(privacy, "Live provider calls require an explicit `--live` opt-in.");
+  says(v1Scope, "Email is not in v1.");
+  says(later, "It is parked until v2 (Daniel, 2026-11-27).");
+  says(preamble, "Status: proposed.");
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
