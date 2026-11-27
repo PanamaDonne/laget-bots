@@ -128,14 +128,13 @@ test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
     "sv_SE-lisa-medium",
     "ReadSpeaker",
     "fallback",
-    "Sten",
-    "not available",
+    "KB-Whisper",
     "stays loaded",
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
     assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
   }
-  for (const fact of ["gemma", "estimate"]) {
+  for (const fact of ["pay-as-you-go", "99 SEK"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 });
@@ -188,7 +187,7 @@ test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () =>
     assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
   }
 
-  for (const fact of ["speech-to-text", "conversation model", "zero monthly cost", "99 SEK", "on the Pi"]) {
+  for (const fact of ["KB-Whisper", "pay-as-you-go", "zero monthly cost", "99 SEK", "on the Pi"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 
@@ -204,7 +203,7 @@ test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () =>
     assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
   }
 
-  for (const fact of ["Hardware fit", "Quiet hours", "Spotify access", "Berget plan", "RAM", "Embedding model", "PAN-300", "1 GB", "2 GB"]) {
+  for (const fact of ["Hardware fit", "Quiet hours", "RAM", "Embedding model", "PAN-300", "1 GB", "2 GB", "KB-Whisper"]) {
     assert.equal(open.includes(fact), true, `open missing ${fact}`);
   }
   assert.equal(open.split("**RAM.**").length, 2);
@@ -217,6 +216,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   const behaviour = section(spec, "An agent that learns and decides", "Voice agent and everyday use");
   const approval = section(spec, "Physical approval", "Evals");
   const v1Scope = section(spec, "In scope for v1", "In scope for v2");
+  const later = section(spec, "Out of scope", "What is kept");
   const voice = section(spec, "Voice agent and everyday use", "Web admin");
   const memory = section(spec, "Long-term memory", "Privacy, security and providers");
   const cost = section(spec, "Running cost", "Decisions and open questions");
@@ -245,62 +245,54 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "confident enough",
     "unsure",
     "morning brief",
-    "Nytt avsnitt",
     "deletes",
-    "Berget",
     "agrees",
     "raw audio",
     "transcript",
-    "ångra",
-    "undone",
     "gmail.readonly",
     "gmail.send",
+    "web search",
     "quiet hours",
   ]) {
     assert.equal(behaviour.includes(fact), true, `behaviour missing ${fact}`);
   }
 
-  for (const fact of ["Kör Radio", "PAN-301", "announcements"]) {
+  for (const fact of ["Kör Radio", "PAN-301", "conversation", "email", "calendar", "web search"]) {
     assert.equal(v1Scope.includes(fact), true, `v1 scope missing ${fact}`);
   }
+  for (const fact of ["Spotify", "III.3", "development mode"]) {
+    assert.equal(later.includes(fact), true, `later missing ${fact}`);
+  }
 
-  for (const fact of [
-    "user-modify-playback-state",
-    "playlist-modify-private",
-    "playlist-modify-public",
-    "user-library-modify",
-    "user-read-playback-position",
-    "user-read-recently-played",
-    "III.13",
-    "III.14",
-    "III.3",
-  ]) {
+  for (const fact of ["KB-Whisper", "Piper", "Kör Radio"]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  for (const fact of ["habits", "deletes", "Berget"]) {
+  for (const fact of ["habits", "deletes", "on the Pi"]) {
     assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
   }
 
   for (const fact of ["Kör Radio", "milestone 4"]) {
     assert.equal(milestone1.includes(fact), true, `milestone 1 missing ${fact}`);
   }
-  assert.equal(milestone2.includes("milestone 4"), true);
-  for (const fact of ["agrees", "deletes", "undone"]) {
+  for (const fact of ["email", "calendar", "web search"]) {
+    assert.equal(milestone2.includes(fact), true, `milestone 2 missing ${fact}`);
+  }
+  for (const fact of ["agrees", "deletes"]) {
     assert.equal(milestone4.includes(fact), true, `milestone 4 missing ${fact}`);
   }
 
-  for (const fact of ["button", "undone"]) {
+  for (const fact of ["button", "mail"]) {
     assert.equal(approval.includes(fact), true, `approval missing ${fact}`);
   }
 
-  for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "Berget"]) {
+  for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "KB-Whisper", "pay-as-you-go"]) {
     assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
   }
   assert.equal(cost.includes("99 SEK"), true);
   assert.equal(cost.includes("locked"), true);
 
-  for (const fact of ["Quiet hours", "still open", "Spotify", "Starter"]) {
+  for (const fact of ["Quiet hours", "still open", "RAM", "Embedding model"]) {
     assert.equal(open.includes(fact), true, `open missing ${fact}`);
   }
 });
