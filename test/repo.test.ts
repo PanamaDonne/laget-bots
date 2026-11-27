@@ -139,25 +139,27 @@ test("SPEC.md records the local English voice chain", () => {
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
-  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
   for (const fact of ["Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 });
 
-test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
+test("SPEC.md targets an ESP32-S3 thin client and a local home server", () => {
   const spec = readText("SPEC.md");
   const what = section(spec, "What it is", "Scope");
   const hardware = section(spec, "Hardware", "Architecture");
   const voice = section(spec, "Architecture", "The agent, memory");
   const cost = section(spec, "Running cost", "Plan");
 
-  for (const fact of ["Mac mini", "cassette", "section 4", "section 2.1", "section 2.2"]) {
+  for (const fact of ["local home server", "cassette", "section 4", "section 2.1", "section 2.2"]) {
     assert.equal(what.includes(fact), true, `intro missing ${fact}`);
   }
 
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
-  says(hardware, "The house backend is Daniel\u2019s Mac mini (Apple M4, 16 GB).");
+  says(hardware, "The house backend is a local home server (reference: Mac mini M4, 16 GB).");
+  says(hardware, "The server is a Mac mini or similar local machine.");
+  says(hardware, "Requirements and latency measurements are stated against that reference.");
   says(
     hardware,
     "Radio budget: at most 500 SEK for one working unit, including microphone and speaker.",
@@ -169,8 +171,8 @@ test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
-  assert.equal(cost.includes("Mac mini"), true);
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+  assert.equal(cost.includes("local home server"), true);
 });
 
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {
@@ -195,7 +197,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.ok(headingIndex(spec, title) >= 0, title);
   }
 
-  for (const fact of ["Mac mini", "section 2.1", "section 2.2"]) {
+  for (const fact of ["local home server", "section 2.1", "section 2.2"]) {
     assert.equal(what.includes(fact), true, `intro missing ${fact}`);
   }
 
@@ -236,7 +238,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
 });
 
 test("SPEC.md safety limits fail when a locked fact changes", () => {
@@ -294,6 +296,9 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(later, "English is the v1 default.");
   says(admin, "User-facing admin text follows the v1 language in section 2.2.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
+  says(hardware, "The house backend is a local home server (reference: Mac mini M4, 16 GB).");
+  says(hardware, "The server is a Mac mini or similar local machine.");
+  says(hardware, "Requirements and latency measurements are stated against that reference.");
   says(hardware, "If it is unreachable, the radio says an error out loud.");
   says(admin, "A tailnet ACL limits who can reach the admin port.");
   says(admin, "Sessions are server-side, with expiry and logout.");
@@ -305,20 +310,20 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "No speech leaves the house.");
   says(privacy, "No speech or audio leaves the house.");
   says(privacy, "v1 makes no calls to any hosted model or speech provider.");
-  says(privacy, "The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the Mac mini.");
+  says(privacy, "The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
   says(privacy, "The remote Bearer-key path, the cost ledger, and `--live` are removed in a follow-up code PR.");
   says(privacy, "SearXNG forwards queries to public search engines.");
   says(privacy, "Web radio streams, Google Calendar, weather, news, and Tailscale may leave the house.");
   says(privacy, "Nothing else leaves the house.");
   says(privacy, "Calendar invitations and events, and web search results, are never treated as instructions and can never start an action.");
-  says(privacy, "Memory and secrets are encrypted at rest on the Mac mini.");
+  says(privacy, "Memory and secrets are encrypted at rest on the local home server.");
   says(privacy, "Logs must not contain raw audio, transcripts, prompts, user text, or secrets.");
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
-  says(agent, "v1 runs only local models on the Mac mini.");
+  says(agent, "v1 runs only local models on the local home server.");
   says(voice, "The provider interface swaps one local model for another.");
   says(v1Scope, "SearXNG is not a model.");
   says(cost, "v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1.");
-  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
   says(
     latency,
     "If Qwen 2.5 7B or Llama 3.1 8B misses that gate, the fallback is a smaller local model, a faster local voice, or both, and it stays local only.",
@@ -326,6 +331,10 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(
     latency,
     "at most 3 seconds from when the user stops speaking until the first audio on the cassette player\u2019s speaker.",
+  );
+  says(
+    latency,
+    "It is measured against the reference in section 4, with the radio on the home network, not in CI.",
   );
   assert.match(latency, /(?<![\d.])3 seconds/);
   says(admin, "Access: Tailscale.");
@@ -336,7 +345,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(admin, "Tailscale Funnel is not used for the admin.");
   says(admin, "The service binds to the tailnet interface or localhost only.");
   says(admin, "It does not listen on the LAN or on a public address.");
-  says(voice, "The device verifies that it is talking to the paired Mac mini with a pinned certificate or a challenge.");
+  says(voice, "The device verifies that it is talking to the paired local home server with a pinned certificate or a challenge.");
   says(voice, "The audio stream is encrypted (TLS or equivalent).");
   says(voice, "a pairing key is set in the web admin.");
   says(voice, "The backend rejects a device that does not present the current key.");
@@ -405,13 +414,13 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(impact, "Latency is the rule in section 9.");
   says(measurement, "the fallback is the rule in section 9.");
   const localTable = [
-    "| Part | v1 (local, Mac mini) |",
+    "| Part | v1 (local home server) |",
     "| -- | -- |",
     "| Speech-to-text | Whisper or Parakeet, English |",
     "| Language model | Qwen 2.5 7B or Llama 3.1 8B via Ollama or MLX, with tool calling |",
     "| Text-to-speech | Piper with an English voice, or Kokoro |",
-    "| Memory | Postgres with pgvector on the Mac mini |",
-    "| Agent jobs | Local scheduler on the Mac mini |",
+    "| Memory | Postgres with pgvector on the local home server |",
+    "| Agent jobs | Local scheduler on the local home server |",
     "| Web search | Own SearXNG (section 2.1) |",
   ].join("\n");
   const tableAt = voice.indexOf("| Part |");
@@ -421,7 +430,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   assert.equal(
     agent.slice(sentAt, agent.indexOf("\n\n", sentAt)),
     sentHeading +
-      "v1 runs only local models on the Mac mini. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the Mac mini. Habit records stay on the Mac mini.",
+      "v1 runs only local models on the local home server. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the local home server. Habit records stay on the local home server.",
   );
 });
 
@@ -434,11 +443,11 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(readme, /vanor/);
   assert.match(readme, /på egen hand/);
   assert.match(readme, /ESP32-S3/);
-  assert.match(readme, /Mac mini/);
+  assert.match(readme, /lokal hemserver/);
   assert.match(readme, /v2\.1/);
   assert.match(readme, /English/);
   assert.match(agents, /ESP32-S3/);
-  assert.match(agents, /Mac mini/);
+  assert.match(agents, /local home server/);
   assert.match(agents, /English/);
   assert.match(agents, /Radio Days/);
   assert.match(agents, /SPEC\.md/);

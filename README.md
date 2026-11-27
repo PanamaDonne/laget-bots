@@ -1,14 +1,14 @@
 # Radio Days
 
-Radio Days är en röstagent i en gammal kassettspelare. En ESP32-S3 pratar med en Mac mini. Specen är [SPEC.md](SPEC.md) (v2.1). v1 är English.
+Radio Days är en röstagent i en gammal kassettspelare. En ESP32-S3 pratar med en lokal hemserver. Specen är [SPEC.md](SPEC.md) (v2.1). v1 är English.
 
-Radion lär sig användarens vanor och kan agera på dem på egen hand. Vanedata stannar på Mac mini:n. Användaren kan stänga av den autonomin, och kan rätta eller radera en vana. Detaljer finns i [SPEC.md](SPEC.md).
+Radion lär sig användarens vanor och kan agera på dem på egen hand. Vanedata stannar på den lokala hemservern. Användaren kan stänga av den autonomin, och kan rätta eller radera en vana. Detaljer finns i [SPEC.md](SPEC.md).
 
 Teammotorn från Laget Bots är avstängd. Repot behåller TypeScript, CI, hemlighetsskanning, licensen och synk av skills.
 
 ## Milstolpe 1
 
-Koden nedan är PAN-308, mergad före adapteringen till spec v2.1. Specen gäller: English, en ESP32-S3, en Mac mini, och bara lokala modeller.
+Koden nedan är PAN-308, mergad före adapteringen till spec v2.1. Specen gäller: English, en ESP32-S3, en lokal hemserver, och bara lokala modeller.
 
 `npm run radio` lyssnar efter ”Kör Radio” och svarar på svenska. Ljudenheten står i `radio-days.config.json` under `audioDevice`. Samma kod och övrig konfiguration används på datorn, i en Linux-container och på Pi 4.
 

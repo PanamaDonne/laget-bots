@@ -2,25 +2,25 @@
 
 Status: proposed. Direction decided by Daniel Hansson 2026-11-27; this spec becomes accepted when Daniel merges this PR. This file is opened as a pull request to replace [`SPEC.md`](https://github.com/PanamaDonne/radio-days/blob/main/SPEC.md) on `main`. Until that PR is merged, the accepted file on `main` remains v2.0 (Linear PAN-267, tightened in PAN-298). PAN-297 is absorbed here.
 
-This revision drops the Raspberry Pi. A thin client (section 4) talks to a house server (Daniel’s Mac mini) over the local network. Every backend part is swappable through a common provider interface. Local models and the provider interface are the rules in section 5 and section 6.
+This revision drops the Raspberry Pi. A thin client (section 4) talks to a local home server (section 4) over the local network. Every backend part is swappable through a common provider interface. Local models and the provider interface are the rules in section 5 and section 6.
 
 **Name:** Radio Days.
 **Repo:** [https://github.com/PanamaDonne/radio-days](https://github.com/PanamaDonne/radio-days).
 **Visibility:** the repo stays public. Secrets, keys, device identifiers and personal data must never appear in the code or the repository. The pairing key is the rule in section 5.
 **Owner:** Daniel Hansson. **PO:** Jörgen.
 **Date of accepted v2.0:** 2026-11-26.
-**This revision:** 2026-11-27 (v2.1, thin client, Mac mini local-first). The radio is the rule in section 4.
+**This revision:** 2026-11-27 (v2.1, thin client, local home server). The radio is the rule in section 4.
 **Language in the product:** code identifiers in English. User-facing language is the rule in section 2.2.
 
 ---
 
 ## 1. What it is
 
-Radio Days is a voice agent built into an old cassette player. The user talks to the radio in the v1 language (section 2.2). The device is a thin client: the radio (section 4), a microphone, and the cassette player’s own speaker. The wake word is the rule in section 2.1. After the wake word, the chip streams audio over a WebSocket on the local network to Daniel’s Mac mini, which runs speech-to-text, the language model, streaming text-to-speech, memory and scheduled agent jobs. Spoken replies stream back over the same WebSocket.
+Radio Days is a voice agent built into an old cassette player. The user talks to the radio in the v1 language (section 2.2). The device is a thin client: the radio (section 4), a microphone, and the cassette player’s own speaker. The wake word is the rule in section 2.1. After the wake word, the chip streams audio over a WebSocket on the local network to the local home server, which runs speech-to-text, the language model, streaming text-to-speech, memory and scheduled agent jobs. Spoken replies stream back over the same WebSocket.
 
 Every backend part is built behind a common provider interface. Configuration chooses the provider for each part. Local models and the provider interface are the rules in section 5 and section 6.
 
-The core of the agent is getting to know the user, and acting on what it has learned. v1 is wake word, voice chat, long-term memory, web search that can also start web radio or music (“turn on P1”), a web admin served from the Mac mini, and proactive agent jobs.
+The core of the agent is getting to know the user, and acting on what it has learned. v1 is wake word, voice chat, long-term memory, web search that can also start web radio or music (“turn on P1”), a web admin served from the local home server, and proactive agent jobs.
 
 **User:** in the first place Daniel, at home, speaking the v1 language (section 2.2) to the radio. The household is one user.
 
@@ -28,7 +28,7 @@ The core of the agent is getting to know the user, and acting on what it has lea
 
 **Product principle: super simple.** Talking to the radio should feel as easy as talking to a person in the room. No infrastructure knowledge is needed for everyday use.
 
-**Build and run cheap.** The parts budget is the rule in section 4. The Mac mini is existing household hardware and is outside that parts budget. Local models on the Mac mini have no hosted fee (section 10).
+**Build and run cheap.** The parts budget is the rule in section 4. The local home server is existing household hardware and is outside that parts budget. Local models on the local home server have no hosted fee (section 10).
 
 ---
 
@@ -37,18 +37,18 @@ The core of the agent is getting to know the user, and acting on what it has lea
 ### 2.1 In scope for v1
 
 1. **Wake word** on the chip, with **microWakeWord** and a ready-made English wake word for the first demo, for example “Hey Jarvis”. A custom wake word (“Kör Radio”) and Swedish come later. Optional push-to-talk remains a backup, not an approval. Choosing a wake word from a list in the web admin stays after v1 (Linear PAN-301).
-2. **Voice chat.** Spoken conversation with one AI agent, in the v1 language (section 2.2), through the house pipeline: the radio over the local WebSocket to the Mac mini (section 5).
-3. **Memory that gets to know the user.** Long-term memory and learned habits live in Postgres with pgvector on the Mac mini. The user can view and edit what the radio remembers, by voice and in the web admin. Habit consent is the rule in section 6.
+2. **Voice chat.** Spoken conversation with one AI agent, in the v1 language (section 2.2), through the house pipeline: the radio over the local WebSocket to the local home server (section 5).
+3. **Memory that gets to know the user.** Long-term memory and learned habits live in Postgres with pgvector on the local home server. The user can view and edit what the radio remembers, by voice and in the web admin. Habit consent is the rule in section 6.
 4. **Web search as an agent tool**, which can also start web radio or music (for example “turn on P1”). Search is via own SearXNG. SearXNG is not a model. Favourite stations are picked in the web admin. Station start is the rule in section 8.
 5. **Calendar.** Google Calendar is a source for the morning broadcast and a connection in the web admin. Standalone “what is on my calendar?” by voice may use that same connection.
-6. **Proactive agent jobs**, run by a local scheduler on the Mac mini by default (the Mac mini must be on around the clock for these jobs):
+6. **Proactive agent jobs**, run by a local scheduler on the local home server by default (the local home server must be on around the clock for these jobs):
    * a morning broadcast with weather, Google Calendar and news, ending by turning the radio on
    * background watch (“tell me when …”)
    * context-aware reminders
    * proactive suggestions from memory
    * multi-step research
    * an evening summary
-7. **Web admin**, in v1. Built in Next.js and **served from the Mac mini**. Sign-in is the rule in section 7. In it the user can: onboard and pair the device (Wi-Fi, device linking, and pairing (section 5)); manage keys and connections such as Google Calendar; view and edit what the radio remembers; manage watches and reminders; pick favourite radio stations. Secrets are handled server-side or encrypted, and never placed in the public code. Memory stays at home. Vercel is not the host. Email is not in v1.
+7. **Web admin**, in v1. Built in Next.js and **served from the local home server**. Sign-in is the rule in section 7. In it the user can: onboard and pair the device (Wi-Fi, device linking, and pairing (section 5)); manage keys and connections such as Google Calendar; view and edit what the radio remembers; manage watches and reminders; pick favourite radio stations. Secrets are handled server-side or encrypted, and never placed in the public code. Memory stays at home. Vercel is not the host. Email is not in v1.
 
 **Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. Context-aware reminders and suggestions the radio creates on its own count toward the max of 3 unprompted announcements per day. The user’s own reminders, watches, and scheduled broadcasts do not. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00–07:00. Unprompted announcements wait. Urgent is a per-item flag the user sets in the admin, and it is off by default. User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
 
@@ -62,7 +62,7 @@ A token cap per conversation remains.
 * **Spotify**, including playlist and favourite changes. Web radio replaces it in v1. Spotify’s [Developer Policy](https://developer.spotify.com/policy) (III.3, effective 15 May 2025) forbids a voice-enabled app that controls Spotify without written permission. A later version requires that permission. If Spotify returns, playlist and favourite changes must be undoable.
 * Swedish as the product language, and a custom wake word (“Kör Radio”). English is the v1 default. Swedish, including KB-Whisper for speech-to-text, is a later language option via the swappable providers.
 * Raspberry Pi as the runtime, and on-device SQLite memory on the radio.
-* A voice chain that does not run on the Mac mini, and a Vercel-hosted web admin as the default.
+* A voice chain that does not run on the local home server, and a Vercel-hosted web admin as the default.
 * Further work on the Laget Bots team engine. PR #13 and remaining Laget Bots stage-1 work stay paused.
 * A local admin UI as a separate primary surface, and mobile apps.
 * Secrets, keys, device identifiers or personal data in the repository — ever. The repo stays public. The pairing key is the rule in section 5.
@@ -79,23 +79,23 @@ This revision changes that as follows.
 
 | Area | Accepted v2.0 on `main` | This revision (v2.1) |
 | -- | -- | -- |
-| Hardware | Raspberry Pi 4 Model B. Parts goal about 800–1,200 SEK | The radio and the parts budget are the rule in section 4. House backend: Daniel’s Mac mini (section 4), on around the clock |
+| Hardware | Raspberry Pi 4 Model B. Parts goal about 800–1,200 SEK | The radio and the parts budget are the rule in section 4. House backend: the local home server (section 4), on around the clock |
 | Wake word | openWakeWord on the Pi, phrase “Kör Radio” | The wake word is the rule in section 2.1 |
-| Device link | The agent runs on the Pi | A WebSocket on the local network to the Mac mini. Pairing and encryption are the rule in section 5 |
+| Device link | The agent runs on the Pi | A WebSocket on the local network to the local home server. Pairing and encryption are the rule in section 5 |
 | Backend | Everything runs on the Pi | A common provider interface; configuration picks the local model per part (section 5 and section 6) |
 | Speech and model, default | Local KB-Whisper and local Piper on the Pi. Audio stays on the device | The local voice chain is the rule in section 5. Speech stays in the house |
-| Memory | SQLite with sqlite-vec on the Pi | Postgres with pgvector on the Mac mini |
-| Agent jobs | On the always-on Pi. Multi-step goal planning was out of v1 | A local scheduler on the Mac mini, which must stay on. Multi-step research is in v1 |
+| Memory | SQLite with sqlite-vec on the Pi | Postgres with pgvector on the local home server |
+| Agent jobs | On the always-on Pi. Multi-step goal planning was out of v1 | A local scheduler on the local home server, which must stay on. Multi-step research is in v1 |
 | Web search | A search service, vendor open | Own SearXNG (section 2.1) |
-| Web admin | Next.js on Vercel; secrets and memory stayed on the Pi | Next.js served from the Mac mini. Sign-in is the rule in section 7. Memory stays at home |
+| Web admin | Next.js on Vercel; secrets and memory stayed on the Pi | Next.js served from the local home server. Sign-in is the rule in section 7. Memory stays at home |
 | v1 capabilities | Conversation, email, calendar, web search | Wake word, voice chat, memory, calendar, web search plus web radio, proactive jobs, web admin. Email and language are the rules in section 2 |
 | Quiet hours | Required, times unset | The decided rule in section 2 |
-| Cost cap | 99 SEK per month including VAT, assuming local speech on the Pi at 0 SEK hosted | Local models on the Mac mini have no hosted fee |
+| Cost cap | 99 SEK per month including VAT, assuming local speech on the Pi at 0 SEK hosted | Local models on the local home server have no hosted fee |
 | Latency | First audio within 3 seconds, measured on a Pi 4 in PAN-300 | The gate is the rule in section 9 |
-| When the Mac mini is unreachable | Not applicable | See section 4 |
+| When the local home server is unreachable | Not applicable | See section 4 |
 | Chat provider | EU-hosted, pay-as-you-go | Local models are the rule in section 6 |
 
-Workflow is unchanged: TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges, no secrets in chat or code. Model calls run on the Mac mini (section 8).
+Workflow is unchanged: TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges, no secrets in chat or code. Model calls run on the local home server (section 8).
 
 In-flight work decided with this revision: PR #20 (PAN-308) is merged and still to be adapted. PR #21 (PAN-289) is stopped; the issue is rescoped. PAN-297 is absorbed in this file.
 
@@ -103,14 +103,14 @@ In-flight work decided with this revision: PR #20 (PAN-308) is merged and still 
 
 ## 4. Hardware
 
-The Raspberry Pi is out. The radio is an ESP32-S3 used as a thin client. The house backend is Daniel’s Mac mini (Apple M4, 16 GB).
+The Raspberry Pi is out. The radio is an ESP32-S3 used as a thin client. The house backend is a local home server (reference: Mac mini M4, 16 GB). The server is a Mac mini or similar local machine. Requirements and latency measurements are stated against that reference.
 
-* Radio budget: at most 500 SEK for one working unit, including microphone and speaker. The Mac mini is not part of that budget.
+* Radio budget: at most 500 SEK for one working unit, including microphone and speaker. The local home server is not part of that budget.
 * Enclosure: an old cassette player that Daniel finds. The player’s speaker is reused.
 * The component list for the radio is produced separately. It is not part of this spec.
 * A desk or bench prototype of the same chip, microphone and a speaker is enough for software milestones until the cabinet is ready.
-* After the wake word, the radio streams audio over the local WebSocket to the Mac mini, and plays streamed speech and web radio on the speaker.
-* The Mac mini must be on around the clock for scheduled agent jobs. If it is unreachable, the radio says an error out loud.
+* After the wake word, the radio streams audio over the local WebSocket to the local home server, and plays streamed speech and web radio on the speaker.
+* The local home server must be on around the clock for scheduled agent jobs. If it is unreachable, the radio says an error out loud.
 * A simple status indicator (listening, thinking, idle) is still desirable. A physical approval button is not required in v1.
 
 ATECC608 and locking a memory-database key in a chip on the radio no longer fit a thin client. They are dropped from v1 unless Daniel brings them back.
@@ -119,15 +119,15 @@ ATECC608 and locking a memory-database key in a chip on the radio no longer fit 
 
 ## 5. Architecture
 
-The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the Mac mini (section 6).
+The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the local home server (section 6).
 
-| Part | v1 (local, Mac mini) |
+| Part | v1 (local home server) |
 | -- | -- |
 | Speech-to-text | Whisper or Parakeet, English |
 | Language model | Qwen 2.5 7B or Llama 3.1 8B via Ollama or MLX, with tool calling |
 | Text-to-speech | Piper with an English voice, or Kokoro |
-| Memory | Postgres with pgvector on the Mac mini |
-| Agent jobs | Local scheduler on the Mac mini |
+| Memory | Postgres with pgvector on the local home server |
+| Agent jobs | Local scheduler on the local home server |
 | Web search | Own SearXNG (section 2.1) |
 
 Swedish, including KB-Whisper and a Swedish voice, is a later language option through the same provider interface. It is not part of v1.
@@ -135,10 +135,10 @@ Swedish, including KB-Whisper and a Swedish voice, is a later language option th
 **Device and house server**
 
 * **On the chip:** The wake word is the rule in section 2.1. Microphone capture, a WebSocket client for audio in both directions, playback of streamed speech, and starting web radio on the speaker.
-* **Discovery:** the radio finds the Mac mini via mDNS (`radio-days.local`) or a fixed IP.
-* **Pairing:** a pairing key is set in the web admin. Both ends authenticate with that key. The device verifies that it is talking to the paired Mac mini with a pinned certificate or a challenge. The backend rejects a device that does not present the current key. The audio stream is encrypted (TLS or equivalent). Re-pairing from the admin rotates the key and revokes the old key. The key is never committed to the public repository or to committed firmware.
-* **On the Mac mini, by default:** STT, the language model, text-to-speech, long-term memory, web search, the web admin (Next.js), and scheduled agent jobs.
-* **Web admin access:** Next.js served from the Mac mini. Sign-in is the rule in section 7.
+* **Discovery:** the radio finds the local home server via mDNS (`radio-days.local`) or a fixed IP.
+* **Pairing:** a pairing key is set in the web admin. Both ends authenticate with that key. The device verifies that it is talking to the paired local home server with a pinned certificate or a challenge. The backend rejects a device that does not present the current key. The audio stream is encrypted (TLS or equivalent). Re-pairing from the admin rotates the key and revokes the old key. The key is never committed to the public repository or to committed firmware.
+* **On the local home server, by default:** STT, the language model, text-to-speech, long-term memory, web search, the web admin (Next.js), and scheduled agent jobs.
+* **Web admin access:** Next.js served from the local home server. Sign-in is the rule in section 7.
 
 Whether the local voice chain in section 5 fits in the memory in section 4 while meeting the gate in section 9 is a measurement in milestone 6 / PAN-300. It is not a product decision in this file. The fallback if the gate is missed is the rule in section 9.
 
@@ -152,9 +152,9 @@ A habit is a pattern the radio detects itself. A memory is something the user ex
 
 **Household.** The household is one user. The radio does not distinguish people. Other people in the home can hear the radio and use it. Memory is per household. Anyone in the room can give consent and can delete a habit or a memory.
 
-**Consent and retention (PAN-297).** The radio does not store a habit until the user agrees, by voice or in the web admin. Raw audio and transcripts are not stored by Radio Days, on the Mac mini or in the repo. Memory and habits live in Postgres with pgvector on the Mac mini. They do not leave the house in v1.
+**Consent and retention (PAN-297).** The radio does not store a habit until the user agrees, by voice or in the web admin. Raw audio and transcripts are not stored by Radio Days, on the local home server or in the repo. Memory and habits live in Postgres with pgvector on the local home server. They do not leave the house in v1.
 
-**What is sent to a model.** v1 runs only local models on the Mac mini. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the Mac mini. Habit records stay on the Mac mini.
+**What is sent to a model.** v1 runs only local models on the local home server. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the local home server. Habit records stay on the local home server.
 
 Proactive jobs in v1:
 
@@ -165,13 +165,13 @@ Proactive jobs in v1:
 * **Multi-step research.**
 * **Evening summary.**
 
-These jobs run on a local scheduler on the Mac mini by default. Quiet hours and the unprompted cap are the decided rule in section 2.
+These jobs run on a local scheduler on the local home server by default. Quiet hours and the unprompted cap are the decided rule in section 2.
 
 ---
 
 ## 7. Web admin
 
-Decided for v1. Framework: Next.js. Host: the Mac mini. Access: Tailscale. Being on the tailnet is not enough.
+Decided for v1. Framework: Next.js. Host: the local home server. Access: Tailscale. Being on the tailnet is not enough.
 
 Sign-in requires proof of identity: the Tailscale identity of an allowlisted user, verified server-side, plus an app session. Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header. The allowlist is a list of users, not a shared or tagged device. A tailnet ACL limits who can reach the admin port. Sign-in without that proof is refused. Sessions are server-side, with expiry and logout. CSRF protection applies to every state-changing request.
 
@@ -199,9 +199,9 @@ User-facing admin text follows the v1 language in section 2.2. Swedish comes lat
 
 The repo stays public. No secrets or personal data in code. The pairing key is the rule in section 5.
 
-**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the Mac mini. The remote Bearer-key path, the cost ledger, and `--live` are removed in a follow-up code PR. Audio goes from the radio over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
+**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server. The remote Bearer-key path, the cost ledger, and `--live` are removed in a follow-up code PR. Audio goes from the radio over the home network to the local home server, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
 
-**At rest.** Memory and secrets are encrypted at rest on the Mac mini. A backup of memory is encrypted. No unencrypted copy of memory is kept off the Mac mini.
+**At rest.** Memory and secrets are encrypted at rest on the local home server. A backup of memory is encrypted. No unencrypted copy of memory is kept off the local home server.
 
 **Logs.** Logs must not contain raw audio, transcripts, prompts, user text, or secrets.
 
@@ -213,15 +213,15 @@ The repo stays public. No secrets or personal data in code. The pairing key is t
 
 ## 9. Latency
 
-**Gate (decided):** at most 3 seconds from when the user stops speaking until the first audio on the cassette player’s speaker. It is measured against the Mac mini, with the radio on the home network, not in CI. For a turn that needs a tool, that first audio may be a short spoken acknowledgement, and the answer follows.
+**Gate (decided):** at most 3 seconds from when the user stops speaking until the first audio on the cassette player’s speaker. It is measured against the reference in section 4, with the radio on the home network, not in CI. For a turn that needs a tool, that first audio may be a short spoken acknowledgement, and the answer follows.
 
-The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-300 is rescoped to this Mac mini plus the radio (section 13). The same measurement records whether the local voice chain in section 5 fits in the memory in section 4. Those results do not change that gate; they tell us whether the default stack meets it. If Qwen 2.5 7B or Llama 3.1 8B misses that gate, the fallback is a smaller local model, a faster local voice, or both, and it stays local only.
+The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-300 is rescoped to the reference in section 4 plus the radio (section 13). The same measurement records whether the local voice chain in section 5 fits in the memory in section 4. Those results do not change that gate; they tell us whether the default stack meets it. If Qwen 2.5 7B or Llama 3.1 8B misses that gate, the fallback is a smaller local model, a faster local voice, or both, and it stays local only.
 
 ---
 
 ## 10. Running cost
 
-**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.
+**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.
 
 A token cap per conversation remains.
 
@@ -233,15 +233,15 @@ The plan takes the time it takes. Each milestone is done only when its done crit
 
 **Milestone 1: Wake word and voice chat**
 
-The wake word, the local voice chain, and pairing are the rule in section 2.1 and section 5. Audio streams over the local WebSocket, with mDNS (`radio-days.local`) or a fixed IP. After the wake word, the user can have a short spoken conversation and hear the reply from the speaker. A token cap is in place. Raw audio and transcripts are not stored. Done when that conversation works from the radio against the Mac mini (a bench prototype is enough). Covered by unit tests, CI green.
+The wake word, the local voice chain, and pairing are the rule in section 2.1 and section 5. Audio streams over the local WebSocket, with mDNS (`radio-days.local`) or a fixed IP. After the wake word, the user can have a short spoken conversation and hear the reply from the speaker. A token cap is in place. Raw audio and transcripts are not stored. Done when that conversation works from the radio against the local home server (a bench prototype is enough). Covered by unit tests, CI green.
 
 **Milestone 2: Web admin and pairing**
 
-Next.js admin served from the Mac mini. Sign-in, binding, CSRF, and admin text are the rule in section 7. Onboard and pair the device, keys and connections such as Google Calendar, status, favourite stations. Secrets handled server-side or encrypted, never in the public code. Memory stays at home. Done when the user can sign in, put the device on Wi-Fi, pair it, and set connections, without secrets appearing in cleartext or in the repo. Covered by unit tests, CI green.
+Next.js admin served from the local home server. Sign-in, binding, CSRF, and admin text are the rule in section 7. Onboard and pair the device, keys and connections such as Google Calendar, status, favourite stations. Secrets handled server-side or encrypted, never in the public code. Memory stays at home. Done when the user can sign in, put the device on Wi-Fi, pair it, and set connections, without secrets appearing in cleartext or in the repo. Covered by unit tests, CI green.
 
 **Milestone 3: Memory**
 
-Postgres with pgvector on the Mac mini, behind the provider interface. Encryption at rest and the memory backup are the rule in section 8. The radio remembers what it is told and what it has learned, and can use that in a later turn. Habit consent is the rule in section 6. The user can view and edit memory in the admin and by voice. Deletion is effective. Done when those behaviours hold and memory is not leaked into the repo or into logs. Covered by unit tests, CI green.
+Postgres with pgvector on the local home server, behind the provider interface. Encryption at rest and the memory backup are the rule in section 8. The radio remembers what it is told and what it has learned, and can use that in a later turn. Habit consent is the rule in section 6. The user can view and edit memory in the admin and by voice. Deletion is effective. Done when those behaviours hold and memory is not leaked into the repo or into logs. Covered by unit tests, CI green.
 
 **Milestone 4: Web search, web radio, and calendar**
 
@@ -253,7 +253,7 @@ Morning broadcast (weather, Google Calendar, news, then radio on), background wa
 
 **Milestone 6: Evals, latency and the default stack**
 
-Evals for intent-to-tool, memory recall, invention and deletion, untrusted text, consent (habit consent is the rule in section 6), and privacy leaks (including speech leaving the house). CI runs those evals with mocks. Latency is measured on the radio plus the Mac mini, not only in CI, against the gate in section 9. The same measurement records whether the local voice chain in section 5 fits in the memory in section 4. Done when CI turns red on a planted failure in the test set, and green again when it is fixed, and when the latency measurement is written down. Covered by unit tests, CI green.
+Evals for intent-to-tool, memory recall, invention and deletion, untrusted text, consent (habit consent is the rule in section 6), and privacy leaks (including speech leaving the house). CI runs those evals with mocks. Latency is measured on the radio plus the local home server, not only in CI, against the gate in section 9. The same measurement records whether the local voice chain in section 5 fits in the memory in section 4. Done when CI turns red on a planted failure in the test set, and green again when it is fixed, and when the latency measurement is written down. Covered by unit tests, CI green.
 
 **v2 (after v1):** email by voice, with an unlock step before content is read aloud, and a physical approval button for sending mail; email text remains untrusted (section 8) (PAN-302, PAN-307). Choosing the wake word from a list in the web admin (PAN-301). A custom wake word (“Kör Radio”) and Swedish as a language option, including KB-Whisper for Swedish speech-to-text, via the swappable providers. Spotify only with written permission, and with undo for playlist and favourite changes.
 
@@ -266,7 +266,7 @@ Unchanged from the accepted spec:
 * `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once in the section that owns it, or every copy is tested. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
 * Daniel builds in Cursor and opens a PR. Vera (code review) and Lazek (QA, same sha) review every PR and post a verdict in the PR. Only Daniel merges.
 * Every branch and PR title contains the Linear issue id, except this spec revision, whose branch name was set for the change of direction; PAN-267 tracks the spec.
-* Model calls run on the Mac mini. The local model address is the rule in section 8. QA uses fake keys and mocks only.
+* Model calls run on the local home server. The local model address is the rule in section 8. QA uses fake keys and mocks only.
 * Secrets never go in chat or code. Migrations run only from `main`, after Daniel’s ok.
 * Cursor agents use model grok-4.7.
 
@@ -281,8 +281,8 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | Item | Status now | Decision |
 | -- | -- | -- |
 | [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Merged | **Adapt.** See section 12 |
-| [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the Mac mini (section 7) |
-| [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the gate in section 9, on the radio plus the Mac mini, including the memory in section 4 and the local voice chain in section 5. If the gate is missed, the fallback is the rule in section 9 |
+| [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the local home server (section 7) |
+| [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the gate in section 9, on the radio plus the local home server, including the memory in section 4 and the local voice chain in section 5. If the gate is missed, the fallback is the rule in section 9 |
 | [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Closed | **Closed as obsolete.** No cloud in v1. Local models are the rule in section 6 |
 | [PAN-307](https://linear.app/panamadonnes/issue/PAN-307/valj-upplasningsmetod-for-upplasning-av-mejl), [PAN-302](https://linear.app/panamadonnes/issue/PAN-302/mejl-med-rosten) | Backlog | **Out of v1.** Email returns in v2 (section 2.2). Not cancelled |
 | [PAN-303](https://linear.app/panamadonnes/issue/PAN-303/kalender-med-rosten) | Backlog | **Rescope.** Calendar stays in v1 for the morning broadcast and as a Google Calendar connection in the admin |
@@ -290,7 +290,7 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | [PAN-305](https://linear.app/panamadonnes/issue/PAN-305/sparade-favoriter-och-cache-for-webbradio-och-poddar-efter-v1) | Backlog, previously after v1 | **Rescope into v1** for favourite stations. Podcast cache can stay later |
 | [PAN-288](https://linear.app/panamadonnes/issue/PAN-288/spotify-med-rosten-uppskjuten-ej-v1) | Backlog, already not in v1 | **Keep out of v1.** If it returns: written permission, and undo for playlist and favourite changes |
 | [PAN-287](https://linear.app/panamadonnes/issue/PAN-287/vackningsord-och-samtal) | Backlog | **Rescope.** The wake word is the rule in section 2.1. The local voice chain is the rule in section 5 |
-| [PAN-291](https://linear.app/panamadonnes/issue/PAN-291/langtidsminne) | Backlog | **Rescope** to Postgres with pgvector on the Mac mini |
+| [PAN-291](https://linear.app/panamadonnes/issue/PAN-291/langtidsminne) | Backlog | **Rescope** to Postgres with pgvector on the local home server |
 | [PAN-292](https://linear.app/panamadonnes/issue/PAN-292/evals-och-ci-sparr) | Backlog | **Rescope.** Latency is the rule in section 9. Privacy evals cover local mode |
 | [PAN-301](https://linear.app/panamadonnes/issue/PAN-301/valj-vackningsord-i-webbadmin-v2) | Backlog | **Keep after v1** |
 | [PAN-295](https://linear.app/panamadonnes/issue/PAN-295/tata-luckor-i-specmd-och-agentsmd-efter-tts-beslutet), [PAN-294](https://linear.app/panamadonnes/issue/PAN-294/komplettera-tts-reserven-i-specen-och-gor-spec-testet-taligt) | Backlog | **Rescope.** The v1 TTS is the rule in section 5 |
@@ -299,11 +299,11 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | [PAN-269](https://linear.app/panamadonnes/issue/PAN-269/skills-synken-skriver-aldrig-utanfor-cursorskills), [PAN-270](https://linear.app/panamadonnes/issue/PAN-270/skills-synk-skriver-aldrig-utanfor-cursorskills-aven-vid-symlankade) | Backlog | **Keep.** Repo hygiene |
 | PAN-309 | New | **In v1.** The radio’s WebSocket, mDNS or a fixed IP. Pairing is the rule in section 5 |
 | PAN-310 | New | **In v1.** A common provider interface for local models (section 5) |
-| PAN-311 | New | **In v1.** Local scheduler on the Mac mini |
+| PAN-311 | New | **In v1.** Local scheduler on the local home server |
 | PAN-312 | New | **In v1.** The decided quiet-hours and unprompted rule in section 2 |
 | PAN-313 | New | **After v1.** Swedish is a language option via the swappable providers, including KB-Whisper |
 
-`README.md` and `AGENTS.md` are updated in this revision to the radio in section 4, the Mac mini, and the v1 language in section 2.2.
+`README.md` and `AGENTS.md` are updated in this revision to the radio in section 4, the local home server, and the v1 language in section 2.2.
 
 ---
 
