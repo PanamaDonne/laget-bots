@@ -37,6 +37,103 @@ class LineQueue {
   }
 }
 
+export async function runRadioLoop(input: {
+  frames: AsyncIterable<Buffer>;
+  micBytes: { received: number };
+  transcribe: (pcm: Buffer) => Promise<string>;
+  complete: (
+    command: string,
+    usedTokens: number,
+  ) => Promise<{ text: string; calledModel: boolean; usedTokens: number }>;
+  speak: (text: string) => Promise<VoiceReply>;
+  play: (audio: VoiceReply) => Promise<number>;
+  now?: () => number;
+  onLatency?: (latencyMs: number) => void;
+}): Promise<void> {
+  const now = input.now ?? Date.now;
+  let usedTokens = 0;
+  let armed = false;
+  let armedAt: number | null = null;
+  let pending: Buffer = Buffer.alloc(0);
+  let readBytes = 0;
+  let echoFrom = 0;
+  let echoUntil = 0;
+  const lamp = new Lamp();
+
+  for await (const raw of input.frames) {
+    const frameStart = readBytes;
+    readBytes += raw.length;
+    const frame = audibleSlice({ frameStart, frame: raw, echoFrom, echoUntil });
+    if (frame === null) continue;
+    pending = Buffer.concat([pending, frame]);
+    const decision = decideListen({
+      armed,
+      armedAt,
+      now: now(),
+      pending,
+      frame,
+    });
+    if (decision === "wait") continue;
+    if (decision === "disarm") {
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed, armedAt, pending, usedTokens },
+        { kind: "timeout" },
+        now(),
+      ));
+      lamp.set("idle");
+      continue;
+    }
+    if (decision === "skip-silent") {
+      pending = Buffer.alloc(0);
+      continue;
+    }
+
+    const pcm = pending;
+    pending = Buffer.alloc(0);
+    const speechEndedAt = now();
+    try {
+      const text = await input.transcribe(pcm);
+      const wasArmed = armed;
+      const result = await handleHeard({
+        text,
+        playbackActive: false,
+        pushToTalk: false,
+        armed,
+        speechEndedAt,
+        lamp,
+        complete: (command) => input.complete(command, usedTokens),
+        speak: async (speech) => {
+          const audio = await input.speak(speech);
+          const from = input.micBytes.received;
+          const firstByteAt = await input.play(audio);
+          echoFrom = from;
+          echoUntil = input.micBytes.received + 16_000 * 2 * 0.4;
+          return { firstByteAt };
+        },
+      });
+      if (result.latencyMs !== null) input.onLatency?.(result.latencyMs);
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed: wasArmed, armedAt, pending, usedTokens },
+        {
+          kind: "reply",
+          spoke: result.spoke,
+          heardArmed: result.armed,
+          reportedTokens: result.usedTokens,
+          pcm,
+        },
+        now(),
+      ));
+    } catch {
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed, armedAt, pending, usedTokens },
+        { kind: "failed" },
+        now(),
+      ));
+      lamp.set("idle");
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseRadioArgs(process.argv.slice(2));
   const config = loadRuntimeConfig(args.audioDevice);
@@ -46,15 +143,7 @@ async function main(): Promise<void> {
   const ledgerRoot = resolve("data");
   const opened = openLedger(ledgerRoot);
   const ledger = opened.ledger;
-  let usedTokens = 0;
-  let armed = false;
-  let armedAt: number | null = null;
-  let pending: Buffer = Buffer.alloc(0);
-  let readBytes = 0;
-  let echoFrom = 0;
-  let echoUntil = 0;
   const micBytes = { received: 0 };
-  const lamp = new Lamp();
   process.stderr.write(`${SV.listeningForWake}\n`);
 
   const mic = spawn("arecord", captureArgs(config.audioDevice), {
@@ -75,79 +164,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  for await (const raw of framesFrom(mic.stdout, micBytes)) {
-    const frameStart = readBytes;
-    readBytes += raw.length;
-    const frame = audibleSlice({ frameStart, frame: raw, echoFrom, echoUntil });
-    if (frame === null) continue;
-    pending = Buffer.concat([pending, frame]);
-    const decision = decideListen({
-      armed,
-      armedAt,
-      now: Date.now(),
-      pending,
-      frame,
-    });
-    if (decision === "wait") continue;
-    if (decision === "disarm") {
-      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
-        { armed, armedAt, pending, usedTokens },
-        { kind: "timeout" },
-        Date.now(),
-      ));
-      lamp.set("idle");
-      continue;
-    }
-    if (decision === "skip-silent") {
-      pending = Buffer.alloc(0);
-      continue;
-    }
-
-    const pcm = pending;
-    pending = Buffer.alloc(0);
-    const speechEndedAt = Date.now();
-    try {
-      const text = await voice.transcribe(pcm);
-      const wasArmed = armed;
-      const result = await handleHeard({
-        text,
-        playbackActive: false,
-        pushToTalk: false,
-        armed,
-        speechEndedAt,
-        lamp,
-        complete: (command) =>
-          replyTo(command, args.liveChoice, config, ledger, ledgerRoot, opened.writable, usedTokens),
-        speak: async (speech) => {
-          const audio = await voice.speak(speech);
-          const from = micBytes.received;
-          const firstByteAt = await playPcm(config.audioDevice, audio);
-          echoFrom = from;
-          echoUntil = micBytes.received + 16_000 * 2 * 0.4;
-          return { firstByteAt };
-        },
-      });
-      if (result.latencyMs !== null) process.stderr.write(`${result.latencyMs}\n`);
-      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
-        { armed: wasArmed, armedAt, pending, usedTokens },
-        {
-          kind: "reply",
-          spoke: result.spoke,
-          heardArmed: result.armed,
-          reportedTokens: result.usedTokens,
-          pcm,
-        },
-        Date.now(),
-      ));
-    } catch {
-      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
-        { armed, armedAt, pending, usedTokens },
-        { kind: "failed" },
-        Date.now(),
-      ));
-      lamp.set("idle");
-    }
-  }
+  await runRadioLoop({
+    frames: framesFrom(mic.stdout, micBytes),
+    micBytes,
+    transcribe: (pcm) => voice.transcribe(pcm),
+    complete: (command, usedTokens) =>
+      replyTo(command, args.liveChoice, config, ledger, ledgerRoot, opened.writable, usedTokens),
+    speak: (text) => voice.speak(text),
+    play: (audio) => playPcm(config.audioDevice, audio),
+    onLatency: (latencyMs) => {
+      process.stderr.write(`${latencyMs}\n`);
+    },
+  });
   endMicrophone();
 }
 

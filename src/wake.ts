@@ -21,6 +21,8 @@ export const ORDINARY_ROOM_SPEECH = [
   "Kör radios",
   "Kör radiot",
   "Kör radie",
+  "kör radi0",
+  "kör radio0",
 ] as const;
 
 export type HearResult = {
@@ -56,8 +58,9 @@ function isRadioWord(word: string): boolean {
   return editDistance(folded, RADIO) <= 1;
 }
 
-function isCompoundTail(text: string, index: number): boolean {
-  return /^[\s]*[-–—]\p{L}/u.test(text.slice(index));
+function blocksWake(text: string, index: number): boolean {
+  const rest = text.slice(index);
+  return /^[\s]*[-–—]\p{L}/u.test(rest) || /^\d/u.test(rest);
 }
 
 function readWord(text: string, index: number): { word: string; end: number } | null {
@@ -76,7 +79,7 @@ function wakeEnd(text: string): number | null {
     if (gap?.[0] === undefined) return null;
     const second = readWord(text, first.end + gap[0].length);
     if (second === null || !isRadioWord(second.word)) return null;
-    if (isCompoundTail(text, second.end)) return null;
+    if (blocksWake(text, second.end)) return null;
     const tail = /^[\s,.:;!?]*/u.exec(text.slice(second.end));
     return second.end + (tail?.[0].length ?? 0);
   }
@@ -89,7 +92,7 @@ function wakeEnd(text: string): number | null {
     glued = true;
     break;
   }
-  if (!glued || isCompoundTail(text, first.end)) return null;
+  if (!glued || blocksWake(text, first.end)) return null;
   const tail = /^[\s,.:;!?]*/u.exec(text.slice(first.end));
   return first.end + (tail?.[0].length ?? 0);
 }

@@ -56,6 +56,9 @@ test("everyday radio words and a hyphenated compound do not wake or send a comma
     "KÖR RADION",
     "kör radion.",
     "Kör radion, vad är klockan",
+    "kör radi0",
+    "kör radio0",
+    "Kör radi0",
   ]) {
     const heard = hear({ text, playbackActive: false });
     assert.equal(heard.woke, false, text);
