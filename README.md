@@ -14,9 +14,9 @@ Direktsvar mot en chattmodell kräver ett uttryckligt val: `npm run radio -- --l
 
 Lokal taligenkänning är KB-Whisper base (`KBLab/kb-whisper-base`). Rösten är Piper `sv_SE-nst-medium` och ligger kvar i minnet mellan svar. Installera paketen med `pip install -r requirements.txt`. Första körningen hämtar KB-Whisper från Hugging Face till `models/`. Röstfilen `models/sv_SE-nst-medium.onnx` måste ligga på plats. Testerna använder mockar och anropar inte modellerna.
 
-Efter ”Kör Radio” väntar radion högst tio sekunder. Tyst ljud skickas inte till taligenkänningen. Ett yttrande slutar vid första tysta biten efter ungefär en sekund, med tröskeln rms 500, så en kort paus kan klippa meningen. När ett svar har talats skrivs millisekunderna ensamma på standard error.
+Efter ”Kör Radio” väntar radion högst tio sekunder och skickar högst ett yttrande till modellen. Tyst ljud skickas inte till taligenkänningen. Ett yttrande slutar vid första tysta biten efter ungefär en sekund, med tröskeln rms 500. Den tröskeln kan behöva justeras efter ett riktigt prov, för en kort paus kan klippa meningen. När ett svar har talats skrivs millisekunderna ensamma på standard error. `npm run radio -- --live` utan nyckel säger till redan vid start.
 
-`sh scripts/precheck-container.sh` hämtar KB-Whisper base och Piper-rösten om de saknas, och mäter i en gräns på 4 kärnor och 2 GB. Taligenkänning och röst körs på riktigt. Chattmodellen anropas inte. `latencyMs` är tiden från att talet tar slut till att svarsljudet finns (`latencyKind` är `model`). Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300. Om gränsen inte går att sätta står det på standard error.
+`sh scripts/precheck-container.sh` hämtar KB-Whisper base och Piper-rösten om de saknas, och mäter i en gräns på 4 kärnor och 2 GB. Mätningen läser det inspelade yttrandet `test/fixtures/utterance-16k-s16le.pcm`, kör taligenkänning och röst lokalt utan nät, och anropar inte chattmodellen. `latencyMs` är tiden från att talet tar slut till att svarsljudet finns (`latencyKind` är `model`). Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300. Om gränsen inte går att sätta står det på standard error.
 
 Kräver Node 24.
 

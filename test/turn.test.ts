@@ -180,4 +180,5 @@ test("the voice worker keeps audio in memory and filters silence", () => {
   assert.equal(source.includes("NamedTemporaryFile"), false);
   assert.equal(source.includes("tempfile"), false);
   assert.equal(source.includes("vad_filter=True"), true);
+  assert.equal(source.includes("local_files_only=offline"), true);
 });

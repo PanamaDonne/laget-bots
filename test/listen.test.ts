@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { decideListen, LISTEN_TIMEOUT_MS, overlapTail, WAKE_WINDOW_BYTES } from "../src/listen.ts";
+import { armAfterHeard, decideListen, LISTEN_TIMEOUT_MS, overlapTail, WAKE_WINDOW_BYTES } from "../src/listen.ts";
 
 function tone(bytes: number): Buffer {
   const pcm = Buffer.alloc(bytes);
   for (let index = 0; index < pcm.length; index += 2) pcm.writeInt16LE(8_000, index);
   return pcm;
 }
+
+test("one wake phrase sends at most one utterance to the model", () => {
+  assert.equal(armAfterHeard({ heardArmed: true, spoke: false }), true);
+  assert.equal(armAfterHeard({ heardArmed: false, spoke: true }), false);
+  assert.equal(armAfterHeard({ heardArmed: true, spoke: true }), false);
+});
 
 test("ten seconds after the wake phrase the radio returns to idle", () => {
   const armedAt = 1_000;

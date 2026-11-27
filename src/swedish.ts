@@ -10,4 +10,6 @@ export const SV = {
   voiceMissing: "Den lokala rösten saknas.",
   audioMissing: "Ljudenheten saknas.",
   invalidDevice: "Ljudenheten är ogiltig.",
+  unknownArg: "Okänt argument.",
+  liveKeyMissing: "Direktsvar är på, men nyckeln saknas.",
 } as const;

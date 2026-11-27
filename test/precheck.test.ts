@@ -37,9 +37,13 @@ test("the pre-check times local Whisper and Piper and does not call the chat mod
 
   assert.match(source, /voice-worker\.py/);
   assert.match(source, /mockedChatReply/);
+  assert.match(source, /utterance-16k-s16le\.pcm/);
+  assert.match(source, /HF_HUB_OFFLINE/);
   assert.equal(source.includes("completeChat"), false);
   assert.equal(source.includes("fetch("), false);
   assert.equal(source.includes("calledModel"), false);
+  const utterance = readFileSync("test/fixtures/utterance-16k-s16le.pcm");
+  assert.equal(utterance.length > 1000, true);
   assert.match(script, /2147483648/);
   assert.match(script, /400000 100000/);
   assert.match(script, /KBLab\/kb-whisper-base/);

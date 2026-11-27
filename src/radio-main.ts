@@ -5,12 +5,12 @@ import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
 import { captureArgs, playbackArgs } from "./audio.ts";
-import { parseRadioArgs } from "./cli.ts";
+import { liveStartupLine, parseRadioArgs } from "./cli.ts";
 import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
 import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
 import { readLedgerFile, writeLedgerFile } from "./ledger-file.ts";
 import { Lamp } from "./lamp.ts";
-import { decideListen, overlapTail } from "./listen.ts";
+import { armAfterHeard, decideListen, overlapTail } from "./listen.ts";
 import { completeChat } from "./provider.ts";
 import { SV } from "./swedish.ts";
 import { handleHeard } from "./turn.ts";
@@ -41,6 +41,8 @@ async function main(): Promise<void> {
   const args = parseRadioArgs(process.argv.slice(2));
   const config = loadRuntimeConfig(args.audioDevice);
   const voice = await startVoice();
+  const startup = liveStartupLine(args.liveChoice, process.env.RADIO_DAYS_API_KEY);
+  if (startup !== null) process.stderr.write(`${startup}\n`);
   const ledgerRoot = resolve("data");
   const opened = openLedger(ledgerRoot);
   const ledger = opened.ledger;
@@ -52,11 +54,16 @@ async function main(): Promise<void> {
   const lamp = new Lamp();
   process.stderr.write(`${SV.listeningForWake}\n`);
 
-  const mic = spawn("arecord", captureArgs(config.audioDevice), { stdio: ["ignore", "pipe", "pipe"] });
-  mic.on("error", () => {
-    process.stderr.write(`${SV.audioMissing}\n`);
-    process.exitCode = 1;
+  const mic = spawn("arecord", captureArgs(config.audioDevice), {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: envForLocalModels(process.env),
   });
+  if (mic.stdout === null) {
+    const closed = closeRadio(voice.stop);
+    process.stderr.write(`${closed.line}\n`);
+    process.exitCode = closed.exitCode;
+    return;
+  }
 
   for await (const frame of framesFrom(mic.stdout)) {
     if (skipBytes > 0) {
@@ -109,10 +116,9 @@ async function main(): Promise<void> {
         },
       });
       if (result.latencyMs !== null) process.stderr.write(`${result.latencyMs}\n`);
-      if (result.usedTokens !== null) usedTokens = result.usedTokens;
-      const keepTalking = result.spoke && result.reply !== SV.failed;
-      if (keepTalking || (result.armed && !wasArmed)) armedAt = Date.now();
-      armed = keepTalking || result.armed;
+      armed = armAfterHeard({ heardArmed: result.armed, spoke: result.spoke });
+      if (armed && !wasArmed) armedAt = Date.now();
+      if (armed && result.usedTokens !== null) usedTokens = result.usedTokens;
       if (!armed) {
         armedAt = null;
         usedTokens = 0;
@@ -126,6 +132,14 @@ async function main(): Promise<void> {
       lamp.set("idle");
     }
   }
+  const closed = closeRadio(voice.stop);
+  process.stderr.write(`${closed.line}\n`);
+  process.exitCode = closed.exitCode;
+}
+
+export function closeRadio(stop: () => void): { line: string; exitCode: 1 } {
+  stop();
+  return { line: SV.audioMissing, exitCode: 1 };
 }
 
 function openLedger(root: string): { ledger: Ledger; writable: boolean } {
@@ -186,6 +200,7 @@ function readOptionalInt(value: string | undefined): number | null {
 }
 
 async function startVoice(): Promise<{
+  stop(): void;
   transcribe(pcm: Buffer): Promise<string>;
   speak(text: string): Promise<VoiceReply>;
 }> {
@@ -208,6 +223,9 @@ async function startVoice(): Promise<{
     process.exit(1);
   }
   return {
+    stop(): void {
+      child.kill();
+    },
     async transcribe(pcm: Buffer): Promise<string> {
       child.stdin.write(
         `${JSON.stringify({ op: "transcribe", pcmBase64: pcm.toString("base64"), sampleRateHz: 16_000 })}\n`,
@@ -256,6 +274,7 @@ async function* framesFrom(stream: NodeJS.ReadableStream): AsyncGenerator<Buffer
 async function playPcm(device: string, audio: VoiceReply): Promise<number> {
   const child = spawn("aplay", playbackArgs(device, audio.sampleRateHz), {
     stdio: ["pipe", "ignore", "pipe"],
+    env: envForLocalModels(process.env),
   });
   const firstByteAt = Date.now();
   child.stdin.write(audio.pcm);

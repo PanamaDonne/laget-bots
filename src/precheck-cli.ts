@@ -11,7 +11,7 @@ import { envForLocalModels } from "./worker-env.ts";
 import { ORDINARY_ROOM_SPEECH, measureFalseAlarms } from "./wake.ts";
 
 const VOICE_FILE = "models/sv_SE-nst-medium.onnx";
-const USER_UTTERANCE = "Kör Radio vad är klockan";
+const UTTERANCE_FILE = "test/fixtures/utterance-16k-s16le.pcm";
 const mockedChatReply = "Klockan är tre.";
 
 export async function runPrecheck(): Promise<void> {
@@ -40,26 +40,30 @@ export async function runPrecheck(): Promise<void> {
   process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 
+function offlineEnv(): NodeJS.ProcessEnv {
+  const env = envForLocalModels(process.env);
+  env.HF_HUB_OFFLINE = "1";
+  env.HF_HUB_DISABLE_TELEMETRY = "1";
+  env.TRANSFORMERS_OFFLINE = "1";
+  return env;
+}
+
 async function measureLocalReplyLatency(): Promise<number | null> {
-  if (!existsSync(VOICE_FILE)) return null;
+  if (!existsSync(VOICE_FILE) || !existsSync(UTTERANCE_FILE)) return null;
+  const utterance = readFileSync(UTTERANCE_FILE);
+  if (utterance.length < 2) return null;
   const child = spawn("python3", ["scripts/voice-worker.py"], {
     stdio: ["pipe", "pipe", "ignore"],
-    env: envForLocalModels(process.env),
+    env: offlineEnv(),
   });
   const lines = new LineQueue(child);
   try {
     const ready = JSON.parse((await lines.next(180_000)) ?? "") as { op?: string };
     if (ready.op !== "ready") return null;
-    const spoken = await ask(child, lines, { op: "speak", text: USER_UTTERANCE });
-    if (spoken?.op !== "audio" || typeof spoken.pcmBase64 !== "string" || spoken.pcmBase64.length === 0) {
-      return null;
-    }
-    if (typeof spoken.sampleRateHz !== "number") return null;
-    const pcm = pcmTo16k(Buffer.from(spoken.pcmBase64, "base64"), spoken.sampleRateHz);
     const speechEndedAt = Date.now();
     const heard = await ask(child, lines, {
       op: "transcribe",
-      pcmBase64: pcm.toString("base64"),
+      pcmBase64: utterance.toString("base64"),
       sampleRateHz: 16_000,
     });
     if (heard?.op !== "transcript") return null;
@@ -85,19 +89,6 @@ async function ask(
   const line = await lines.next(180_000);
   if (line === null) return null;
   return JSON.parse(line) as { op?: string; pcmBase64?: string; sampleRateHz?: number };
-}
-
-function pcmTo16k(pcm: Buffer, sampleRateHz: number): Buffer {
-  if (sampleRateHz === 16_000) return pcm;
-  const samples = Math.floor(pcm.length / 2);
-  if (samples === 0 || sampleRateHz <= 0) return Buffer.alloc(0);
-  const outSamples = Math.max(1, Math.floor((samples * 16_000) / sampleRateHz));
-  const out = Buffer.alloc(outSamples * 2);
-  for (let index = 0; index < outSamples; index += 1) {
-    const source = Math.min(samples - 1, Math.floor((index * sampleRateHz) / 16_000));
-    out.writeInt16LE(pcm.readInt16LE(source * 2), index * 2);
-  }
-  return out;
 }
 
 class LineQueue {

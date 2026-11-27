@@ -3,6 +3,7 @@
 
 import base64
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -32,11 +33,13 @@ def load_models():
         fail("missing-python-packages")
     if not VOICE_PATH.is_file():
         fail("missing-piper-voice")
+    offline = os.environ.get("HF_HUB_OFFLINE") == "1"
     whisper = WhisperModel(
         WHISPER_MODEL,
         device="cpu",
         compute_type="int8",
         download_root=str(MODEL_DIR / "whisper"),
+        local_files_only=offline,
     )
     voice = PiperVoice.load(str(VOICE_PATH))
     return np, whisper, voice

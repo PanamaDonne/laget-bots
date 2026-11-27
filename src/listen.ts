@@ -32,6 +32,11 @@ export function decideListen(input: {
   return "transcribe";
 }
 
+export function armAfterHeard(input: { heardArmed: boolean; spoke: boolean }): boolean {
+  if (input.spoke) return false;
+  return input.heardArmed;
+}
+
 export function overlapTail(pcm: Buffer) {
   const start = Math.max(0, pcm.length - OVERLAP_BYTES);
   const tail = Buffer.alloc(pcm.length - start);
