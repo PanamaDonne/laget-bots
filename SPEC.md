@@ -50,7 +50,7 @@ The core of the agent is getting to know the user, and acting on what it has lea
    * an evening summary
 7. **Web admin**, in v1. Built in Next.js and **served from the local home server**. Sign-in is the rule in section 7. In it the user can: onboard and pair the device (Wi-Fi, device linking, and pairing (section 5)); manage keys and connections such as Google Calendar; view and edit what the radio remembers; manage watches and reminders; pick favourite radio stations. Secrets are handled server-side or encrypted, and never placed in the public code. Memory stays at home. Vercel is not the host. Email is not in v1.
 
-**Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. Context-aware reminders and suggestions the radio creates on its own count toward the max of 3 unprompted announcements per day. The user’s own reminders, watches, and scheduled broadcasts do not. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00–07:00. Unprompted announcements wait. Urgent is a per-item flag the user sets in the admin, and it is off by default. User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
+**Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. Context-aware reminders and suggestions the radio creates on its own count toward the max of 3 unprompted announcements per day. Unprompted announcements count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. The user’s own reminders, watches, and scheduled broadcasts do not count toward that cap: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00–07:00. Unprompted announcements wait. Urgent is a per-item flag the user sets in the admin, and it is off by default. User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
 
 Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. They are never treated as instructions and can never start an action.
 
@@ -97,7 +97,7 @@ This revision changes that as follows.
 
 Workflow is unchanged: TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges, no secrets in chat or code. Model calls run on the local home server (section 8).
 
-In-flight work decided with this revision: PR #20 (PAN-308) is merged. The code adapt is PAN-315. PR #21 (PAN-289) is stopped; the issue is rescoped. PAN-297 is absorbed in this file.
+In-flight work decided with this revision: PR #20 (PAN-308) is merged. v1 conformance of the code is tracked in PAN-314. PR #21 (PAN-289) is stopped; the issue is rescoped. PAN-297 is absorbed in this file.
 
 ---
 
@@ -199,13 +199,13 @@ User-facing admin text follows the v1 language in section 2.2. Swedish comes lat
 
 The repo stays public. No secrets or personal data in code. The pairing key is the rule in section 5.
 
-**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server. The remote Bearer-key path, the cost ledger, and `--live` are removed in PAN-315. Audio goes from the radio over the home network to the local home server, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
+**Local only (decided).** Local models are the rule in section 6. v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server. The code on main still requires an https base URL, sends a Bearer token, and still has the cost ledger and `--live`. v1 conformance of the code is tracked in PAN-314, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP. The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR. Audio goes from the radio over the home network to the local home server, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
 
 **At rest.** Memory and secrets are encrypted at rest on the local home server. A backup of memory is encrypted. No unencrypted copy of memory is kept off the local home server.
 
 **Logs.** Logs must not contain raw audio, transcripts, prompts, user text, or secrets.
 
-**Outbound traffic in v1.** SearXNG forwards queries to public search engines. Web radio streams, Google Calendar, weather, news, and Tailscale may leave the house. One-time model downloads and operating-system updates may leave the house. Nothing else leaves the house. No speech or audio leaves the house.
+**Outbound traffic in v1.** SearXNG forwards queries to public search engines. Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads, and operating-system updates may leave the house. Nothing else leaves the house. No speech or audio leaves the house.
 
 **Untrusted text (PAN-297).** Calendar invitations and events, and web search results, are never treated as instructions and can never start an action. The radio starts a station only from the user’s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text. The same rule will apply to email content when email returns in v2 (section 2.2).
 
@@ -270,7 +270,7 @@ Unchanged from the accepted spec:
 * Secrets never go in chat or code. Migrations run only from `main`, after Daniel’s ok.
 * Cursor agents use model grok-4.7.
 
-PR #20 (PAN-308) is merged. The code adapt is PAN-315. PR #21 (PAN-289) is stopped.
+PR #20 (PAN-308) is merged. v1 conformance of the code is tracked in PAN-314. PR #21 (PAN-289) is stopped.
 
 ---
 
@@ -280,8 +280,8 @@ These changes follow Daniel’s decisions of 2026-11-27.
 
 | Item | Status now | Decision |
 | -- | -- | -- |
-| [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Merged | **Adapt in [PAN-315](https://linear.app/panamadonnes/issue/PAN-315/anpassa-koden-bara-loopback-eller-lan-ingen-bearer-vag-kostnadsbok).** See section 12 |
-| [PAN-315](https://linear.app/panamadonnes/issue/PAN-315/anpassa-koden-bara-loopback-eller-lan-ingen-bearer-vag-kostnadsbok) | Backlog | **Follow-up code.** Remove the remote Bearer-key path, the cost ledger, and `--live`. The model or speech provider base URL may only be loopback or the LAN. Done when a test goes red for an https cloud URL or a public IP |
+| [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Merged | **Adapt in [PAN-314](https://linear.app/panamadonnes/issue/PAN-314/gor-modellanropen-i-koden-bara-lokala).** See section 12 |
+| [PAN-314](https://linear.app/panamadonnes/issue/PAN-314/gor-modellanropen-i-koden-bara-lokala) | Backlog | **Follow-up code.** The code on main still requires an https base URL, sends a Bearer token, and still has the cost ledger and `--live`. v1 conformance of the code is tracked here. It closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP. The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR |
 | [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the local home server (section 7) |
 | [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the gate in section 9, on the radio plus the local home server, including the memory in section 4 and the local voice chain in section 5. If the gate is missed, the fallback is the rule in section 9 |
 | [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Closed | **Closed as obsolete.** No cloud in v1. Local models are the rule in section 6 |

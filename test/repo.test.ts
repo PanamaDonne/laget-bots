@@ -251,9 +251,9 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const unprompted =
     "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips.";
   const quietHours =
-    "These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
+    "Unprompted announcements count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
   const notCounted =
-    "These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
+    "The user\u2019s own reminders, watches, and scheduled broadcasts do not count toward that cap: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
   const scheduled =
     "The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00\u201307:00.";
   const wait = "Unprompted announcements wait.";
@@ -263,8 +263,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
   const ownCount =
     "Context-aware reminders and suggestions the radio creates on its own count toward the max of 3 unprompted announcements per day.";
-  const userOwn =
-    "The user\u2019s own reminders, watches, and scheduled broadcasts do not.";
 
   says(quiet, unprompted);
   says(quiet, quietHours);
@@ -274,7 +272,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, urgent);
   says(quiet, held);
   says(quiet, ownCount);
-  says(quiet, userOwn);
   assert.match(quiet, /(?<![\d.])3 per day/);
   says(later, "English is the v1 default.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
@@ -289,14 +286,14 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(voice, "Both ends authenticate with that key.");
   says(voice, "Re-pairing from the admin rotates the key and revokes the old key.");
   says(v1Scope, "They are never treated as instructions and can never start an action.");
-  says(privacy, "No speech leaves the house.");
   says(privacy, "No speech or audio leaves the house.");
   says(privacy, "v1 makes no calls to any hosted model or speech provider.");
   says(privacy, "The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
-  says(privacy, "The remote Bearer-key path, the cost ledger, and `--live` are removed in PAN-315.");
+  says(privacy, "The code on main still requires an https base URL, sends a Bearer token, and still has the cost ledger and `--live`.");
+  says(privacy, "v1 conformance of the code is tracked in PAN-314, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
+  says(privacy, "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.");
   says(privacy, "SearXNG forwards queries to public search engines.");
-  says(privacy, "Web radio streams, Google Calendar, weather, news, and Tailscale may leave the house.");
-  says(privacy, "One-time model downloads and operating-system updates may leave the house.");
+  says(privacy, "Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads, and operating-system updates may leave the house.");
   says(privacy, "Nothing else leaves the house.");
   says(privacy, "Calendar invitations and events, and web search results, are never treated as instructions and can never start an action.");
   says(privacy, "Memory and secrets are encrypted at rest on the local home server.");
