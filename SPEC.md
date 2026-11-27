@@ -52,7 +52,7 @@ The core of the agent is getting to know the user, and acting on what it has lea
 
 **Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00–07:00. Unprompted announcements wait. Urgent is a per-item flag the user sets in the admin, and it is off by default. User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
 
-Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. Untrusted text is the rule in section 8.
+Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. They are never treated as instructions and can never start an action.
 
 A token cap per conversation remains.
 
@@ -97,7 +97,7 @@ This revision changes that as follows.
 
 Workflow is unchanged: TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges, no secrets in chat or code, live model calls only with Daniel’s yes.
 
-In-flight work decided with this revision: PR #20 (PAN-308) will be merged and then adapted (Daniel merges). PR #21 (PAN-289) is stopped; the issue is rescoped. PAN-297 is absorbed in this file.
+In-flight work decided with this revision: PR #20 (PAN-308) is merged and still to be adapted. PR #21 (PAN-289) is stopped; the issue is rescoped. PAN-297 is absorbed in this file.
 
 ---
 
@@ -200,13 +200,13 @@ User-facing admin text is English in v1. Swedish comes later as a language optio
 
 The repo stays public. No secrets, pairing keys or personal data in code.
 
-**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to a hosted model or speech provider, so v1 has no paid provider calls and no provider spend. Audio goes from the ESP32-S3 over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
+**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the Mac mini. The remote Bearer-key path, the cost ledger, and `--live` are removed in a follow-up code PR. Audio goes from the ESP32-S3 over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
 
 **At rest.** Memory and secrets are encrypted at rest on the Mac mini. A backup of memory is encrypted. No unencrypted copy of memory is kept off the Mac mini.
 
 **Logs.** Logs must not contain raw audio, transcripts, prompts, user text, or secrets.
 
-**Outgoing traffic.** SearXNG runs in the house and forwards queries to public search engines. Allowed outgoing traffic is search through own SearXNG, web radio from the favourites or the curated allowlist, Google Calendar, weather and news for the morning broadcast, and Tailscale.
+**Outbound traffic in v1.** SearXNG forwards queries to public search engines. Web radio streams, Google Calendar, weather, news, and Tailscale may leave the house. Nothing else leaves the house. No speech or audio leaves the house.
 
 **Untrusted text (PAN-297).** Calendar invitations and events, and web search results, are never treated as instructions and can never start an action. The radio starts a station only from the user’s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text. The same rule will apply to email content when email returns in v2 (section 2.2).
 
@@ -216,13 +216,13 @@ The repo stays public. No secrets, pairing keys or personal data in code.
 
 **Gate (decided):** at most 3 seconds from when the user stops speaking until the first audio on the cassette player’s speaker. It is measured against the Mac mini, with the ESP32-S3 on the home network, not in CI. For a turn that needs a tool, that first audio may be a short spoken acknowledgement, and the answer follows.
 
-The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-300 is rescoped to this Mac mini plus ESP32-S3 measurement (section 13). The same measurement records whether STT, Qwen 2.5 7B or Llama 3.1 8B, and Piper or Kokoro can run together in 16 GB, and how the English quality and tool calling hold up. Those results do not change the 3 second gate; they tell us whether the default stack meets it.
+The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-300 is rescoped to this Mac mini plus ESP32-S3 measurement (section 13). The same measurement records whether STT, Qwen 2.5 7B or Llama 3.1 8B, and Piper or Kokoro can run together in 16 GB, and how the English quality and tool calling hold up. Those results do not change the 3 second gate; they tell us whether the default stack meets it. If Qwen 2.5 7B or Llama 3.1 8B misses the 3 second gate, the fallback is a smaller local model, a faster local voice, or both, and it stays local only.
 
 ---
 
 ## 10. Running cost
 
-**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. The 99 SEK per month cap is not in use. It is taken up again only if Daniel adds a paid provider. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.
+**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.
 
 A token cap per conversation remains.
 
@@ -264,10 +264,10 @@ Evals for intent-to-tool, memory recall, invention and deletion, untrusted text,
 
 Unchanged from the accepted spec:
 
-* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once there. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
+* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once in the section that owns it, or every copy is tested. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
 * Daniel builds in Cursor and opens a PR. Vera (code review) and Lazek (QA, same sha) review every PR and post a verdict in the PR. Only Daniel merges.
 * Every branch and PR title contains the Linear issue id, except this spec revision, whose branch name was set for the change of direction; PAN-267 tracks the spec.
-* Model calls run on the Mac mini. QA uses fake keys and mocks only. The merged milestone 1 code still calls a configurable model URL. The adapt removes that path or locks it to the Mac mini on loopback or the LAN, and a test guards the lock.
+* Model calls run on the Mac mini. The local model address is the rule in section 8. QA uses fake keys and mocks only.
 * Secrets never go in chat or code. Migrations run only from `main`, after Daniel’s ok.
 * Cursor agents use model grok-4.7.
 
@@ -283,8 +283,8 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | -- | -- | -- |
 | [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Merged | **Adapt.** See section 12 |
 | [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the Mac mini (section 7) |
-| [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the 3 second measurement on the ESP32-S3 plus the Mac mini, including 16 GB concurrency and English quality and tool calling for Qwen 2.5 7B or Llama 3.1 8B |
-| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Backlog | **Replaced.** Local models are the rule in section 6 |
+| [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the 3 second measurement on the ESP32-S3 plus the Mac mini, including 16 GB concurrency and English quality and tool calling for Qwen 2.5 7B or Llama 3.1 8B. If the gate is missed, the fallback is the rule in section 9 |
+| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Closed | **Closed as obsolete.** No cloud in v1. Local models are the rule in section 6 |
 | [PAN-307](https://linear.app/panamadonnes/issue/PAN-307/valj-upplasningsmetod-for-upplasning-av-mejl), [PAN-302](https://linear.app/panamadonnes/issue/PAN-302/mejl-med-rosten) | Backlog | **Out of v1.** Email returns in v2 (section 2.2). Not cancelled |
 | [PAN-303](https://linear.app/panamadonnes/issue/PAN-303/kalender-med-rosten) | Backlog | **Rescope.** Calendar stays in v1 for the morning broadcast and as a Google Calendar connection in the admin |
 | [PAN-304](https://linear.app/panamadonnes/issue/PAN-304/webbsokning-med-rosten) | Backlog | **Widen** so the same tool can start web radio or music, via own SearXNG (section 2.1) |
@@ -316,6 +316,6 @@ One measurement remains, and does not reopen those decisions. It is owned by mil
 
 * Is Qwen 2.5 7B or Llama 3.1 8B good enough in English with tool calling, and can STT, the model and Piper or Kokoro run at the same time in 16 GB on the Mac mini while still meeting the 3 second gate?
 
-If the measurement misses the gate, a later change to the default model or the runtime (Ollama versus MLX, or Whisper versus Parakeet) can be proposed then. This file does not choose a smaller or larger model in advance.
+If the measurement misses the gate, the fallback is the rule in section 9.
 
 The component list for the radio comes separately and is not decided here.
