@@ -20,7 +20,7 @@ v1 is the fixed wake word “Kör Radio” and four capabilities: conversation, 
 
 **User:** in the first place Daniel, at home, speaking Swedish to the radio.
 
-**User value:** The radio gets to know Daniel. When it is confident enough in a habit, it chooses for him, and it asks only when it is unsure. He can walk up to an old radio, say “Kör Radio”, and talk with an AI. He can hear email and the calendar, and he can ask the radio to search the web. He can turn autonomous behaviour off, and he can correct or delete a learned habit, by voice and in the web admin. Habits stay on the Pi until he deletes them. They are not sent to the AI provider. The radio may also speak first. A morning brief is secondary. Calendar reminders, and incoming email from senders he marks as important, are important announcements and are in v1. Reading that email aloud needs no approval button. Acting on it does. Mail text cannot start an action. He chooses those senders by voice and in the web admin. Quiet hours still apply, and he can let selected senders break through. Secrets and memory stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
+**User value:** The radio gets to know Daniel. When it is confident enough in a habit, it chooses for him, and it asks only when it is unsure. He can walk up to an old radio, say “Kör Radio”, and talk with an AI. He can hear email and the calendar, and he can ask the radio to search the web. He can turn autonomous behaviour off, and he can correct or delete a learned habit, by voice and in the web admin. Habits stay on the Pi until he deletes them. They are not sent to the AI provider. The radio may also speak first. A morning brief is secondary. Calendar reminders, and incoming email from senders he marks as important, are important announcements and are in v1. Reading that email aloud needs no approval button. Acting on it does. Mail text, calendar invitations and events, and web search results are untrusted. They are never treated as instructions and cannot start an action on their own. He chooses those senders by voice and in the web admin. Quiet hours still apply, and he can let selected senders break through. Secrets and memory stay on the Pi, not in the cloud. Setup is done from any computer through a simple web admin.
 
 **Product principle: super simple.** Talking to the radio should feel as easy as talking to a person in the room. No infrastructure knowledge is needed for everyday use.
 
@@ -47,7 +47,7 @@ v1 capabilities are conversation, email, calendar, and web search.
 * Secrets stored on the Pi, encrypted on disk. ATECC608 is optional in v1.
 * Status lamp on the radio scale: on when listening, pulsing when thinking, idle when at rest, and a wait-state when the button is required.
 * A physical approval button for sending mail and any other action that leaves the radio (section 10).
-* Evals for intent-to-tool accuracy, memory, mail text, and approval; latency is logged (see section 11).
+* Evals for intent-to-tool accuracy, memory, mail text, and approval. Latency is at most 3 seconds (see section 11).
 * A token cap per conversation. A provider key alone does not start a paid call; an explicit choice is required.
 * Running cost at most 99 SEK per month, ideally about 0 to start (section 14).
 
@@ -93,7 +93,7 @@ Weather and other later services may follow after v2; they are not committed in 
 * Admin becomes a hosted web app (Next.js on Vercel, with Supabase). In v1.0 a hosted admin UI was out of scope.
 * Keys and mail tokens are stored encrypted on disk on the Pi. The cloud forwards ciphertext only and shows connection status. Memory is also read and deleted through the Pi; the cloud keeps no copy.
 * The first test bench is conversation, email, calendar, and web search, plus memory, not a development flow against a sandbox repo.
-* Evals shift to intent-to-tool accuracy, latency (logged in v1), memory quality, mail text, and button approval.
+* Evals shift to intent-to-tool accuracy, latency (at most 3 seconds), memory quality, mail text, and button approval.
 * The repo stays public (v1.0 was already open; a later proposal to make it private is not followed).
 * Cost changes. v1.0 assumed 0 SEK/month in infrastructure. A hosted admin and a pay-as-you-go chat model can add cost. Speech-to-text and text-to-speech stay on the Pi. The cap is 99 SEK per month, ideally about 0 to start (section 14). A low build cost is a separate goal (section 4).
 * The product name is Radio Days, not Laget Bots. The repository is `PanamaDonne/radio-days`.
@@ -148,14 +148,16 @@ Habit data is never sent to the AI provider in a prompt, and it is not sent as t
 
 **Important proactive announcements.** These are not required to be learned. They are not secondary. Both are in v1.
 
-* **Calendar reminders.** The radio speaks what is on the calendar and gives reminders. Quiet hours and the limit on how often still apply. No calendar vendor is locked. Tokens stay on the Pi. The Pi fetches the entries it will speak, including title, time, and attendees. Local Piper speaks them. That text is not sent to the chat model, is not written to memory, and is not kept after the speaking ends. Calendar text is untrusted. It can never start an action.
+* **Calendar reminders.** The radio speaks what is on the calendar and gives reminders. Quiet hours and the limit on how often still apply. No calendar vendor is locked. Tokens stay on the Pi. The Pi fetches the entries it will speak, including title, time, and attendees. Local Piper speaks them. That text is not sent to the chat model, to the web admin, or to ReadSpeaker. It is not written to memory, and it is not kept after the speaking ends. Calendar invitations and events are untrusted text, under the same rule as mail.
 * **Incoming email from senders the user marks as important.** Reading the email aloud is read-only and needs no approval button. Acting on the email, such as sending or replying, still requires the physical approval button (section 10).
 
 The user chooses which senders count as important, by voice and in the web admin. The radio may suggest a sender from a habit the user already has. The user decides which suggestions to keep. That list stays in the encrypted memory database on the Pi with the other learned habit data. The cloud sees only status.
 
-**Mail when it is read aloud.** The Pi polls Gmail for new mail. The message body is fetched to the Pi with the read-only scope `https://www.googleapis.com/auth/gmail.readonly`. Local Piper speaks it. People in the room hear the reading. The body is not sent to the AI provider, to the web admin, or to ReadSpeaker. It is not written to memory, and it is not kept after the reading ends. If local Piper cannot speak, the radio says that mail is waiting and does not send the body anywhere else. Sending or replying uses a separate scope, `https://www.googleapis.com/auth/gmail.send`, and the physical approval button. The user dictates the reply. The original body is not sent to the chat model to draft it. Before the Gmail connection is built, check the Google OAuth app’s publishing status. A refresh token for an app that is still in testing expires after seven days. Mail text is untrusted. It can never start an action: not a habit, not a reply, and not any other action. Only the user’s own request, or a habit that was not taken from mail text, can start an action.
+**Mail when it is read aloud.** The Pi polls Gmail for new mail. The message body is fetched to the Pi with the read-only scope `https://www.googleapis.com/auth/gmail.readonly`. Local Piper speaks it. People in the room hear the reading. The body is not sent to the AI provider, to the web admin, or to ReadSpeaker. It is not written to memory, and it is not kept after the reading ends. If local Piper cannot speak, the radio says that mail is waiting and does not send the body anywhere else. Sending or replying uses a separate scope, `https://www.googleapis.com/auth/gmail.send`, and the physical approval button. The user dictates the reply. The original body is not sent to the chat model to draft it. Before the Gmail connection is built, check the Google OAuth app’s publishing status. A refresh token for an app that is still in testing expires after seven days. Mail text is untrusted, under the rule below.
 
-**Web search.** No search service is locked. When the user asks, the Pi sends that turn’s words as the query. Habit data and other memory are not added to the query. Results come back to the Pi. Local Piper speaks them in Swedish. Results are not sent to the chat model, are not written to memory, and are not kept after the reply. Search text is untrusted and can never start an action. The search fee, if there is one, counts toward the 99 SEK cap (section 14).
+**Web search.** No search service is locked. When the user asks, the Pi sends that turn’s words as the query. Habit data and other memory are not added to the query. Results come back to the Pi. Local Piper speaks them in Swedish. Results are not sent to the chat model, to the web admin, or to ReadSpeaker. They are not written to memory, and they are not kept after the reply. Web search results are untrusted text, under the same rule as mail. The search fee, if there is one, counts toward the 99 SEK cap (section 14).
+
+**Untrusted text.** Mail text, calendar invitations and events, and web search results are untrusted. The same rules apply to all three. They are never treated as instructions. They cannot start an action on their own: not a habit, not a reply, and not any other action. Only the user’s own request, or a habit that was not taken from that text, can start an action.
 
 **Secondary: other proactive speech.** Other unprompted speech is secondary to learning habits. A morning brief is an example. It is not an important announcement, and it is not a learned suggestion. It follows the guardrails below.
 
@@ -177,12 +179,12 @@ The clock times for quiet hours, and the maximum number of unprompted turns, are
 
 The user says the wake word. In v1 the wake word is fixed: “Kör Radio”. Choosing a wake word from a list in the web admin is v2 (Linear PAN-301). The Pi listens with a local wake-word detector (openWakeWord). Optional push-to-talk is only a backup, never an approval.
 
-Speech-to-text in v1 is local on the Pi 4 Model B, in Swedish: KB-Whisper tiny or base (Daniel, 2026-11-27). The model card for [KBLab/kb-whisper-tiny](https://huggingface.co/KBLab/kb-whisper-tiny) lists the licence as Apache-2.0. The same card’s Word Error Rate table, checked 2026-11-27, gives tiny as 13.2 on FLEURS, 12.9 on CommonVoice, and 11.2 on NST, and base as 9.1, 8.7, and 7.8 on those three sets. Latency on this Pi is measured in Linear PAN-300. Audio is not sent to the chat provider. Spoken replies are in Swedish. **Text-to-speech in v1 is local Piper on the Pi 4 Model B**, with a Swedish medium voice: `sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium` (Daniel, 2026-11-26 and 2026-11-27). Swedish Piper voices exist only at medium quality. There is no low or x_low Swedish voice. The voice stays loaded in memory between replies. ReadSpeaker is the fallback if that quality is not good enough.
+Speech-to-text in v1 is local on the Pi 4 Model B, in Swedish: KB-Whisper tiny or base (Daniel, 2026-11-27). The model card for [KBLab/kb-whisper-tiny](https://huggingface.co/KBLab/kb-whisper-tiny) lists the licence as Apache-2.0. The same card’s Word Error Rate table, checked 2026-11-27, gives tiny as 13.2 on FLEURS, 12.9 on CommonVoice, and 11.2 on NST, and base as 9.1, 8.7, and 7.8 on those three sets. The latency gate is at most 3 seconds, measured on this Pi in Linear PAN-300. Audio is not sent to the chat provider. Spoken replies are in Swedish. **Text-to-speech in v1 is local Piper on the Pi 4 Model B**, with a Swedish medium voice: `sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium` (Daniel, 2026-11-26 and 2026-11-27). Swedish Piper voices exist only at medium quality. There is no low or x_low Swedish voice. The voice stays loaded in memory between replies. ReadSpeaker is the fallback if that quality is not good enough.
 
 **Text-to-speech for v1.**
 
 1. **Chosen: local Piper on the Pi 4 Model B, Swedish voice.** The official Piper CLI documents an arm64 binary for a 64-bit Raspberry Pi 4 ([CLI.md](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md)). The engine is GPL-3.0-or-later ([piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), [PyPI](https://pypi.org/project/piper-tts/)). Official Swedish voices in [piper-voices](https://huggingface.co/rhasspy/piper-voices) exist only at medium quality. Checked the `sv/sv_SE` tree on 2026-11-27: it contains `nst/medium`, `alma/medium` and `lisa/medium`, and no low, x_low or high Swedish voice. The voice ids are `sv_SE-nst-medium` (quality: medium; dataset licence CC0; trained from scratch by KBLab), `sv_SE-alma-medium` (quality: medium; model weights CC BY 4.0; trained on the NST Swedish TTS dataset, which the card describes as high-quality studio recordings of Swedish speech) and `sv_SE-lisa-medium` (quality: medium; the card says it is finetuned from a Norwegian talesyntese voice). Official cards: [nst](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/nst/medium/MODEL_CARD), [alma](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/alma/medium/MODEL_CARD), [lisa](https://huggingface.co/rhasspy/piper-voices/blob/main/sv/sv_SE/lisa/medium/MODEL_CARD). Samples: [piper-samples](https://rhasspy.github.io/piper-samples/). The CLI document says running Piper once per request can be slow because the voice is loaded each time. The voice stays loaded in memory between replies, so that reload is not part of normal use. No official end-to-end latency figure for a Pi 4 Model B with 1 GB or 2 GB was found. Linear PAN-300 measures it. The voice has zero monthly cost (€0, no hosted TTS fee).
-2. **Fallback: ReadSpeaker speechCloud API (EU).** Used only if Piper’s quality is not good enough. ReadSpeaker AB is headquartered in Sweden (Uppsala). The [speechCloud API](https://www.readspeaker.com/products/speechcloud-api/) is described as EU-based, GDPR compliant and ISO/IEC 27001:2022 certified, and as generating “natural-sounding synthetic speech”. That is the vendor’s description. Mail text is never sent there (section 5). The [Swedish voice list](https://www.readspeaker.com/languages-voices/swedish/) has six neural sv-SE voices: Fredrik, Karin, Linnea, Maja, Majsan and Sven. Pricing is a credits model (1 credit = 1 character excluding whitespace); production credits are ordered through an account manager, and no public unit price in euro was published on that page. Latency is not stated there.
+2. **Fallback: ReadSpeaker speechCloud API (EU).** Used only if Piper’s quality is not good enough. ReadSpeaker AB is headquartered in Sweden (Uppsala). The [speechCloud API](https://www.readspeaker.com/products/speechcloud-api/) is described as EU-based, GDPR compliant and ISO/IEC 27001:2022 certified, and as generating “natural-sounding synthetic speech”. That is the vendor’s description. Mail text, calendar invitations and events, and web search results are never sent there (section 5). The [Swedish voice list](https://www.readspeaker.com/languages-voices/swedish/) has six neural sv-SE voices: Fredrik, Karin, Linnea, Maja, Majsan and Sven. Pricing is a credits model (1 credit = 1 character excluding whitespace); production credits are ordered through an account manager, and no public unit price in euro was published on that page. Latency is not stated there.
 
 v1 uses local Piper. ReadSpeaker is only that quality fallback. The cost principle in section 14 is to take the cheapest option that meets the quality and latency evals; Piper has no hosted fee. Local speech-to-text has no hosted fee either.
 
@@ -241,7 +243,7 @@ The web admin reads and deletes memory via the Pi. No copy of memory is kept in 
 
 **ATECC608** is optional in v1 and required in v2 (see section 4).
 
-**Not stored.** Radio Days does not store raw audio or transcripts. Habit data is not sent to the AI provider. Mail text, when it is read aloud, stays on the Pi for that reading and is then dropped (section 5).
+**Not stored.** Radio Days does not store raw audio or transcripts. Habit data is not sent to the AI provider. Mail text, calendar invitations and events, and web search results stay on the Pi only while they are spoken and are then dropped (section 5). They are untrusted text.
 
 ---
 
@@ -249,7 +251,7 @@ The web admin reads and deletes memory via the Pi. No copy of memory is kept in 
 
 The button is in v1. It is required when an action leaves the radio. Conversation, reading mail aloud, calendar answers, and web search do not use it.
 
-Sending mail, or any other action that leaves the radio, requires the physical approval button. This holds when the user has just asked and when the agent is acting on its own, from a learned habit or from proactive speech. Confidence does not replace the press. Reading an incoming email aloud is read-only and needs no approval button (section 5). Mail text can never start that action.
+Sending mail, or any other action that leaves the radio, requires the physical approval button. This holds when the user has just asked and when the agent is acting on its own, from a learned habit or from proactive speech. Confidence does not replace the press. Reading an incoming email aloud is read-only and needs no approval button (section 5). Mail text, calendar invitations and events, and web search results are untrusted. They are never treated as instructions and can never start that action.
 
 **Serious (requires the button):**
 
@@ -279,21 +281,21 @@ Sending mail, or any other action that leaves the radio, requires the physical a
 | Eval | Metric | Gate |
 | -- | -- | -- |
 | Intent to tool | Share of utterances that lead to the right tool (or to no tool, when the turn is only conversation) | Threshold after the first baseline |
-| Latency | Time from end of speech after the wake word to first audio in the reply, including local speech-to-text | Logged in v1. The goal is that a short turn does not feel stalled. The threshold in seconds is set after Linear PAN-300 measures KB-Whisper tiny and base on this Pi. Until then it is not a pass/fail gate |
+| Latency | Time from when the user stops speaking until the spoken answer starts | At most 3 seconds. Measured on the Pi 4 (Linear PAN-300) |
 | Memory recall | Stored facts that should be recalled are recalled correctly in a later turn | Threshold after the first baseline |
 | Memory invention | The agent must not present invented personal facts as memory | 0 invented “memories” on the test set |
 | Memory deletion | A fact or learned habit the user deleted, or told the radio to forget, is no longer retrievable or spoken | 100 % |
 | Memory privacy | Memory content must not appear in cloud storage or in cloud or repo logs. Habit data must not appear in a prompt, or in text sent to embed, to the AI provider | 0 leaks on the test set |
 | Audio and transcripts | Raw audio or transcripts stored by Radio Days, on the Pi, in the cloud, or in the repo | 0 |
-| Mail text | Mail text starts an action, or is sent to the AI provider or to ReadSpeaker | 0 |
-| Calendar text | Calendar text starts an action, or is sent to the chat provider | 0 |
-| Web search text | A search result starts an action, or is sent to the chat provider | 0 |
+| Mail text | Mail text is treated as an instruction or starts an action, or is sent to the AI provider or to ReadSpeaker | 0 |
+| Calendar text | A calendar invitation or event is treated as an instruction or starts an action, or is sent to the chat provider or to ReadSpeaker | 0 |
+| Web search text | A web search result is treated as an instruction or starts an action, or is sent to the chat provider or to ReadSpeaker | 0 |
 | Encrypted backup | A downloaded backup is encrypted (not readable as cleartext) and restorable on the Pi | 100 % |
 | Approval safety | Acting on mail, or any other action with consequences outside the radio, including when the agent is acting on its own, without a physical button press. Reading an email aloud is read-only and is outside this gate | 0 (100 %) |
 
 Handoff-contract survival and MAST metrics between agents are removed as v1 requirements.
 
-Thresholds that are not already 100 % or 0 are set after a first baseline. Evals run in CI and fail the build when a gate is not met.
+The latency gate is at most 3 seconds. Other thresholds that are not already 100 % or 0 are set after a first baseline. Evals run in CI and fail the build when a gate is not met.
 
 ---
 
@@ -331,14 +333,14 @@ Every frontend or backend item below is done only when the stated outcome is tru
 
 **Milestone 4: Email, calendar, and web search**
 
-* Email as in section 5. This uses the email connection from milestone 2 and the sender list from milestone 3. Reading an important sender’s message aloud uses local Piper and needs no button. Sending or replying needs the physical button. The user dictates the reply. Mail text can never start an action.
-* Calendar reminders, and speaking what is on the calendar. These are important announcements (section 5). Calendar text is not sent to the chat model.
-* Web search when the user asks, with the answer spoken in Swedish. Results are not sent to the chat model.
-* Done when: the user can hear an important email read aloud, hear a calendar reminder, and ask for a web search. Mail text does not start an action. Sending mail does not run without the button. Raw audio and transcripts are not stored. Covered by unit tests, CI green.
+* Email as in section 5. This uses the email connection from milestone 2 and the sender list from milestone 3. Reading an important sender’s message aloud uses local Piper and needs no button. Sending or replying needs the physical button. The user dictates the reply. Mail text is untrusted and can never start an action.
+* Calendar reminders, and speaking what is on the calendar. These are important announcements (section 5). Calendar invitations and events are untrusted text, the same rule as mail.
+* Web search when the user asks, with the answer spoken in Swedish. Web search results are untrusted text, the same rule as mail.
+* Done when: the user can hear an important email read aloud, hear a calendar reminder, and ask for a web search. Mail text, calendar invitations and events, and web search results do not start an action. Sending mail does not run without the button. Raw audio and transcripts are not stored. Covered by unit tests, CI green.
 
 **Milestone 5: Evals and CI gate**
 
-* Test set and eval runner for intent-to-tool, logged latency, memory recall, memory invention, memory deletion, memory privacy (including habit data sent to the AI provider), raw audio and transcripts, mail text, approval, and encrypted backup.
+* Test set and eval runner for intent-to-tool, latency (at most 3 seconds), memory recall, memory invention, memory deletion, memory privacy (including habit data sent to the AI provider), raw audio and transcripts, untrusted text (mail, calendar invitations and events, and web search results), approval, and encrypted backup.
 * CI gate on PRs.
 * Done when: CI turns red on a planted memory leak, a failed deletion, or a wrong tool choice in the test set, and green again when it is fixed. Covered by unit tests, CI green.
 
@@ -416,9 +418,9 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 * The product is called Radio Days. The repository is [`PanamaDonne/radio-days`](https://github.com/PanamaDonne/radio-days). The repository rename is done.
 * A voice agent in an old radio on a Raspberry Pi 4 Model B. It gets to know the user and makes its own decisions. The team engine is shut down. The pivot happens in the same repo.
 * Cheap to build and cheap to run (Daniel, 2026-11-27). Language stays Swedish. The voice stays local. RAM is 1 GB or 2 GB, open until Linear PAN-300 measures it; 2 GB is the safe default. Parts should land around 800–1,200 SEK. Pi 3 B+ and Pi Zero 2 W are not targets: too slow, or not measured, for a Swedish Piper medium voice. Passive cooling is a heatsink. Audio output is a cheap DAC or USB audio, because the Pi 4 analog audio output is weak. Local Piper keeps the voice at zero monthly cost. Swedish Piper voices exist only at medium quality (`sv_SE-nst-medium`, `sv_SE-alma-medium`, `sv_SE-lisa-medium`); there is no low or x_low Swedish voice. The voice stays loaded in memory between replies. Speech-to-text is local. The chat model is pay-as-you-go, within the cap in section 14.
-* v1 capabilities are conversation, email, calendar, and web search, with wake word “Kör Radio”. The radio learns habits and preferences and acts on them when it is confident enough (it asks only when it is unsure). Secondary proactive speech such as a morning brief is in v1. Calendar reminders and incoming email from senders the user marks as important are in v1. Long-term memory and a cloud web admin skeleton are in v1. Multi-step goal planning is not in v1. Reading an email aloud needs no button. Acting on email does. Mail text can never start an action. Sending mail requires the button. Choosing a wake word from a list in the web admin is v2 (Linear PAN-301). Spotify is not in v1.
+* v1 capabilities are conversation, email, calendar, and web search, with wake word “Kör Radio”. The radio learns habits and preferences and acts on them when it is confident enough (it asks only when it is unsure). Secondary proactive speech such as a morning brief is in v1. Calendar reminders and incoming email from senders the user marks as important are in v1. Long-term memory and a cloud web admin skeleton are in v1. Multi-step goal planning is not in v1. Reading an email aloud needs no button. Acting on email does. Mail text, calendar invitations and events, and web search results are untrusted and can never start an action. Sending mail requires the button. Choosing a wake word from a list in the web admin is v2 (Linear PAN-301). Spotify is not in v1.
 * Autonomy (Daniel, 2026-11-26): the core of the agent is getting to know the user. Suggestions are driven by what it has learned. It does not suggest something it has not learned. Primary: it learns habits and preferences, acts when it is confident enough, and asks only when it is unsure. Secondary: other proactive speech, for example a morning brief, which is scheduled and is not a learned suggestion. Important proactive announcements are not secondary. The types are calendar reminders and incoming email from senders the user marks as important. Both are in v1. The user chooses those senders by voice and in the web admin. Reading an email aloud is read-only and needs no approval button. Acting on email still requires the physical approval button. Quiet hours still apply, with a user option to let selected senders break through. Not in v1: multi-step goal planning, and Spotify. Guardrails also include a limit on how often it may speak unprompted, turning autonomous behaviour off, and correcting or deleting a learned habit by voice and in the web admin. See section 5.
-* Voice chain: local Swedish speech-to-text on the Pi, KB-Whisper tiny or base, with latency measured in Linear PAN-300. User-facing voice text is Swedish. Text-to-speech for v1 is local Piper on the Pi with a Swedish medium voice (`sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium`). The voice stays loaded between replies (Daniel, 2026-11-27). ReadSpeaker is the fallback if quality is not good enough.
+* Voice chain: local Swedish speech-to-text on the Pi, KB-Whisper tiny or base. The latency gate is at most 3 seconds, measured on the Pi 4 in Linear PAN-300. User-facing voice text is Swedish. Text-to-speech for v1 is local Piper on the Pi with a Swedish medium voice (`sv_SE-nst-medium`, `sv_SE-alma-medium` or `sv_SE-lisa-medium`). The voice stays loaded between replies (Daniel, 2026-11-27). ReadSpeaker is the fallback if quality is not good enough.
 * Web admin in the cloud (Next.js on Vercel, with Supabase); secrets live on the Pi, encrypted on disk. The key is encrypted in the browser with the Pi’s public key. Mail tokens stay on the Pi. The cloud sees status, never secrets.
 * ATECC608 is optional in v1 and required in v2. Daniel is buying one.
 * The repo stays public. No secrets, keys, device identifiers or personal data in the repo ever.
@@ -436,14 +438,15 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 * v1 capabilities are conversation, email, calendar, and web search.
 * Spotify is not in v1. Playlist and favourite changes are not a v1 flow. Spotify’s Developer Policy III.3 forbids a voice-enabled app that controls Spotify. A later version needs a change to that policy or written permission from Spotify (section 2.3).
 * When paid use in a month reaches 99 SEK including VAT, the radio stops new calls to the chat model and to web search and tells the user. Local wake word, speech-to-text, and Piper still work.
-* Berget is not the provider. The Berget Starter plan is not used. Speech-to-text is local on the Pi: KB-Whisper tiny or base. Latency is measured in Linear PAN-300. The chat model is EU-hosted and pay-as-you-go, for example Scaleway or OVH. EU data residency is preferred. No vendor is required.
+* Berget is not the provider. The Berget Starter plan is not used. Speech-to-text is local on the Pi: KB-Whisper tiny or base. The latency gate is at most 3 seconds, measured on the Pi 4 in Linear PAN-300. The chat model is EU-hosted and pay-as-you-go, for example Scaleway or OVH. EU data residency is preferred. No vendor is required.
 * The running-cost cap is 99 SEK per month for the user. It replaces the proposed €25 per device per month excluding VAT. The goal is about 0 to start, as cheap as possible while the radio still works.
 
 **Also decided in this spec, to close the review of PR #16:**
 
 * The radio does not store a habit until the user agrees, by voice or in the web admin. v1 keeps one habit profile, for the person who sets the radio up.
 * Raw audio and transcripts are not stored.
-* When mail is read aloud, the body goes to the Pi and then to local Piper. It is not sent to the AI provider, the web admin, or ReadSpeaker, and it is not stored. Mail text can never start an action. Reading uses `gmail.readonly`. Sending uses `gmail.send` and the physical button.
+* When mail is read aloud, the body goes to the Pi and then to local Piper. It is not sent to the AI provider, the web admin, or ReadSpeaker, and it is not stored. Reading uses `gmail.readonly`. Sending uses `gmail.send` and the physical button.
+* Mail text, calendar invitations and events, and web search results are untrusted. They are never treated as instructions and cannot start an action on their own.
 
 **Open:**
 
@@ -451,4 +454,4 @@ ReadSpeaker is the fallback if Piper’s quality is not good enough. If that fal
 2. **Quiet hours and how often.** Quiet hours, and a limit on how often the radio may speak unprompted, are required (section 5). The clock times and the maximum number of unprompted turns are still open.
 3. **RAM.** 1 GB or 2 GB on the Pi 4 Model B. 2 GB is the safe default until Linear PAN-300 measures which size is enough.
 4. **Embedding model on the Pi.** Semantic search stays on the Pi (section 8). A hosted embedding call is not the v1 path. Which model fits in the RAM above is open until that measurement.
-5. **Speech-to-text latency.** KB-Whisper tiny or base on the Pi. Which size is fast enough is open until Linear PAN-300 measures it.
+5. **Speech-to-text latency.** The gate is at most 3 seconds (section 11). KB-Whisper tiny or base on the Pi 4. Which size meets that gate is open until Linear PAN-300 measures it.

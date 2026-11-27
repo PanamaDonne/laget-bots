@@ -252,6 +252,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "gmail.readonly",
     "gmail.send",
     "web search",
+    "untrusted",
     "quiet hours",
   ]) {
     assert.equal(behaviour.includes(fact), true, `behaviour missing ${fact}`);
@@ -284,6 +285,11 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
 
   for (const fact of ["button", "mail"]) {
     assert.equal(approval.includes(fact), true, `approval missing ${fact}`);
+  }
+
+  const evals = section(spec, "Evals", "Plan");
+  for (const fact of ["3 seconds", "PAN-300"]) {
+    assert.equal(evals.includes(fact), true, `evals missing ${fact}`);
   }
 
   for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "KB-Whisper", "pay-as-you-go"]) {
