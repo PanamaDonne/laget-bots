@@ -4,7 +4,7 @@ import test from "node:test";
 import { CAP_ORE } from "../src/cost.ts";
 import { CHAT_TIMEOUT_MS, completeChat, type ChatInput } from "../src/provider.ts";
 import { SV } from "../src/swedish.ts";
-import { usageAfterTurn } from "../src/turn.ts";
+import { settleAfterTurn, type ListenFields } from "../src/turn.ts";
 
 const KEY = "fake-key";
 const USER = "MARKER-USER-TEXT";
@@ -180,14 +180,15 @@ test("a clock before the stored month does not call the model or clear the count
   assert.equal(ledger.spentOre, 4_000);
 });
 
-test("returning to idle starts the token cap over and leaves the monthly cost", async () => {
-  let used = 0;
-  const called: boolean[] = [];
+test("a reply, a failed turn, and the ten-second wait each start the token cap over", async () => {
+  const conversations = 4;
   const ledger = { month: "2026-11", spentOre: 0 };
-  for (let turn = 0; turn < 4; turn += 1) {
+  const called: boolean[] = [];
+  let replied: ListenFields = { armed: false, armedAt: null, pending: Buffer.alloc(0), usedTokens: 0 };
+  for (let turn = 0; turn < conversations; turn += 1) {
     const result = await completeChat(
       input({
-        usedTokens: used,
+        usedTokens: replied.usedTokens,
         orePerMillion: 1_000_000,
         ledger,
         onLedger: (next) => {
@@ -202,23 +203,49 @@ test("returning to idle starts the token cap over and leaves the monthly cost", 
       }),
     );
     called.push(result.calledModel);
-    used = usageAfterTurn(used, result.usedTokens, true);
+    replied = settleAfterTurn(
+      { ...replied, pending: Buffer.alloc(32_000) },
+      {
+        kind: "reply",
+        spoke: true,
+        heardArmed: false,
+        reportedTokens: result.usedTokens,
+        pcm: Buffer.alloc(32_000),
+      },
+      5_000,
+    );
+    assert.equal(replied.usedTokens, 0);
+    assert.equal(replied.armed, false);
+    assert.equal(replied.armedAt, null);
+    assert.equal(replied.pending.length, 0);
   }
 
   assert.equal(called.length >= 3, true);
   assert.deepEqual(called, [true, true, true, true]);
-  assert.equal(used, 0);
   assert.equal(ledger.spentOre, 6_000);
   assert.equal(ledger.month, "2026-11");
+
+  for (const kind of ["failed", "timeout"] as const) {
+    let state: ListenFields = { armed: true, armedAt: 1, pending: Buffer.alloc(32), usedTokens: 0 };
+    for (let turn = 0; turn < conversations; turn += 1) {
+      state = { ...state, armed: true, armedAt: 1, pending: Buffer.alloc(32), usedTokens: 3_500 };
+      state = settleAfterTurn(state, { kind }, 5_000);
+      assert.equal(state.usedTokens, 0, kind);
+      assert.equal(state.armed, false, kind);
+      assert.equal(state.armedAt, null, kind);
+      assert.equal(state.pending.length, 0, kind);
+    }
+    assert.equal(conversations >= 3, true);
+  }
 });
 
 test("an open conversation keeps the reported token count until it returns to idle", async () => {
-  let used = 0;
+  let state: ListenFields = { armed: true, armedAt: 1, pending: Buffer.alloc(0), usedTokens: 0 };
   const called: boolean[] = [];
   for (let turn = 0; turn < 4; turn += 1) {
     const result = await completeChat(
       input({
-        usedTokens: used,
+        usedTokens: state.usedTokens,
         fetchImpl: async () =>
           Response.json({
             choices: [{ message: { content: "Hej." } }],
@@ -227,11 +254,22 @@ test("an open conversation keeps the reported token count until it returns to id
       }),
     );
     called.push(result.calledModel);
-    used = usageAfterTurn(used, result.usedTokens, false);
+    state = settleAfterTurn(
+      state,
+      {
+        kind: "reply",
+        spoke: false,
+        heardArmed: true,
+        reportedTokens: result.usedTokens,
+        pcm: Buffer.alloc(0),
+      },
+      5_000,
+    );
   }
 
   assert.deepEqual(called, [true, true, true, false]);
-  assert.equal(used > 4_000, true);
+  assert.equal(state.usedTokens > 4_000, true);
+  assert.equal(state.armed, true);
 });
 
 test("a shared ledger records the real cost, not the reservation plus the cost", async () => {

@@ -10,10 +10,10 @@ import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
 import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
 import { readLedgerFile, writeLedgerFile } from "./ledger-file.ts";
 import { Lamp } from "./lamp.ts";
-import { armAfterHeard, audibleSlice, decideListen, overlapTail } from "./listen.ts";
+import { audibleSlice, decideListen } from "./listen.ts";
 import { completeChat } from "./provider.ts";
 import { SV } from "./swedish.ts";
-import { handleHeard, usageAfterTurn } from "./turn.ts";
+import { handleHeard, settleAfterTurn } from "./turn.ts";
 import { envForLocalModels } from "./worker-env.ts";
 
 type VoiceReply = { pcm: Buffer; sampleRateHz: number };
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   let usedTokens = 0;
   let armed = false;
   let armedAt: number | null = null;
-  let pending = Buffer.alloc(0);
+  let pending: Buffer = Buffer.alloc(0);
   let readBytes = 0;
   let echoFrom = 0;
   let echoUntil = 0;
@@ -90,10 +90,11 @@ async function main(): Promise<void> {
     });
     if (decision === "wait") continue;
     if (decision === "disarm") {
-      armed = false;
-      armedAt = null;
-      usedTokens = usageAfterTurn(usedTokens, null, true);
-      pending = Buffer.alloc(0);
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed, armedAt, pending, usedTokens },
+        { kind: "timeout" },
+        Date.now(),
+      ));
       lamp.set("idle");
       continue;
     }
@@ -127,16 +128,23 @@ async function main(): Promise<void> {
         },
       });
       if (result.latencyMs !== null) process.stderr.write(`${result.latencyMs}\n`);
-      armed = armAfterHeard({ heardArmed: result.armed, spoke: result.spoke });
-      if (armed && !wasArmed) armedAt = Date.now();
-      if (!armed) armedAt = null;
-      usedTokens = usageAfterTurn(usedTokens, result.usedTokens, !armed);
-      if (!result.spoke && !result.armed) pending = overlapTail(pcm);
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed: wasArmed, armedAt, pending, usedTokens },
+        {
+          kind: "reply",
+          spoke: result.spoke,
+          heardArmed: result.armed,
+          reportedTokens: result.usedTokens,
+          pcm,
+        },
+        Date.now(),
+      ));
     } catch {
-      armed = false;
-      armedAt = null;
-      usedTokens = usageAfterTurn(usedTokens, null, true);
-      pending = Buffer.alloc(0);
+      ({ armed, armedAt, pending, usedTokens } = settleAfterTurn(
+        { armed, armedAt, pending, usedTokens },
+        { kind: "failed" },
+        Date.now(),
+      ));
       lamp.set("idle");
     }
   }

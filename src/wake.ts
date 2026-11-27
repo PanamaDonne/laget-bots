@@ -13,6 +13,14 @@ export const ORDINARY_ROOM_SPEECH = [
   "jag kör radio ikväll",
   "Kör radion högre",
   "Kör radion klockan åtta",
+  "KÖR RADION",
+  "kör radion.",
+  "Kör radion, vad är klockan",
+  "kör radio-appen",
+  "Kör Radio-appen!",
+  "Kör radios",
+  "Kör radiot",
+  "Kör radie",
 ] as const;
 
 export type HearResult = {
@@ -40,10 +48,16 @@ function editDistance(left: string, right: string): number {
   return row[right.length] ?? 0;
 }
 
+const NOT_RADIO = new Set(["radion", "radions", "radios", "radiot", "radie"]);
+
 function isRadioWord(word: string): boolean {
   const folded = fold(word);
-  if (folded === "radion" || folded === "radions") return false;
+  if (NOT_RADIO.has(folded)) return false;
   return editDistance(folded, RADIO) <= 1;
+}
+
+function isCompoundTail(text: string, index: number): boolean {
+  return /^[\s]*[-–—]\p{L}/u.test(text.slice(index));
 }
 
 function readWord(text: string, index: number): { word: string; end: number } | null {
@@ -58,10 +72,11 @@ function wakeEnd(text: string): number | null {
   const first = readWord(text, index);
   if (first === null) return null;
   if (/^k[öo]r+$/iu.test(first.word)) {
-    const gap = /^\s+/u.exec(text.slice(first.end));
+    const gap = /^[\s,.:;!?]+/u.exec(text.slice(first.end));
     if (gap?.[0] === undefined) return null;
     const second = readWord(text, first.end + gap[0].length);
     if (second === null || !isRadioWord(second.word)) return null;
+    if (isCompoundTail(text, second.end)) return null;
     const tail = /^[\s,.:;!?]*/u.exec(text.slice(second.end));
     return second.end + (tail?.[0].length ?? 0);
   }
@@ -74,7 +89,7 @@ function wakeEnd(text: string): number | null {
     glued = true;
     break;
   }
-  if (!glued) return null;
+  if (!glued || isCompoundTail(text, first.end)) return null;
   const tail = /^[\s,.:;!?]*/u.exec(text.slice(first.end));
   return first.end + (tail?.[0].length ?? 0);
 }
@@ -91,7 +106,7 @@ export function hear(input: { text: string; playbackActive: boolean }): HearResu
   }
   return {
     woke: true,
-    command: input.text.slice(end).trim(),
+    command: input.text.slice(end).replace(/^[-–—\s,.:;!?]+/u, "").trim(),
     ignoredBecausePlayback: false,
   };
 }

@@ -1,4 +1,5 @@
 import { Lamp } from "./lamp.ts";
+import { armAfterHeard, overlapTail } from "./listen.ts";
 import { SV } from "./swedish.ts";
 import { hear } from "./wake.ts";
 
@@ -28,10 +29,51 @@ export type HeardResult = {
   lamp: Lamp;
 };
 
-export function usageAfterTurn(current: number, reported: number | null, backToIdle: boolean): number {
+export type ListenFields = {
+  armed: boolean;
+  armedAt: number | null;
+  pending: Buffer;
+  usedTokens: number;
+};
+
+export type TurnSettlement =
+  | {
+      kind: "reply";
+      spoke: boolean;
+      heardArmed: boolean;
+      reportedTokens: number | null;
+      pcm: Buffer;
+    }
+  | { kind: "failed" }
+  | { kind: "timeout" };
+
+function usageAfterTurn(current: number, reported: number | null, backToIdle: boolean): number {
   if (backToIdle) return 0;
   if (reported === null) return current;
   return reported;
+}
+
+export function settleAfterTurn(state: ListenFields, outcome: TurnSettlement, now: number): ListenFields {
+  if (outcome.kind === "failed" || outcome.kind === "timeout") {
+    return {
+      armed: false,
+      armedAt: null,
+      pending: Buffer.alloc(0),
+      usedTokens: usageAfterTurn(state.usedTokens, null, true),
+    };
+  }
+  if (outcome.kind === "reply") {
+    const armed = armAfterHeard({ heardArmed: outcome.heardArmed, spoke: outcome.spoke });
+    const keepTail = !outcome.spoke && !outcome.heardArmed;
+    return {
+      armed,
+      armedAt: armed ? (state.armed ? state.armedAt : now) : null,
+      pending: keepTail ? overlapTail(outcome.pcm) : Buffer.alloc(0),
+      usedTokens: usageAfterTurn(state.usedTokens, outcome.reportedTokens, !armed),
+    };
+  }
+  const unreachable: never = outcome;
+  return unreachable;
 }
 
 export async function handleHeard(input: HeardInput): Promise<HeardResult> {

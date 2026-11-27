@@ -37,6 +37,32 @@ test("the wake phrase alone wakes and waits for speech", () => {
   assert.equal(heard.command, "");
 });
 
+test("punctuation between Kör and radio still wakes", () => {
+  for (const text of ["Kör, radio!", "KÖR, RADIO!", "Kör. radio?"]) {
+    const heard = hear({ text, playbackActive: false });
+    assert.equal(heard.woke, true, text);
+    assert.equal(heard.command, "", text);
+  }
+});
+
+test("everyday radio words and a hyphenated compound do not wake or send a command", () => {
+  for (const text of [
+    "kör radio-appen",
+    "Kör Radio-appen!",
+    "KÖR RADIO-APPEN",
+    "Kör radios",
+    "Kör radiot",
+    "Kör radie",
+    "KÖR RADION",
+    "kör radion.",
+    "Kör radion, vad är klockan",
+  ]) {
+    const heard = hear({ text, playbackActive: false });
+    assert.equal(heard.woke, false, text);
+    assert.equal(heard.command, "", text);
+  }
+});
+
 test("radio, kör, and a phrase in the middle do not wake", () => {
   for (const text of [
     "radio",

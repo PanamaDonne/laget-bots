@@ -29,6 +29,8 @@ Give every spawned child an explicit env without secrets.
 
 A test of a callback must use the same side effects as the production code.
 
+A test of behaviour in `radio-main.ts` must call the same function the radio calls. When the decision sits in the main loop, move it to a pure function and test that function, so the test and the radio share the code. Removing that call must fail a test.
+
 Gitleaks scans the full git history. A later commit does not remove an earlier match. Use `.gitleaksignore` with exact fingerprints only, never whole paths.
 
 Put the Linear issue id in the branch name and the PR title. Use Linear's branch name, for example `pan-254-repo-agentsmd-och-ci`.
