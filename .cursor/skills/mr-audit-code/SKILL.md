@@ -50,6 +50,14 @@ Do not approve UI or interaction changes from reading the code alone. Require a 
 
 A green test only counts if you know it can go red. For a bug fix or a new behavior, require a red/green pair from the author: the same test failing without the fix and passing with it, shown as captured output or a CI run on a test-only commit before the fix commit. You stay read-only, so if the pair is missing, ask for it; a missing pair is a finding, and a test that also passes against the bug is not coverage. Agents asked to "add tests" after the code tend to write tests that describe what the code does, bugs included ([Patrick Vieira, 8 Oct 2026](https://patrickjv.com/writing/gating-agent-written-code); [Lucas Firmo, 8 Oct 2026](https://www.bitswithlucas.com/blog/ai-agents-on-production-code/)). Skip this for pure refactors, renames and UI-only changes, which need UI evidence instead.
 
+## Know the reviewer's limits
+
+An AI review is one input to the merge decision, not the gate. On CR-Bench (584 PRs seeded from SWE-Bench defects), the best review agents found about one in three known defects, and a commercial reviewer whose comments were judged useful 78% of the time found 8.1% of them ([Pereira et al., Nutanix, Nov 2026](https://arxiv.org/abs/2611.02566v2); Python-only, LLM judges). SWE-PRBench, an independent benchmark built from human review comments, found 15–31% of human-flagged issues ([Kumar, Mar 2026](https://arxiv.org/abs/2603.26130)). So:
+
+- A clean verdict means "nothing found", never "no defects". Say so in Risks when the diff touches money, auth, data deletion or migrations.
+- Before you trust a reviewer setup (this skill, a model, a bot), calibrate it: replay 5–10 already-merged PRs whose bug was later fixed (or revert the fix on a scratch branch), run the review, and count how many of those known defects it names. Re-run when the model or this skill changes. Judge it on found defects, not on how useful its comments sound.
+- After the first pass, do one self-critique pass: re-read your findings against the diff, drop the ones you cannot point to a line for, and look again for what you missed. CR-Bench found this raised both detection and usefulness for every model tested.
+
 ## Read, then ask
 
 Why does the module exist, what happens on error, timeout, disconnect or backgrounding, what is stored and where, when is it cleared, what does a feature flag actually turn off, and what did the issue ask for compared with what shipped? If intent is unclear, ask the developer a concrete question.
