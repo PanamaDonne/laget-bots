@@ -52,9 +52,9 @@ The core of the agent is getting to know the user, and acting on what it has lea
 
 **Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00–07:00. Unprompted announcements wait. Urgent is a per-item flag the user sets in the admin, and it is off by default. User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
 
-Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. They are never treated as instructions and can never start an action.
+Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. Untrusted text is the rule in section 8.
 
-A token cap per conversation remains. A provider key alone does not start a paid call; an explicit choice is required.
+A token cap per conversation remains.
 
 ### 2.2 Out of scope for v1
 
@@ -140,8 +140,6 @@ Swedish, including KB-Whisper and a Swedish voice, is a later language option th
 * **On the Mac mini, by default:** STT, the language model, text-to-speech, long-term memory, web search, the web admin (Next.js), and scheduled agent jobs.
 * **Web admin access:** Next.js served from the Mac mini. Sign-in is the rule in section 7.
 
-A provider key alone does not start a paid call; an explicit choice is required.
-
 Whether Qwen 2.5 7B or Llama 3.1 8B is good enough in English with tool calling, and whether STT, the model and TTS can run at the same time in 16 GB while meeting the 3 second gate, is a measurement in milestone 6 / PAN-300. It is not a product decision in this file.
 
 ---
@@ -202,13 +200,13 @@ User-facing admin text is English in v1. Swedish comes later as a language optio
 
 The repo stays public. No secrets, pairing keys or personal data in code.
 
-**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. Audio goes from the ESP32-S3 over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only. A provider key alone does not start a paid call.
+**Local only (decided).** Local models are the rule in section 6. No speech leaves the house. v1 makes no calls to a hosted model or speech provider, so v1 has no paid provider calls and no provider spend. Audio goes from the ESP32-S3 over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household. QA uses fake keys and mocks only.
 
 **At rest.** Memory and secrets are encrypted at rest on the Mac mini. A backup of memory is encrypted. No unencrypted copy of memory is kept off the Mac mini.
 
 **Logs.** Logs must not contain raw audio, transcripts, prompts, user text, or secrets.
 
-**Web search.** Own SearXNG keeps queries in the house (section 2.1).
+**Outgoing traffic.** SearXNG runs in the house and forwards queries to public search engines. Allowed outgoing traffic is search through own SearXNG, web radio from the favourites or the curated allowlist, Google Calendar, weather and news for the morning broadcast, and Tailscale.
 
 **Untrusted text (PAN-297).** Calendar invitations and events, and web search results, are never treated as instructions and can never start an action. The radio starts a station only from the user’s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text. The same rule will apply to email content when email returns in v2 (section 2.2).
 
@@ -224,9 +222,9 @@ The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-3
 
 ## 10. Running cost
 
-**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.
+**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. The 99 SEK per month cap is not in use. It is taken up again only if Daniel adds a paid provider. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.
 
-A token cap per conversation remains. A provider key alone does not start a paid call.
+A token cap per conversation remains.
 
 ---
 
@@ -258,7 +256,7 @@ Morning broadcast (weather, Google Calendar, news, then radio on), background wa
 
 Evals for intent-to-tool, memory recall, invention and deletion, untrusted text, consent (no habit stored without agreement), and privacy leaks (including speech leaving the house). CI runs those evals with mocks. Latency is measured on the ESP32-S3 plus the Mac mini, not only in CI, against the 3 second gate. The same measurement records English quality and tool calling for Qwen 2.5 7B or Llama 3.1 8B, and whether STT, the model and TTS fit together in 16 GB. Done when CI turns red on a planted failure in the test set, and green again when it is fixed, and when the latency measurement is written down. Covered by unit tests, CI green.
 
-**v2 (after v1):** email by voice, with an unlock step before content is read aloud, and a physical approval button for sending mail; email text remains untrusted and can never start an action (PAN-302, PAN-307). Choosing the wake word from a list in the web admin (PAN-301). A custom wake word (“Kör Radio”) and Swedish as a language option, including KB-Whisper for Swedish speech-to-text, via the swappable providers. Spotify only with written permission, and with undo for playlist and favourite changes.
+**v2 (after v1):** email by voice, with an unlock step before content is read aloud, and a physical approval button for sending mail; email text remains untrusted (section 8) (PAN-302, PAN-307). Choosing the wake word from a list in the web admin (PAN-301). A custom wake word (“Kör Radio”) and Swedish as a language option, including KB-Whisper for Swedish speech-to-text, via the swappable providers. Spotify only with written permission, and with undo for playlist and favourite changes.
 
 ---
 
@@ -269,11 +267,11 @@ Unchanged from the accepted spec:
 * `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once there. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
 * Daniel builds in Cursor and opens a PR. Vera (code review) and Lazek (QA, same sha) review every PR and post a verdict in the PR. Only Daniel merges.
 * Every branch and PR title contains the Linear issue id, except this spec revision, whose branch name was set for the change of direction; PAN-267 tracks the spec.
-* Live model calls with real keys only with Daniel’s yes, and only with an explicit `--live` opt-in. QA uses fake keys and mocks only.
+* Model calls run on the Mac mini. QA uses fake keys and mocks only. The merged milestone 1 code still calls a configurable model URL. The adapt removes that path or locks it to the Mac mini on loopback or the LAN, and a test guards the lock.
 * Secrets never go in chat or code. Migrations run only from `main`, after Daniel’s ok.
 * Cursor agents use model grok-4.7.
 
-PR #20 (PAN-308) will be merged by Daniel and then adapted to this revision. PR #21 (PAN-289) is stopped.
+PR #20 (PAN-308) is merged. The adapt to this revision is still to do. PR #21 (PAN-289) is stopped.
 
 ---
 
@@ -283,10 +281,10 @@ These changes follow Daniel’s decisions of 2026-11-27.
 
 | Item | Status now | Decision |
 | -- | -- | -- |
-| [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Approved, CI green, awaiting Daniel’s merge | **Merge, then adapt.** Daniel merges. After merge, the Pi 4 destination is removed and the loop is pointed at the Mac mini default |
+| [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Merged | **Adapt.** See section 12 |
 | [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the Mac mini (section 7) |
 | [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the 3 second measurement on the ESP32-S3 plus the Mac mini, including 16 GB concurrency and English quality and tool calling for Qwen 2.5 7B or Llama 3.1 8B |
-| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Backlog | **Outside this spec.** Local models are the rule in section 6 |
+| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Backlog | **Replaced.** Local models are the rule in section 6 |
 | [PAN-307](https://linear.app/panamadonnes/issue/PAN-307/valj-upplasningsmetod-for-upplasning-av-mejl), [PAN-302](https://linear.app/panamadonnes/issue/PAN-302/mejl-med-rosten) | Backlog | **Out of v1.** Email returns in v2 (section 2.2). Not cancelled |
 | [PAN-303](https://linear.app/panamadonnes/issue/PAN-303/kalender-med-rosten) | Backlog | **Rescope.** Calendar stays in v1 for the morning broadcast and as a Google Calendar connection in the admin |
 | [PAN-304](https://linear.app/panamadonnes/issue/PAN-304/webbsokning-med-rosten) | Backlog | **Widen** so the same tool can start web radio or music, via own SearXNG (section 2.1) |

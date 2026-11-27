@@ -35,8 +35,6 @@ function section(text: string, title: string, nextTitle: string): string {
   return text.slice(from, to);
 }
 
-const sekCap = /(?<![\d.])99 SEK/;
-
 function says(text: string, sentence: string): void {
   assert.equal(text.includes(sentence), true, sentence);
 }
@@ -243,6 +241,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const admin = section(spec, "Web admin", "Privacy");
   const privacy = section(spec, "Privacy, security and providers", "Latency");
   const cost = section(spec, "Running cost", "Plan");
+  const process = section(spec, "Process", "Impact");
   const unprompted =
     "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips.";
   const quietHours =
@@ -268,16 +267,25 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(admin, "User-facing admin text is English in v1.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
   says(hardware, "If it is unreachable, the radio says an error out loud.");
+  says(admin, "A tailnet ACL limits who can reach the admin port.");
+  says(admin, "Sessions are server-side, with expiry and logout.");
   says(admin, "CSRF protection applies to every state-changing request.");
   says(admin, "Sign-in without that proof is refused.");
   says(voice, "Both ends authenticate with that key.");
   says(voice, "Re-pairing from the admin rotates the key and revokes the old key.");
+  says(privacy, "No speech leaves the house.");
+  says(privacy, "v1 makes no calls to a hosted model or speech provider, so v1 has no paid provider calls and no provider spend.");
+  says(privacy, "SearXNG runs in the house and forwards queries to public search engines.");
+  says(privacy, "Allowed outgoing traffic is search through own SearXNG, web radio from the favourites or the curated allowlist, Google Calendar, weather and news for the morning broadcast, and Tailscale.");
+  says(privacy, "Calendar invitations and events, and web search results, are never treated as instructions and can never start an action.");
   says(privacy, "Memory and secrets are encrypted at rest on the Mac mini.");
   says(privacy, "Logs must not contain raw audio, transcripts, prompts, user text, or secrets.");
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
   says(agent, "v1 runs only local models on the Mac mini.");
   says(voice, "The provider interface swaps one local model for another.");
   says(v1Scope, "SearXNG is not a model.");
+  says(cost, "The 99 SEK per month cap is not in use.");
+  says(cost, "It is taken up again only if Daniel adds a paid provider.");
   says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
   says(admin, "Access: Tailscale.");
   says(admin, "Being on the tailnet is not enough.");
@@ -293,6 +301,8 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "A backup of memory is encrypted.");
   says(v1Scope, "Email is not in v1.");
   says(later, "It is parked until v2 (Daniel, 2026-11-27).");
+  says(process, "The merged milestone 1 code still calls a configurable model URL.");
+  says(process, "The adapt removes that path or locks it to the Mac mini on loopback or the LAN, and a test guards the lock.");
   says(preamble, "Status: proposed.");
 });
 
@@ -315,7 +325,6 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(agents, /SPEC\.md/);
   assert.match(agents, /v2\.1/);
   assert.match(agents, /A doc test for a number or limit must match with a boundary/);
-  assert.match(agents, sekCap);
   assert.match(agents, /Vera/);
   assert.match(agents, /Lazek/);
   assert.match(agents, /sync-skills/);
