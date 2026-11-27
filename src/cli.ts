@@ -34,3 +34,10 @@ export function liveStartupLine(liveChoice: boolean, apiKey: string | undefined)
   if (apiKey !== undefined && apiKey.trim().length > 0) return null;
   return SV.liveKeyMissing;
 }
+
+export function reportedFailure(error: unknown): string {
+  if (error instanceof Error && (error.message === SV.unknownArg || error.message === SV.audioMissing)) {
+    return error.message;
+  }
+  return SV.failed;
+}

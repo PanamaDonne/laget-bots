@@ -28,12 +28,22 @@ export function readLedgerFile(root: string, now: Date): Ledger {
   return { month: parsed.month, spentOre: parsed.spentOre };
 }
 
-export function writeLedgerFile(root: string, ledger: Ledger): void {
+export function writeLedgerFile(
+  root: string,
+  ledger: Ledger,
+  io: {
+    writeFileSync: (path: string, data: string) => void;
+    renameSync: (from: string, to: string) => void;
+  } = {
+    writeFileSync: (path, data) => writeFileSync(path, data),
+    renameSync: (from, to) => renameSync(from, to),
+  },
+): void {
   mkdirSync(root, { recursive: true });
   const path = safeWritePath(root, FILE_NAME);
   const temp = safeWritePath(root, TEMP_NAME);
-  writeFileSync(temp, `${JSON.stringify({ month: ledger.month, spentOre: ledger.spentOre })}\n`);
-  renameSync(temp, path);
+  io.writeFileSync(temp, `${JSON.stringify({ month: ledger.month, spentOre: ledger.spentOre })}\n`);
+  io.renameSync(temp, path);
 }
 
 function isLedger(value: unknown): value is Ledger {

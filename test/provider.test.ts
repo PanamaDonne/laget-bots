@@ -152,6 +152,28 @@ test("HTTP failures keep the provider id and status and drop the body, key, and 
   );
 });
 
+test("a shared ledger records the real cost, not the reservation plus the cost", async () => {
+  const ledger = { month: "2026-11", spentOre: 0 };
+  const result = await completeChat(
+    input({
+      orePerMillion: 1_000_000,
+      ledger,
+      onLedger: (next) => {
+        ledger.month = next.month;
+        ledger.spentOre = next.spentOre;
+      },
+      fetchImpl: async () =>
+        Response.json({
+          choices: [{ message: { content: "Den är tre." } }],
+          usage: { total_tokens: 50 },
+        }),
+    }),
+  );
+
+  assert.equal(result.ledger.spentOre, 50);
+  assert.equal(ledger.spentOre, 50);
+});
+
 test("a failed call keeps the reservation that was written before the request", async () => {
   let fetchStarted = false;
   let reservedFirst = false;

@@ -5,6 +5,14 @@ set -eu
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 
+check_sha() {
+  actual=$(sha256sum "$1" | awk '{ print $1 }')
+  if [ "$actual" != "$2" ]; then
+    echo "Röstfilen har fel kontrollsumma." >&2
+    exit 1
+  fi
+}
+
 prepare() {
   if [ ! -x .venv/bin/python3 ]; then
     python3 -m venv .venv
@@ -26,6 +34,8 @@ prepare() {
     curl -fL --retry 3 -o "$voice_json.part" "$base/sv_SE-nst-medium.onnx.json"
     mv "$voice_json.part" "$voice_json"
   fi
+  check_sha "$voice" df011f56825a59dd1efc080c38a65a1ef70407e60f63050e9246f43a3d7e471e
+  check_sha "$voice_json" d45dd74cbb4eca58694bf04a97e243044092476f28a55ae26424f0653086980a
   if [ ! -e models/whisper/models--KBLab--kb-whisper-base/refs/main ]; then
     .venv/bin/python3 -c 'from faster_whisper import WhisperModel; WhisperModel("KBLab/kb-whisper-base", device="cpu", compute_type="int8", download_root="models/whisper")'
   fi

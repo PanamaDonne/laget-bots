@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
 import { captureArgs, playbackArgs } from "./audio.ts";
-import { liveStartupLine, parseRadioArgs } from "./cli.ts";
+import { liveStartupLine, parseRadioArgs, reportedFailure } from "./cli.ts";
 import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
 import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
 import { readLedgerFile, writeLedgerFile } from "./ledger-file.ts";
@@ -58,10 +58,17 @@ async function main(): Promise<void> {
     stdio: ["ignore", "pipe", "pipe"],
     env: envForLocalModels(process.env),
   });
-  if (mic.stdout === null) {
+  let microphoneClosed = false;
+  const endMicrophone = (): void => {
+    if (microphoneClosed) return;
+    microphoneClosed = true;
     const closed = closeRadio(voice.stop);
     process.stderr.write(`${closed.line}\n`);
     process.exitCode = closed.exitCode;
+  };
+  mic.on("error", endMicrophone);
+  if (mic.stdout === null) {
+    endMicrophone();
     return;
   }
 
@@ -132,9 +139,7 @@ async function main(): Promise<void> {
       lamp.set("idle");
     }
   }
-  const closed = closeRadio(voice.stop);
-  process.stderr.write(`${closed.line}\n`);
-  process.exitCode = closed.exitCode;
+  endMicrophone();
 }
 
 export function closeRadio(stop: () => void): { line: string; exitCode: 1 } {
@@ -296,8 +301,8 @@ function isDirectRun(): boolean {
 }
 
 if (isDirectRun()) {
-  main().catch(() => {
-    process.stderr.write(`${SV.failed}\n`);
+  main().catch((error: unknown) => {
+    process.stderr.write(`${reportedFailure(error)}\n`);
     process.exitCode = 1;
   });
 }

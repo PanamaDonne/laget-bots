@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { liveStartupLine, parseRadioArgs } from "../src/cli.ts";
+import { liveStartupLine, parseRadioArgs, reportedFailure } from "../src/cli.ts";
 import { SV } from "../src/swedish.ts";
 
 test("live model calls start only from the explicit choice", () => {
@@ -27,6 +27,12 @@ test("unknown arguments and an empty audio device are errors", () => {
     assert.equal(error.message, SV.audioMissing);
     return true;
   });
+});
+
+test("a bad argument is reported as that fixed line", () => {
+  assert.equal(reportedFailure(new Error(SV.unknownArg)), SV.unknownArg);
+  assert.equal(reportedFailure(new Error(SV.audioMissing)), SV.audioMissing);
+  assert.equal(reportedFailure(new Error("fake-key")), SV.failed);
 });
 
 test("--live without a key warns before listening", () => {

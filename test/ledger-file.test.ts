@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -51,6 +51,32 @@ test("a ledger that is not a month and an amount stops paid calls", () => {
     () => readLedgerFile(root, new Date("2026-11-27T12:00:00.000Z")),
     (error: unknown) => error instanceof Error && error.message === SV.paused,
   );
+});
+
+test("the ledger is written to a temp file and then renamed over the real file", () => {
+  const root = mkdtempSync(join(tmpdir(), "radio-days-ledger-"));
+  const writes: string[] = [];
+  let renamedTo = "";
+  writeLedgerFile(
+    root,
+    { month: "2026-11", spentOre: 40 },
+    {
+      writeFileSync: (path, data) => {
+        writes.push(String(path));
+        writeFileSync(String(path), data);
+      },
+      renameSync: (from, to) => {
+        renamedTo = String(to);
+        renameSync(String(from), String(to));
+      },
+    },
+  );
+
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]?.endsWith("cost-ledger.json.tmp"), true);
+  assert.equal(renamedTo.endsWith("cost-ledger.json"), true);
+  assert.equal(renamedTo.endsWith(".tmp"), false);
+  assert.equal(existsSync(join(root, "cost-ledger.json.tmp")), false);
 });
 
 test("the cost counter is replaced by rename, not left as a temp file", () => {

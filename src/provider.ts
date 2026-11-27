@@ -60,7 +60,8 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
 
   const remaining = input.tokenCap - input.usedTokens - promptTokens;
   const reserve = Math.max(1, Math.min(300, remaining));
-  const estimated = charge(input.ledger, costOre(promptTokens + reserve, input.orePerMillion), input.now);
+  const opening = { month: input.ledger.month, spentOre: input.ledger.spentOre };
+  const estimated = charge(opening, costOre(promptTokens + reserve, input.orePerMillion), input.now);
   if (!estimated.allowed) {
     return { ...idle, text: SV.paused, ledger: estimated.ledger };
   }
@@ -101,7 +102,7 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
 
   const text = readContent(payload);
   const tokens = readTotalTokens(payload) ?? promptTokens + reserve;
-  const billed = charge(input.ledger, costOre(tokens, input.orePerMillion), input.now);
+  const billed = charge(opening, costOre(tokens, input.orePerMillion), input.now);
   const ledger = billed.allowed ? billed.ledger : { month: estimated.ledger.month, spentOre: CAP_ORE };
   input.onLedger?.(ledger);
   const notice = billed.notice;
