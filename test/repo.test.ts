@@ -254,7 +254,10 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const notCounted =
     "These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
   const scheduled =
-    "The morning broadcast and the evening summary are spoken at the time the user scheduled, including during quiet hours.";
+    "The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00\u201307:00.";
+  const wait = "Unprompted announcements wait.";
+  const urgent =
+    "Urgent is a per-item flag the user sets in the admin, and it is off by default.";
   const held =
     "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
   const berget =
@@ -266,11 +269,15 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, quietHours);
   says(quiet, notCounted);
   says(quiet, scheduled);
+  says(quiet, wait);
+  says(quiet, urgent);
   says(quiet, held);
   says(pan312, unprompted);
   says(pan312, quietHours);
   says(pan312, notCounted);
   says(pan312, scheduled);
+  says(pan312, wait);
+  says(pan312, urgent);
   says(pan312, held);
   says(later, "English is the v1 default.");
   says(changes, "English is the default language.");
@@ -298,6 +305,8 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(cost, "The counter never goes backwards to an earlier month.");
   says(cost, "Every paid provider call counts: STT, LLM, TTS, a search API, and Supabase.");
   says(cost, "A spend cap or prepaid limit is set at each provider, as a backstop to the ledger.");
+  says(cost, "A price in a foreign currency is converted with the Sveriges Riksbank reference rate for that currency on the date recorded in config, then 25 % VAT is added.");
+  says(cost, "Token counts are taken from the provider\u2019s response.");
   says(admin, "Being on the tailnet is not enough.");
   says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
   says(admin, "Tailscale Funnel is not used for the admin.");
