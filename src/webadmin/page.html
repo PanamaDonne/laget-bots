@@ -24,10 +24,7 @@
         margin: 0 auto;
         padding: 2rem 1.25rem 4rem;
       }
-      h1 {
-        font-weight: 500;
-        letter-spacing: 0.02em;
-      }
+      h1 { font-weight: 500; letter-spacing: 0.02em; }
       section {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -35,13 +32,8 @@
         padding: 1rem 1.1rem 1.2rem;
         margin: 1rem 0;
       }
-      label {
-        display: block;
-        margin: 0.6rem 0 0.25rem;
-      }
-      input, select, button {
-        font: inherit;
-      }
+      label { display: block; margin: 0.6rem 0 0.25rem; }
+      input, select, button { font: inherit; }
       input, select {
         width: 100%;
         box-sizing: border-box;
@@ -52,6 +44,7 @@
       }
       button {
         margin-top: 0.8rem;
+        margin-right: 0.4rem;
         background: var(--accent);
         color: white;
         border: 0;
@@ -59,19 +52,17 @@
         padding: 0.45rem 0.8rem;
         cursor: pointer;
       }
-      #status, #pi-user-code, #message {
-        white-space: pre-wrap;
-      }
-      #pi-user-code {
-        font-size: 1.6rem;
-        letter-spacing: 0.12em;
+      #status, #pi-user-code, #pi-fingerprint, #pi-device-id, #message { white-space: pre-wrap; }
+      #pi-user-code, #pi-fingerprint {
+        font-family: ui-monospace, monospace;
+        letter-spacing: 0.08em;
       }
     </style>
   </head>
   <body>
     <main>
       <h1>Radio Days webbadmin</h1>
-      <p>Molnet visar status. API-nyckeln krypteras i webbläsaren och mejltoken stannar på Pi:n.</p>
+      <p>Molnet visar status. API-nyckeln krypteras i webbläsaren mot nyckeln på Pi:n, och mejltoken stannar på Pi:n.</p>
       <p id="message"></p>
 
       <section>
@@ -79,24 +70,35 @@
         <form id="sign-in">
           <label for="email">E-post</label>
           <input id="email" name="email" type="email" autocomplete="username" required />
+          <button type="submit">Skicka kod</button>
+        </form>
+        <form id="sign-in-code">
+          <label for="email-code">Kod från mejlet</label>
+          <input id="email-code" name="code" autocomplete="one-time-code" required />
           <button type="submit">Logga in</button>
         </form>
+        <button id="sign-out" type="button">Logga ut</button>
       </section>
 
       <section>
         <h2>Para ihop Pi</h2>
+        <p>Skriv koden och fingeravtrycket som radion visar. Molnet får inte välja nyckel åt dig.</p>
         <form id="pair">
           <label for="user-code">Kod från radion</label>
           <input id="user-code" name="userCode" autocomplete="one-time-code" required />
+          <label for="key-fingerprint">Fingeravtryck från radion</label>
+          <input id="key-fingerprint" name="keyFingerprint" autocomplete="off" required />
           <button type="submit">Bekräfta</button>
         </form>
       </section>
 
       <section>
         <h2>Leverantör och API-nyckel</h2>
+        <p>Listan är kandidaterna i PAN-306. Valet är inte låst.</p>
         <form id="provider-key">
           <label for="provider">Leverantör</label>
           <select id="provider" name="providerId">
+            <option value="berget">Berget</option>
             <option value="scaleway">Scaleway</option>
             <option value="ovh">OVH</option>
           </select>
@@ -118,9 +120,11 @@
 
       <section>
         <h2>Pi på den här datorn</h2>
-        <p>Skelettet kan låtsas vara radion. Den privata nyckeln och mejltoken skickas inte till molnet.</p>
+        <p>Skelettet kan låtsas vara radion. Den privata nyckeln, enhetshemligheten och mejltoken skickas inte som text på sidan.</p>
         <button id="pi-start" type="button">Starta ihopparning</button>
+        <p id="pi-device-id"></p>
         <p id="pi-user-code"></p>
+        <p id="pi-fingerprint"></p>
         <button id="pi-email" type="button">Rapportera e-post kopplad</button>
       </section>
     </main>

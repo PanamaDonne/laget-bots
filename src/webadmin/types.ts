@@ -1,6 +1,10 @@
-export type ProviderId = "scaleway" | "ovh";
+/**
+ * Chat providers still open in PAN-306. Berget pay-as-you-go is a candidate
+ * again, together with Scaleway and OVH. This list is not a final choice.
+ */
+export const CHAT_PROVIDER_CANDIDATES = ["berget", "scaleway", "ovh"] as const;
 
-export const ALLOWED_PROVIDERS: readonly ProviderId[] = ["scaleway", "ovh"];
+export type ProviderId = (typeof CHAT_PROVIDER_CANDIDATES)[number];
 
 export type EmailConnectionStatus = "disconnected" | "pending" | "connected";
 
@@ -10,13 +14,14 @@ export interface Session {
   token: string;
   userId: string;
   email: string;
+  expiresAt: string;
 }
 
 export interface KeyEnvelope {
   alg: "RSA-OAEP-256";
-  /** Base64url ciphertext produced in the browser with the Pi public key. */
+  /** Base64url ciphertext. The cloud stores this only when it is opaque RSA output. */
   ciphertext: string;
-  /** Short fingerprint of the Pi public key used to encrypt. */
+  /** Fingerprint of the Pi public key the browser encrypted to. */
   keyFingerprint: string;
 }
 
@@ -25,8 +30,6 @@ export interface ConnectionStatus {
   device: {
     paired: boolean;
     deviceId: string | null;
-    /** Public key only. The cloud never has the Pi private key. */
-    piPublicKeyPem: string | null;
   };
   provider: {
     configured: boolean;
@@ -37,30 +40,26 @@ export interface ConnectionStatus {
   };
 }
 
-export interface CloudDeviceRecord {
-  deviceId: string;
-  userId: string | null;
-  piPublicKeyPem: string;
-  provider: {
-    id: ProviderId;
-    keyCiphertext: string;
-    keyFingerprint: string;
-    alg: "RSA-OAEP-256";
-  } | null;
-  email: {
-    status: EmailConnectionStatus;
-    connectedAt: string | null;
-  };
-}
-
+/** Test view of cloud state. No session tokens, device secrets, or sign-in codes. */
 export interface CloudSnapshot {
   users: Array<{ userId: string; email: string }>;
-  sessions: Array<{ token: string; userId: string }>;
-  pairings: Array<{
-    userCode: string;
-    deviceCode: string;
+  sessionCount: number;
+  devices: Array<{
     deviceId: string;
-    status: PairingStatus;
+    userId: string | null;
+    piPublicKeyPem: string;
+    provider: {
+      id: ProviderId;
+      keyCiphertext: string;
+      keyFingerprint: string;
+      alg: "RSA-OAEP-256";
+    } | null;
+    email: {
+      status: EmailConnectionStatus;
+    };
   }>;
-  devices: CloudDeviceRecord[];
+}
+
+export interface SignInMailbox {
+  deliver(message: { email: string; code: string }): void;
 }

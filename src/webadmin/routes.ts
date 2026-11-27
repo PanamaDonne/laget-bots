@@ -1,6 +1,6 @@
-import { createWebAdmin, type WebAdmin } from "./admin.ts";
+import { createWebAdmin, type WebAdmin, type WebAdminOptions } from "./admin.ts";
+import { WebAdminError, assertOnlyFields, webAdminError } from "./errors.ts";
 import type { EmailConnectionStatus, KeyEnvelope } from "./types.ts";
-import { webAdminError } from "./errors.ts";
 
 export type Json =
   | null
@@ -22,12 +22,21 @@ export interface AdminResponse {
   body: Json;
 }
 
+const EMAIL_STATUS_FIELDS = ["deviceId", "status", "deviceSecret"] as const;
+const BEGIN_FIELDS = ["deviceId", "piPublicKeyPem", "deviceSecret"] as const;
+
 function sessionToken(headers: Record<string, string | undefined>): string {
   const raw = headers.authorization ?? headers.Authorization;
   if (!raw || !raw.startsWith("Bearer ")) {
     throw webAdminError("Not signed in.");
   }
   return raw.slice("Bearer ".length).trim();
+}
+
+function deviceSecretHeader(headers: Record<string, string | undefined>): string {
+  const value = headers["x-device-secret"] ?? headers["X-Device-Secret"];
+  if (!value?.trim()) throw webAdminError("Device proof is required.");
+  return value.trim();
 }
 
 function asObject(body: Json | undefined): Record<string, Json> {
@@ -44,20 +53,30 @@ function asString(value: Json | undefined, field: string): string {
   return value;
 }
 
+function optionalString(value: Json | undefined): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return value;
+}
+
+function statusFor(error: WebAdminError): number {
+  if (/not signed in|device proof is required|email proof is required/i.test(error.message)) {
+    return 401;
+  }
+  return 400;
+}
+
 /**
- * Minimal HTTP adapter for the cloud web admin skeleton.
- * Next.js (or another host) can forward route handlers here.
+ * HTTP adapter for the cloud web admin skeleton.
+ * Unexpected errors return a fixed message so internals are not echoed.
  */
-export function handleAdminRequest(
-  admin: WebAdmin,
-  request: AdminRequest,
-): AdminResponse {
+export function handleAdminRequest(admin: WebAdmin, request: AdminRequest): AdminResponse {
   try {
     return dispatch(admin, request);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed.";
-    const status = /not signed in/i.test(message) ? 401 : 400;
-    return { status, body: { error: message } };
+    if (error instanceof WebAdminError) {
+      return { status: statusFor(error), body: { error: error.message } };
+    }
+    return { status: 500, body: { error: "Request failed." } };
   }
 }
 
@@ -66,39 +85,74 @@ function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
 
   if (method === "POST" && path === "/api/auth/sign-in") {
     const body = asObject(request.body);
-    const session = admin.signIn({ email: asString(body.email, "email") });
-    return { status: 200, body: { token: session.token, email: session.email } };
+    assertOnlyFields(body, ["email"]);
+    const pending = admin.requestSignIn({ email: asString(body.email, "email") });
+    return { status: 200, body: pending };
+  }
+
+  if (method === "POST" && path === "/api/auth/confirm") {
+    const body = asObject(request.body);
+    assertOnlyFields(body, ["email", "code"]);
+    const session = admin.confirmSignIn({
+      email: asString(body.email, "email"),
+      code: asString(body.code, "code"),
+    });
+    return {
+      status: 200,
+      body: { token: session.token, email: session.email, expiresAt: session.expiresAt },
+    };
+  }
+
+  if (method === "POST" && path === "/api/auth/sign-out") {
+    admin.signOut({ sessionToken: sessionToken(request.headers) });
+    return { status: 200, body: { ok: true } };
   }
 
   if (method === "POST" && path === "/api/pairing/begin") {
     const body = asObject(request.body);
+    assertOnlyFields(body, BEGIN_FIELDS);
     const pending = admin.beginDevicePairing({
       deviceId: asString(body.deviceId, "deviceId"),
       piPublicKeyPem: asString(body.piPublicKeyPem, "piPublicKeyPem"),
+      deviceSecret: optionalString(body.deviceSecret),
     });
     return { status: 200, body: pending };
   }
 
   if (method === "POST" && path === "/api/pairing/confirm") {
+    const body = asObject(request.body);
+    assertOnlyFields(body, ["userCode", "keyFingerprint"]);
     const paired = admin.confirmPairing({
       sessionToken: sessionToken(request.headers),
-      userCode: asString(asObject(request.body).userCode, "userCode"),
+      userCode: asString(body.userCode, "userCode"),
+      keyFingerprint: asString(body.keyFingerprint, "keyFingerprint"),
     });
     return { status: 200, body: paired };
   }
 
+  if (method === "POST" && path === "/api/pairing/reopen") {
+    const reopened = admin.reopenPairing({ sessionToken: sessionToken(request.headers) });
+    return { status: 200, body: reopened };
+  }
+
   if (method === "GET" && path.startsWith("/api/pairing/poll/")) {
     const deviceCode = path.slice("/api/pairing/poll/".length);
-    return { status: 200, body: admin.pollPairing(deviceCode) };
+    return {
+      status: 200,
+      body: admin.pollPairing({
+        deviceCode,
+        deviceSecret: deviceSecretHeader(request.headers),
+      }),
+    };
   }
 
   if (method === "POST" && path === "/api/provider/key") {
     const body = asObject(request.body);
-    const envelope = readEnvelope(body.envelope);
+    assertOnlyFields(body, ["providerId", "envelope"]);
     admin.submitProviderKey({
       sessionToken: sessionToken(request.headers),
       providerId: asString(body.providerId, "providerId"),
-      envelope,
+      envelope: readEnvelope(body.envelope),
     });
     return { status: 200, body: { ok: true } };
   }
@@ -112,9 +166,11 @@ function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
 
   if (method === "POST" && path === "/api/email/status") {
     const body = asObject(request.body);
+    assertOnlyFields(body, EMAIL_STATUS_FIELDS);
     admin.reportEmailStatusFromPi({
       deviceId: asString(body.deviceId, "deviceId"),
       status: readEmailStatus(body.status),
+      deviceSecret: asString(body.deviceSecret, "deviceSecret"),
     });
     return { status: 200, body: { ok: true } };
   }
@@ -130,7 +186,6 @@ function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
         device: {
           paired: status.device.paired,
           deviceId: status.device.deviceId,
-          piPublicKeyPem: status.device.piPublicKeyPem,
         },
         provider: {
           configured: status.provider.configured,
@@ -146,8 +201,10 @@ function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
   return { status: 404, body: { error: "Not found." } };
 }
 
-export function createDefaultAdminHandler(): (request: AdminRequest) => AdminResponse {
-  const admin = createWebAdmin();
+export function createDefaultAdminHandler(
+  options: WebAdminOptions,
+): (request: AdminRequest) => AdminResponse {
+  const { admin } = createWebAdmin(options);
   return (request) => handleAdminRequest(admin, request);
 }
 
@@ -155,6 +212,7 @@ function readEnvelope(value: Json | undefined): KeyEnvelope {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw webAdminError("Key envelope is required.");
   }
+  assertOnlyFields(value, ["alg", "ciphertext", "keyFingerprint"]);
   const alg = value.alg;
   if (alg !== "RSA-OAEP-256") {
     throw webAdminError("Unsupported key envelope algorithm.");

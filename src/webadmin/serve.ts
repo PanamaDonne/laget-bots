@@ -30,11 +30,20 @@ async function readJsonBody(request: IncomingMessage): Promise<Json | undefined>
 
 export interface RunningWebAdmin {
   port: number;
+  /** Same-process test hook. Not an HTTP route. */
+  takeSignInCode(email: string): string | undefined;
   close: () => Promise<void>;
 }
 
 export function startWebAdminServer(port = 0): Promise<RunningWebAdmin> {
-  const admin = createWebAdmin();
+  const signInCodes = new Map<string, string>();
+  const { admin } = createWebAdmin({
+    mailbox: {
+      deliver({ email, code }) {
+        signInCodes.set(email, code);
+      },
+    },
+  });
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -47,15 +56,15 @@ export function startWebAdminServer(port = 0): Promise<RunningWebAdmin> {
         return;
       }
       const method = request.method === "POST" ? "POST" : "GET";
-      if (method !== "GET" && method !== "POST") {
-        send(response, 405, JSON.stringify({ error: "Method not allowed." }), "application/json");
-        return;
-      }
       const result = handleAdminRequest(admin, {
         method,
         path: url.pathname,
         headers: {
           authorization: request.headers.authorization,
+          "x-device-secret":
+            typeof request.headers["x-device-secret"] === "string"
+              ? request.headers["x-device-secret"]
+              : undefined,
         },
         body: method === "POST" ? await readJsonBody(request) : undefined,
       });
@@ -71,6 +80,9 @@ export function startWebAdminServer(port = 0): Promise<RunningWebAdmin> {
       const bound = typeof address === "object" && address ? address.port : port;
       resolve({
         port: bound,
+        takeSignInCode(email: string) {
+          return signInCodes.get(email.trim().toLowerCase());
+        },
         close: () =>
           new Promise((done, reject) => {
             server.close((error) => (error ? reject(error) : done()));

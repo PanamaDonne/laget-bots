@@ -10,7 +10,8 @@ import type { KeyEnvelope } from "./types.ts";
 import { webAdminError } from "./errors.ts";
 
 const RSA_OAEP_SHA256 = "RSA-OAEP-256";
-const MIN_CIPHERTEXT_BYTES = 256;
+const PRINTABLE_RATIO_LIMIT = 0.8;
+const MAX_REPEAT = 16;
 
 function pemToBuffer(pem: string): Buffer {
   return Buffer.from(
@@ -40,7 +41,41 @@ function fromBase64Url(value: string): Buffer {
   return Buffer.from(padded + pad, "base64");
 }
 
-/** Encrypt an API key in the browser (or test double) with the Pi public key. */
+function modulusBytes(publicKeyPem: string): number {
+  const key = createPublicKey(publicKeyPem);
+  const bits = key.asymmetricKeyDetails?.modulusLength;
+  if (!bits) {
+    throw webAdminError("Pi public key is not an RSA key.");
+  }
+  return bits / 8;
+}
+
+function longestRun(value: string): number {
+  let best = 0;
+  let run = 0;
+  let previous = "";
+  for (const char of value) {
+    if (char === previous) {
+      run += 1;
+    } else {
+      previous = char;
+      run = 1;
+    }
+    if (run > best) best = run;
+  }
+  return best;
+}
+
+function printableRatio(bytes: Buffer): number {
+  if (bytes.length === 0) return 1;
+  let printable = 0;
+  for (const byte of bytes) {
+    if (byte >= 0x20 && byte <= 0x7e) printable += 1;
+  }
+  return printable / bytes.length;
+}
+
+/** Encrypt an API key with the Pi public key. The cloud never calls this. */
 export async function encryptApiKeyForPi(
   apiKey: string,
   piPublicKeyPem: string,
@@ -64,7 +99,10 @@ export async function encryptApiKeyForPi(
   };
 }
 
-/** Decrypt on the Pi only. The cloud never calls this. */
+/**
+ * Decrypt on the Pi only. The Pi drops any envelope it cannot decrypt.
+ * The cloud never calls this.
+ */
 export async function decryptApiKeyOnPi(
   envelope: KeyEnvelope,
   piPrivateKeyPem: string,
@@ -85,30 +123,38 @@ export async function decryptApiKeyOnPi(
 }
 
 /**
- * Cloud-side check: accept only envelopes that look like RSA-OAEP ciphertext.
- * Never store or log the raw value when rejecting.
+ * Accept only an opaque RSA ciphertext of exactly the key's modulus size.
+ * A plaintext string of any length is rejected, including one padded out so
+ * an older "at least 256 bytes" check would have stored it.
+ * The cloud cannot prove the bytes are a real OAEP message. The Pi must
+ * discard whatever it cannot decrypt, and that rule lives with the Pi.
  */
-export function assertValidKeyEnvelope(envelope: KeyEnvelope, expectedFingerprint: string): void {
-  const secrets = [envelope.ciphertext];
+export function assertValidKeyEnvelope(envelope: KeyEnvelope, piPublicKeyPem: string): void {
+  const secret = envelope.ciphertext;
+  const secrets = [secret];
+  const reject = (reason: string): never => {
+    throw webAdminError(`${reason}: ${secret}`, secrets);
+  };
   if (envelope.alg !== RSA_OAEP_SHA256) {
-    throw webAdminError("Unsupported key envelope algorithm.", secrets);
+    reject("Unsupported key envelope algorithm");
   }
-  if (!/^[A-Za-z0-9_-]+$/.test(envelope.ciphertext)) {
-    throw webAdminError("Key envelope ciphertext is not valid base64url.", secrets);
+  if (!/^[A-Za-z0-9_-]+$/.test(secret)) {
+    reject("Key envelope ciphertext is not valid base64url");
   }
-  let bytes: Buffer;
+  let bytes = fromBase64Url("AA");
   try {
-    bytes = fromBase64Url(envelope.ciphertext);
+    bytes = fromBase64Url(secret);
   } catch {
-    throw webAdminError("Key envelope ciphertext is not valid base64url.", secrets);
+    reject("Key envelope ciphertext is not valid base64url");
   }
-  if (bytes.length < MIN_CIPHERTEXT_BYTES) {
-    throw webAdminError(
-      "Key envelope ciphertext is too short; plaintext keys are not accepted.",
-      secrets,
-    );
+  const expected = modulusBytes(piPublicKeyPem);
+  if (bytes.length !== expected) {
+    reject("Key envelope ciphertext is not RSA ciphertext");
   }
-  if (envelope.keyFingerprint !== expectedFingerprint) {
-    throw webAdminError("Key envelope fingerprint does not match the paired Pi.", secrets);
+  if (longestRun(secret) >= MAX_REPEAT || printableRatio(bytes) > PRINTABLE_RATIO_LIMIT) {
+    reject("Key envelope looks like plaintext");
+  }
+  if (envelope.keyFingerprint !== fingerprintPublicKey(piPublicKeyPem)) {
+    reject("Key envelope fingerprint does not match the paired Pi");
   }
 }

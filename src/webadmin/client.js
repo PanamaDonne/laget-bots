@@ -1,8 +1,9 @@
 /**
- * Browser-side web admin. Encrypts the API key with the Pi public key
- * before anything is sent. The plaintext key never leaves this page.
+ * Browser-side web admin.
+ * The API key is encrypted with the Pi public key held in this page.
+ * The session token stays in a page-memory variable. A reload signs the user out.
  */
-/* global atob, btoa, crypto, document, fetch, FormData, sessionStorage, TextEncoder */
+/* global atob, btoa, crypto, document, fetch, TextEncoder */
 
 function pemToDer(pem) {
   const b64 = pem
@@ -19,9 +20,7 @@ function pemToDer(pem) {
 
 function bytesToBase64(bytes) {
   let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
+  for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
 
@@ -34,7 +33,7 @@ function toPem(label, bytes) {
   return `-----BEGIN ${label}-----\n${body}\n-----END ${label}-----`;
 }
 
-async function fingerprintPublicKey(pem) {
+export async function fingerprintPublicKey(pem) {
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", pemToDer(pem)));
   return [...hash]
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -79,49 +78,59 @@ export async function generatePiKeyPairInBrowser() {
   };
 }
 
-function wirePage() {
-  const tokenKey = "radio-days-webadmin-token";
+function text(node) {
+  return node ? String(node.value ?? "") : "";
+}
+
+/**
+ * The provider-key submit path. Posts only providerId and the envelope.
+ * Callers must pass the Pi public key they verified, never one read from the cloud.
+ */
+export async function submitProviderKeyFromPage({ apiKey, providerId, publicKeyPem, post }) {
+  const envelope = await encryptApiKeyInBrowser(apiKey, publicKeyPem);
+  const body = { providerId, envelope };
+  await post("/api/provider/key", body);
+  return body;
+}
+
+export function attachAdminPage(doc, env = {}) {
+  const fetchImpl = env.fetchImpl ?? fetch;
+  const memory = { token: null };
   let pi = null;
 
-  const signInForm = document.querySelector("#sign-in");
-  const pairForm = document.querySelector("#pair");
-  const keyForm = document.querySelector("#provider-key");
-  const emailButton = document.querySelector("#email-connect");
-  const piStart = document.querySelector("#pi-start");
-  const piEmail = document.querySelector("#pi-email");
-  const statusOut = document.querySelector("#status");
-  const messageOut = document.querySelector("#message");
-  const userCodeOut = document.querySelector("#pi-user-code");
+  const signInForm = doc.querySelector("#sign-in");
+  const codeForm = doc.querySelector("#sign-in-code");
+  const pairForm = doc.querySelector("#pair");
+  const keyForm = doc.querySelector("#provider-key");
+  const emailButton = doc.querySelector("#email-connect");
+  const signOutButton = doc.querySelector("#sign-out");
+  const piStart = doc.querySelector("#pi-start");
+  const piEmail = doc.querySelector("#pi-email");
+  const statusOut = doc.querySelector("#status");
+  const messageOut = doc.querySelector("#message");
+  const userCodeOut = doc.querySelector("#pi-user-code");
+  const fingerprintOut = doc.querySelector("#pi-fingerprint");
 
-  function say(text) {
-    if (messageOut) messageOut.textContent = text;
-  }
-
-  function guard(action) {
-    return async (event) => {
-      try {
-        await action(event);
-      } catch (error) {
-        say(error instanceof Error ? error.message : "Något gick fel.");
-      }
-    };
+  function say(message) {
+    if (messageOut) messageOut.textContent = message;
   }
 
   function authHeaders() {
-    const token = sessionStorage.getItem(tokenKey);
-    return token ? { authorization: `Bearer ${token}` } : {};
+    return memory.token ? { authorization: `Bearer ${memory.token}` } : {};
   }
 
-  async function api(method, path, body) {
-    const response = await fetch(path, {
+  async function api(method, path, body, extraHeaders) {
+    const response = await fetchImpl(path, {
       method,
       headers: {
         ...authHeaders(),
+        ...(extraHeaders ?? {}),
         ...(body ? { "content-type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
     const payload = await response.json();
+    if (response.status === 401) memory.token = null;
     if (!response.ok) {
       throw new Error(typeof payload.error === "string" ? payload.error : "Request failed.");
     }
@@ -129,34 +138,66 @@ function wirePage() {
   }
 
   async function refreshStatus() {
-    if (!sessionStorage.getItem(tokenKey) || !statusOut) return;
+    if (!memory.token || !statusOut) return;
     const status = await api("GET", "/api/status");
     statusOut.textContent = [
-      `Inloggad: ja`,
+      "Inloggad: ja",
       `Pi parad: ${status.device.paired ? status.device.deviceId : "nej"}`,
       `Leverantör: ${status.provider.configured ? status.provider.id : "saknas"}`,
       `E-post: ${status.email.status}`,
     ].join("\n");
   }
 
+  function guard(action) {
+    return async (event) => {
+      try {
+        if (event?.preventDefault) event.preventDefault();
+        await action();
+      } catch (error) {
+        say(error instanceof Error ? error.message : "Något gick fel.");
+      }
+    };
+  }
+
   signInForm?.addEventListener(
     "submit",
-    guard(async (event) => {
-      event.preventDefault();
-      const email = new FormData(signInForm).get("email");
-      const session = await api("POST", "/api/auth/sign-in", { email: String(email) });
-      sessionStorage.setItem(tokenKey, session.token);
+    guard(async () => {
+      const email = text(doc.querySelector("#email"));
+      await api("POST", "/api/auth/sign-in", { email });
+      say("Koden skickades. Skriv in den för att visa att adressen är din.");
+    }),
+  );
+
+  codeForm?.addEventListener(
+    "submit",
+    guard(async () => {
+      const email = text(doc.querySelector("#email"));
+      const code = text(doc.querySelector("#email-code"));
+      const session = await api("POST", "/api/auth/confirm", { email, code });
+      memory.token = session.token;
+      const codeField = doc.querySelector("#email-code");
+      if (codeField) codeField.value = "";
       say(`Inloggad som ${session.email}`);
       await refreshStatus();
     }),
   );
 
+  signOutButton?.addEventListener(
+    "click",
+    guard(async () => {
+      await api("POST", "/api/auth/sign-out");
+      memory.token = null;
+      if (statusOut) statusOut.textContent = "Inte inloggad.";
+      say("Utloggad.");
+    }),
+  );
+
   pairForm?.addEventListener(
     "submit",
-    guard(async (event) => {
-      event.preventDefault();
-      const userCode = new FormData(pairForm).get("userCode");
-      const paired = await api("POST", "/api/pairing/confirm", { userCode: String(userCode) });
+    guard(async () => {
+      const userCode = text(doc.querySelector("#user-code"));
+      const keyFingerprint = text(doc.querySelector("#key-fingerprint"));
+      const paired = await api("POST", "/api/pairing/confirm", { userCode, keyFingerprint });
       say(`Parad med ${paired.deviceId}`);
       await refreshStatus();
     }),
@@ -164,22 +205,22 @@ function wirePage() {
 
   keyForm?.addEventListener(
     "submit",
-    guard(async (event) => {
-      event.preventDefault();
-      const form = new FormData(keyForm);
-      const apiKey = String(form.get("apiKey") ?? "");
-      const providerId = String(form.get("providerId") ?? "");
-      const status = await api("GET", "/api/status");
-      const pem = status.device.piPublicKeyPem;
-      if (!pem) {
-        say("Para ihop Pi:n först.");
+    guard(async () => {
+      const apiKey = text(doc.querySelector("#api-key"));
+      const providerId = text(doc.querySelector("#provider"));
+      if (!pi?.publicKeyPem) {
+        say("Starta Pi:n här så nyckeln finns lokalt. Molnet lämnar inte ut den.");
         return;
       }
-      const envelope = await encryptApiKeyInBrowser(apiKey, pem);
-      await api("POST", "/api/provider/key", { providerId, envelope });
-      const field = keyForm.querySelector("input[name=apiKey]");
+      await submitProviderKeyFromPage({
+        apiKey,
+        providerId,
+        publicKeyPem: pi.publicKeyPem,
+        post: (path, body) => api("POST", path, body),
+      });
+      const field = doc.querySelector("#api-key");
       if (field) field.value = "";
-      say("Nyckeln krypterades i webbläsaren. Molnet har bara chiffertext.");
+      say("Nyckeln krypterades med Pi:ns egen nyckel. Molnet har bara chiffertext.");
       await refreshStatus();
     }),
   );
@@ -196,21 +237,37 @@ function wirePage() {
   piStart?.addEventListener(
     "click",
     guard(async () => {
-      pi = await generatePiKeyPairInBrowser();
+      const generated = await generatePiKeyPairInBrowser();
+      const deviceId = `pi-${crypto.randomUUID().slice(0, 8)}`;
       const pending = await api("POST", "/api/pairing/begin", {
-        deviceId: "pi-web",
-        piPublicKeyPem: pi.publicKeyPem,
+        deviceId,
+        piPublicKeyPem: generated.publicKeyPem,
       });
-      pi.deviceCode = pending.deviceCode;
+      pi = {
+        deviceId,
+        publicKeyPem: generated.publicKeyPem,
+        deviceSecret: pending.deviceSecret,
+      };
       if (userCodeOut) userCodeOut.textContent = pending.userCode;
-      say("Pi väntar på koden. Den privata nyckeln lämnar inte den här panelen.");
+      if (fingerprintOut) fingerprintOut.textContent = await fingerprintPublicKey(generated.publicKeyPem);
+      const deviceOut = doc.querySelector("#pi-device-id");
+      if (deviceOut) deviceOut.textContent = deviceId;
+      say("Jämför fingeravtrycket med radion innan du bekräftar. Hemligheten lämnar inte Pi-panelen.");
     }),
   );
 
   piEmail?.addEventListener(
     "click",
     guard(async () => {
-      await api("POST", "/api/email/status", { deviceId: "pi-web", status: "connected" });
+      if (!pi?.deviceSecret) {
+        say("Starta ihopparning på Pi:n först.");
+        return;
+      }
+      await api("POST", "/api/email/status", {
+        deviceId: pi.deviceId,
+        status: "connected",
+        deviceSecret: pi.deviceSecret,
+      });
       say("Pi rapporterade e-poststatus. Ingen mejltoken skickades.");
       await refreshStatus();
     }),
@@ -219,8 +276,10 @@ function wirePage() {
   refreshStatus().catch(() => {
     if (statusOut) statusOut.textContent = "Inte inloggad.";
   });
+
+  return memory;
 }
 
 if (typeof document !== "undefined") {
-  wirePage();
+  attachAdminPage(document);
 }

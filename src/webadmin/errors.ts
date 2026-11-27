@@ -30,29 +30,24 @@ export function scrubSecrets(message: string, secrets: Iterable<string>): string
   return result;
 }
 
-export function webAdminError(
-  fixedMessage: string,
-  secrets: Iterable<string> = [],
-): Error {
-  const scrubbed = scrubSecrets(fixedMessage, secrets);
-  const error = new Error(scrubbed);
-  error.name = "WebAdminError";
-  return error;
+export class WebAdminError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebAdminError";
+  }
 }
 
-export function assertNoSecretFields(
+export function webAdminError(fixedMessage: string, secrets: Iterable<string> = []): WebAdminError {
+  return new WebAdminError(scrubSecrets(fixedMessage, secrets));
+}
+
+export function assertOnlyFields(
   payload: Record<string, unknown>,
-  forbiddenKeys: readonly string[],
+  allowed: readonly string[],
 ): void {
-  const found: string[] = [];
-  for (const key of forbiddenKeys) {
-    if (Object.prototype.hasOwnProperty.call(payload, key)) {
-      found.push(key);
-    }
-  }
-  if (found.length > 0) {
-    const leaked: string[] = [];
-    collectStrings(payload, leaked);
-    throw webAdminError("Secret fields are not accepted by the cloud admin.", leaked);
-  }
+  const extra = Object.keys(payload).filter((key) => !allowed.includes(key));
+  if (extra.length === 0) return;
+  const leaked: string[] = [];
+  collectStrings(payload, leaked);
+  throw webAdminError("Secret fields are not accepted by the cloud admin.", leaked);
 }
