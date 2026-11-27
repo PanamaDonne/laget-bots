@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ORDINARY_ROOM_SPEECH, hear, measureFalseAlarms } from "../src/wake.ts";
+import { ORDINARY_ROOM_SPEECH, WAKE_PHRASE, hear, measureFalseAlarms } from "../src/wake.ts";
 
 test("Kör Radio at the start wakes and keeps the Swedish command", () => {
   const heard = hear({ text: "Kör Radio, vad är klockan", playbackActive: false });
@@ -9,6 +9,25 @@ test("Kör Radio at the start wakes and keeps the Swedish command", () => {
   assert.equal(heard.woke, true);
   assert.equal(heard.command, "vad är klockan");
   assert.equal(heard.ignoredBecausePlayback, false);
+});
+
+test("a near miss from speech recognition still wakes", () => {
+  assert.equal(WAKE_PHRASE, "Kör Radio");
+  for (const text of [
+    "Kör radig och vad är klockan?",
+    "Kör radigo",
+    "Körradiv",
+    "Kör radibo",
+    "kor radio vad blir det för väder imorgon i Stockholm",
+  ]) {
+    const heard = hear({ text, playbackActive: false });
+    assert.equal(heard.woke, true, text);
+  }
+  const command = hear({
+    text: "Kör radig och vad är klockan?",
+    playbackActive: false,
+  });
+  assert.equal(command.command.includes("klockan"), true);
 });
 
 test("the wake phrase alone wakes and waits for speech", () => {
@@ -19,7 +38,7 @@ test("the wake phrase alone wakes and waits for speech", () => {
 });
 
 test("radio, kör, and a phrase in the middle do not wake", () => {
-  for (const text of ["radio", "Kör", "Jag lyssnar på radio", "Jag kör radio ikväll"]) {
+  for (const text of ["radio", "Kör", "Jag lyssnar på radio", "Jag kör radio ikväll", "kör radioaktiv", "Kör radiosändning"]) {
     const heard = hear({ text, playbackActive: false });
     assert.equal(heard.woke, false, text);
     assert.equal(heard.command, "");

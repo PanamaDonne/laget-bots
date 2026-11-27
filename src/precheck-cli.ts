@@ -8,7 +8,7 @@ import { readProcessCgroupLimits } from "./cgroup.ts";
 import { buildPrecheckReport } from "./precheck.ts";
 import { SV } from "./swedish.ts";
 import { envForLocalModels } from "./worker-env.ts";
-import { ORDINARY_ROOM_SPEECH, measureFalseAlarms } from "./wake.ts";
+import { ORDINARY_ROOM_SPEECH, hear, measureFalseAlarms } from "./wake.ts";
 
 const VOICE_FILE = "models/sv_SE-nst-medium.onnx";
 const UTTERANCE_FILE = "test/fixtures/utterance-16k-s16le.pcm";
@@ -19,6 +19,11 @@ export async function runPrecheck(): Promise<void> {
   const latencyMs = await measureLocalReplyLatency();
   if (latencyMs === null) {
     process.stderr.write(`${SV.voiceMissing}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (latencyMs === "no-wake") {
+    process.stderr.write(`${SV.wakeMissed}\n`);
     process.exitCode = 1;
     return;
   }
@@ -48,7 +53,7 @@ function offlineEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-async function measureLocalReplyLatency(): Promise<number | null> {
+async function measureLocalReplyLatency(): Promise<number | "no-wake" | null> {
   if (!existsSync(VOICE_FILE) || !existsSync(UTTERANCE_FILE)) return null;
   const utterance = readFileSync(UTTERANCE_FILE);
   if (utterance.length < 2) return null;
@@ -66,7 +71,8 @@ async function measureLocalReplyLatency(): Promise<number | null> {
       pcmBase64: utterance.toString("base64"),
       sampleRateHz: 16_000,
     });
-    if (heard?.op !== "transcript") return null;
+    if (heard?.op !== "transcript" || typeof heard.text !== "string") return null;
+    if (!hear({ text: heard.text, playbackActive: false }).woke) return "no-wake";
     const reply = await ask(child, lines, { op: "speak", text: mockedChatReply });
     if (reply?.op !== "audio" || typeof reply.pcmBase64 !== "string" || reply.pcmBase64.length === 0) {
       return null;
@@ -84,11 +90,11 @@ async function ask(
   child: ChildProcess,
   lines: LineQueue,
   request: { op: string; text?: string; pcmBase64?: string; sampleRateHz?: number },
-): Promise<{ op?: string; pcmBase64?: string; sampleRateHz?: number } | null> {
+): Promise<{ op?: string; text?: string; pcmBase64?: string; sampleRateHz?: number } | null> {
   child.stdin?.write(`${JSON.stringify(request)}\n`);
   const line = await lines.next(180_000);
   if (line === null) return null;
-  return JSON.parse(line) as { op?: string; pcmBase64?: string; sampleRateHz?: number };
+  return JSON.parse(line) as { op?: string; text?: string; pcmBase64?: string; sampleRateHz?: number };
 }
 
 class LineQueue {

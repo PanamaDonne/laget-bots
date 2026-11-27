@@ -4,16 +4,16 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
-import { captureArgs, playbackArgs } from "./audio.ts";
+import { captureArgs, ignoreStreamError, playbackArgs } from "./audio.ts";
 import { liveStartupLine, parseRadioArgs, reportedFailure } from "./cli.ts";
 import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
 import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
 import { readLedgerFile, writeLedgerFile } from "./ledger-file.ts";
 import { Lamp } from "./lamp.ts";
-import { armAfterHeard, decideListen, overlapTail } from "./listen.ts";
+import { armAfterHeard, audibleSlice, decideListen, overlapTail } from "./listen.ts";
 import { completeChat } from "./provider.ts";
 import { SV } from "./swedish.ts";
-import { handleHeard } from "./turn.ts";
+import { handleHeard, keepUsage } from "./turn.ts";
 import { envForLocalModels } from "./worker-env.ts";
 
 type VoiceReply = { pcm: Buffer; sampleRateHz: number };
@@ -50,7 +50,10 @@ async function main(): Promise<void> {
   let armed = false;
   let armedAt: number | null = null;
   let pending = Buffer.alloc(0);
-  let skipBytes = 0;
+  let readBytes = 0;
+  let echoFrom = 0;
+  let echoUntil = 0;
+  const micBytes = { received: 0 };
   const lamp = new Lamp();
   process.stderr.write(`${SV.listeningForWake}\n`);
 
@@ -72,11 +75,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  for await (const frame of framesFrom(mic.stdout)) {
-    if (skipBytes > 0) {
-      skipBytes -= frame.length;
-      continue;
-    }
+  for await (const raw of framesFrom(mic.stdout, micBytes)) {
+    const frameStart = readBytes;
+    readBytes += raw.length;
+    const frame = audibleSlice({ frameStart, frame: raw, echoFrom, echoUntil });
+    if (frame === null) continue;
     pending = Buffer.concat([pending, frame]);
     const decision = decideListen({
       armed,
@@ -89,7 +92,6 @@ async function main(): Promise<void> {
     if (decision === "disarm") {
       armed = false;
       armedAt = null;
-      usedTokens = 0;
       pending = Buffer.alloc(0);
       lamp.set("idle");
       continue;
@@ -116,25 +118,22 @@ async function main(): Promise<void> {
           replyTo(command, args.liveChoice, config, ledger, ledgerRoot, opened.writable, usedTokens),
         speak: async (speech) => {
           const audio = await voice.speak(speech);
+          const from = micBytes.received;
           const firstByteAt = await playPcm(config.audioDevice, audio);
-          const playedMs = Math.max(0, Date.now() - firstByteAt);
-          skipBytes = Math.ceil((16_000 * 2 * (playedMs + 400)) / 1_000);
+          echoFrom = from;
+          echoUntil = micBytes.received + 16_000 * 2 * 0.4;
           return { firstByteAt };
         },
       });
       if (result.latencyMs !== null) process.stderr.write(`${result.latencyMs}\n`);
       armed = armAfterHeard({ heardArmed: result.armed, spoke: result.spoke });
       if (armed && !wasArmed) armedAt = Date.now();
-      if (armed && result.usedTokens !== null) usedTokens = result.usedTokens;
-      if (!armed) {
-        armedAt = null;
-        usedTokens = 0;
-      }
+      if (!armed) armedAt = null;
+      usedTokens = keepUsage(usedTokens, result.usedTokens);
       if (!result.spoke && !result.armed) pending = overlapTail(pcm);
     } catch {
       armed = false;
       armedAt = null;
-      usedTokens = 0;
       pending = Buffer.alloc(0);
       lamp.set("idle");
     }
@@ -249,11 +248,15 @@ async function startVoice(): Promise<{
   };
 }
 
-async function* framesFrom(stream: NodeJS.ReadableStream): AsyncGenerator<Buffer> {
+async function* framesFrom(
+  stream: NodeJS.ReadableStream,
+  micBytes: { received: number },
+): AsyncGenerator<Buffer> {
   const chunks: Buffer[] = [];
   let ended = false;
   let notify: (() => void) | null = null;
   stream.on("data", (chunk: Buffer) => {
+    micBytes.received += chunk.length;
     chunks.push(chunk);
     notify?.();
   });
@@ -281,16 +284,33 @@ async function playPcm(device: string, audio: VoiceReply): Promise<number> {
     stdio: ["pipe", "ignore", "pipe"],
     env: envForLocalModels(process.env),
   });
+  if (child.stdin === null) throw new Error(SV.audioMissing);
+  const stdin = child.stdin;
   const firstByteAt = Date.now();
-  child.stdin.write(audio.pcm);
-  child.stdin.end();
-  await new Promise<void>((resolveDone, reject) => {
-    child.on("error", () => reject(new Error(SV.audioMissing)));
+  let settled = false;
+  const finished = new Promise<void>((resolveDone, reject) => {
+    const fail = (): void => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(SV.audioMissing));
+    };
+    child.on("error", fail);
+    stdin.on("error", fail);
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
       if (code === 0) resolveDone();
       else reject(new Error(SV.audioMissing));
     });
   });
+  ignoreStreamError(stdin);
+  try {
+    stdin.write(audio.pcm);
+    stdin.end();
+  } catch {
+    // A dead player reports the failure through the close or error event.
+  }
+  await finished;
   return firstByteAt;
 }
 

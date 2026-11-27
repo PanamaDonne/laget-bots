@@ -1,4 +1,10 @@
+import type { EventEmitter } from "node:events";
+
 import { SV } from "./swedish.ts";
+
+export function ignoreStreamError(stream: EventEmitter): void {
+  stream.on("error", () => undefined);
+}
 
 export function captureArgs(device: string): string[] {
   assertDevice(device);

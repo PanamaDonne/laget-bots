@@ -4,7 +4,12 @@ import test from "node:test";
 
 import { Lamp } from "../src/lamp.ts";
 import { SV } from "../src/swedish.ts";
-import { handleHeard, type HeardInput } from "../src/turn.ts";
+import { handleHeard, keepUsage, type HeardInput } from "../src/turn.ts";
+
+test("reported token use stays when a later turn has no new count", () => {
+  assert.equal(keepUsage(40, null), 40);
+  assert.equal(keepUsage(40, 90), 90);
+});
 
 function heard(overrides: Partial<HeardInput> = {}): HeardInput {
   return {

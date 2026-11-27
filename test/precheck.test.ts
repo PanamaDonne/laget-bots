@@ -39,6 +39,8 @@ test("the pre-check times local Whisper and Piper and does not call the chat mod
   assert.match(source, /mockedChatReply/);
   assert.match(source, /utterance-16k-s16le\.pcm/);
   assert.match(source, /HF_HUB_OFFLINE/);
+  assert.match(source, /hear\(/);
+  assert.match(source, /no-wake/);
   assert.equal(source.includes("completeChat"), false);
   assert.equal(source.includes("fetch("), false);
   assert.equal(source.includes("calledModel"), false);

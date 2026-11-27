@@ -28,6 +28,10 @@ export type HeardResult = {
   lamp: Lamp;
 };
 
+export function keepUsage(current: number, reported: number | null): number {
+  return reported === null ? current : reported;
+}
+
 export async function handleHeard(input: HeardInput): Promise<HeardResult> {
   const quiet = {
     armed: input.armed,

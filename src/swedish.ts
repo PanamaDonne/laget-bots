@@ -13,4 +13,5 @@ export const SV = {
   invalidDevice: "Ljudenheten är ogiltig.",
   unknownArg: "Okänt argument.",
   liveKeyMissing: "Direktsvar är på, men nyckeln saknas.",
+  wakeMissed: "Väckfrasen hördes inte.",
 } as const;

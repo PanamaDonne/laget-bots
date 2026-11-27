@@ -1,4 +1,5 @@
-export const WAKE_PATTERN = /^\s*k[öo]r\s+radio\b[\s,.:;!?]*/i;
+export const WAKE_PHRASE = "Kör Radio";
+const WAKE_PATTERN = /^\s*k[öo]r+\s*radi[a-z]{0,3}(?!\p{L})[\s,.:;!?]*/iu;
 
 export const ORDINARY_ROOM_SPEECH = [
   "kan du skicka saltet",

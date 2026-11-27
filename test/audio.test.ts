@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { captureArgs, isSilence, playbackArgs, rms } from "../src/audio.ts";
+import { captureArgs, ignoreStreamError, isSilence, playbackArgs, rms } from "../src/audio.ts";
 
 test("only the audio device changes between the computer and the Pi", () => {
   const desk = captureArgs("default");
@@ -15,6 +16,16 @@ test("only the audio device changes between the computer and the Pi", () => {
   assert.equal(pi.includes("plughw:1,0"), true);
   assert.equal(playbackArgs("default", 22050).includes("22050"), true);
   assert.equal(playbackArgs("plughw:1,0", 22050).includes("plughw:1,0"), true);
+});
+
+test("a closed playback stream reports the error instead of crashing", async () => {
+  const stdin = new PassThrough();
+  ignoreStreamError(stdin);
+  stdin.destroy(new Error("write EPIPE"));
+  await new Promise((resolveDone) => {
+    setImmediate(resolveDone);
+  });
+  assert.equal(stdin.destroyed, true);
 });
 
 test("silence is a low signal and a raised frame is not", () => {
