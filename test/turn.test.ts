@@ -194,23 +194,21 @@ test("a failure to speak still returns the radio to idle", async () => {
   assert.equal(lamp.state, "idle");
 });
 
-test("the radio loop settles a reply, a failure, and the ten-second wait through one function", () => {
-  const source = readFileSync(new URL("../src/radio-main.ts", import.meta.url), "utf8");
-  assert.equal(source.includes("usageAfterTurn("), false);
-  const branches = [
-    { from: 'decision === "disarm"', to: 'decision === "skip-silent"', kind: '{ kind: "timeout" }' },
-    { from: "const result = await handleHeard", to: "} catch {", kind: 'kind: "reply"' },
-    { from: "} catch {", to: "endMicrophone()", kind: '{ kind: "failed" }' },
-  ];
-  for (const branch of branches) {
-    const start = source.indexOf(branch.from);
-    const end = source.indexOf(branch.to, start + branch.from.length);
-    assert.equal(start >= 0 && end > start, true, branch.kind);
-    const slice = source.slice(start, end);
-    assert.match(slice, /\(\{\s*armed,\s*armedAt,\s*pending,\s*usedTokens\s*\}\s*=\s*settleAfterTurn\(/);
-    assert.equal(slice.includes(branch.kind), true, branch.kind);
-    assert.equal(slice.includes("usageAfterTurn("), false, branch.kind);
-  }
+test("kör radio 2 does not send the digit to the model", async () => {
+  let called = false;
+  const answered = await handleHeard(
+    heard({
+      text: "kör radio 2",
+      complete: async () => {
+        called = true;
+        return { text: "nej", calledModel: true };
+      },
+    }),
+  );
+
+  assert.equal(called, false);
+  assert.equal(answered.armed, true);
+  assert.equal(answered.spoke, false);
 });
 
 test("the voice worker keeps audio in memory and filters silence", () => {

@@ -168,8 +168,9 @@ test("text without a letter after the wake phrase is not sent", async () => {
     ...utterance(micBytes),
     ...utterance(micBytes),
     ...utterance(micBytes),
+    ...utterance(micBytes),
   ];
-  const lines = ["Kör Radio", "-", "0", "..."];
+  const lines = ["Kör Radio", "-", "0", "...", "kör radio 2"];
   const heard: string[] = [];
   let sent = 0;
   await runRadioLoop({
@@ -192,4 +193,126 @@ test("text without a letter after the wake phrase is not sent", async () => {
 
   assert.deepEqual(heard, lines);
   assert.equal(sent, 0);
+});
+
+function chat(onFetch: () => void) {
+  const ledger = { month: "2026-11", spentOre: 0 };
+  return (command: string, usedTokens: number) =>
+    completeChat({
+      liveChoice: true,
+      apiKey: "fake-key",
+      baseUrl: "https://chat.example/v1",
+      model: "eu-model",
+      providerId: "eu-chat",
+      userText: command,
+      tokenCap: 4_000,
+      usedTokens,
+      orePerMillion: 1,
+      ledger,
+      now: new Date("2026-11-27T12:00:00.000Z"),
+      onLedger: (next) => {
+        ledger.month = next.month;
+        ledger.spentOre = next.spentOre;
+      },
+      fetchImpl: async () => {
+        onFetch();
+        return Response.json({
+          choices: [{ message: { content: "Hej." } }],
+          usage: { total_tokens: 10 },
+        });
+      },
+    });
+}
+
+test("the reply path keeps the settled token count", async () => {
+  const micBytes = { received: 0 };
+  const frames = [...utterance(micBytes), ...utterance(micBytes), ...utterance(micBytes), ...utterance(micBytes)];
+  let fetches = 0;
+  let heard = 0;
+  await runRadioLoop({
+    frames: (async function* generate() {
+      for (const frame of frames) yield frame;
+    })(),
+    micBytes,
+    usedTokens: 4_500,
+    now: () => 1_000,
+    transcribe: async () => {
+      heard += 1;
+      return "Kör Radio vad är klockan";
+    },
+    complete: chat(() => {
+      fetches += 1;
+    }),
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => 1_000,
+  });
+
+  assert.equal(heard, 4);
+  assert.equal(fetches, 3);
+});
+
+test("the ten-second wait keeps the settled token count", async () => {
+  const micBytes = { received: 0 };
+  const wake = utterance(micBytes);
+  const tick = Buffer.alloc(320);
+  micBytes.received += tick.length;
+  const frames = [...wake, tick, ...utterance(micBytes)];
+  let clock = 1_000;
+  let fetches = 0;
+  const lines = ["Kör Radio", "Kör Radio vad är klockan"];
+  let heard = 0;
+  await runRadioLoop({
+    frames: (async function* generate() {
+      for (const frame of frames) {
+        if (frame.length === 320) clock = 12_000;
+        yield frame;
+      }
+    })(),
+    micBytes,
+    usedTokens: 4_500,
+    now: () => clock,
+    transcribe: async () => {
+      const line = lines[heard] ?? "";
+      heard += 1;
+      return line;
+    },
+    complete: chat(() => {
+      fetches += 1;
+    }),
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => clock,
+  });
+
+  assert.equal(heard, 2);
+  assert.equal(fetches, 1);
+});
+
+test("a failed turn keeps the settled token count", async () => {
+  const micBytes = { received: 0 };
+  const frames = [...utterance(micBytes), ...utterance(micBytes), ...utterance(micBytes)];
+  const lines = ["Kör Radio", "throw", "Kör Radio vad är klockan"];
+  let heard = 0;
+  let fetches = 0;
+  await runRadioLoop({
+    frames: (async function* generate() {
+      for (const frame of frames) yield frame;
+    })(),
+    micBytes,
+    usedTokens: 4_500,
+    now: () => 1_000,
+    transcribe: async () => {
+      const line = lines[heard] ?? "";
+      heard += 1;
+      if (line === "throw") throw new Error("stt down");
+      return line;
+    },
+    complete: chat(() => {
+      fetches += 1;
+    }),
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => 1_000,
+  });
+
+  assert.equal(heard, 3);
+  assert.equal(fetches, 1);
 });

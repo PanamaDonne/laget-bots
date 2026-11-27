@@ -90,7 +90,6 @@ export async function handleHeard(input: HeardInput): Promise<HeardResult> {
   }
 
   const heard = hear({ text: input.text, playbackActive: false });
-  const followUp = !heard.woke && input.armed && !input.pushToTalk;
   const command = heard.woke
     ? heard.command
     : input.pushToTalk || input.armed
@@ -100,7 +99,7 @@ export async function handleHeard(input: HeardInput): Promise<HeardResult> {
     return { ...quiet, armed: false };
   }
 
-  if (command.length === 0 || (followUp && !/\p{L}/u.test(command))) {
+  if (command.length === 0 || !/\p{L}/u.test(command)) {
     input.lamp.set("listening");
     return { ...quiet, armed: true };
   }

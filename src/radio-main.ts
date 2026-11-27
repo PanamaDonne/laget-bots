@@ -49,9 +49,10 @@ export async function runRadioLoop(input: {
   play: (audio: VoiceReply) => Promise<number>;
   now?: () => number;
   onLatency?: (latencyMs: number) => void;
+  usedTokens?: number;
 }): Promise<void> {
   const now = input.now ?? Date.now;
-  let usedTokens = 0;
+  let usedTokens = input.usedTokens ?? 0;
   let armed = false;
   let armedAt: number | null = null;
   let pending: Buffer = Buffer.alloc(0);
