@@ -1,0 +1,125 @@
+#!/bin/sh
+# Rough latency report in a 4 CPU / 2 GB limit. Local KB-Whisper and Piper run.
+# The chat model is not called. This is not the PAN-300 3 second gate.
+set -eu
+cd "$(dirname "$0")/.."
+ROOT=$PWD
+
+has_word() {
+  for word in $1; do
+    if [ "$word" = "$2" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+check_sha() {
+  actual=$(sha256sum "$1" | awk '{ print $1 }')
+  if [ "$actual" != "$2" ]; then
+    echo "Röstfilen har fel kontrollsumma." >&2
+    exit 1
+  fi
+}
+
+prepare() {
+  if [ ! -x .venv/bin/python3 ]; then
+    python3 -m venv .venv
+    .venv/bin/pip install --disable-pip-version-check -r requirements.txt
+  fi
+  mkdir -p models
+  voice=models/sv_SE-nst-medium.onnx
+  voice_json=models/sv_SE-nst-medium.onnx.json
+  if [ -L "$voice" ] || [ -L "$voice_json" ]; then
+    echo "Röstfilen är en länk." >&2
+    exit 1
+  fi
+  base=https://huggingface.co/rhasspy/piper-voices/resolve/main/sv/sv_SE/nst/medium
+  if [ ! -f "$voice" ]; then
+    curl -fL --retry 3 -o "$voice.part" "$base/sv_SE-nst-medium.onnx"
+    mv "$voice.part" "$voice"
+  fi
+  if [ ! -f "$voice_json" ]; then
+    curl -fL --retry 3 -o "$voice_json.part" "$base/sv_SE-nst-medium.onnx.json"
+    mv "$voice_json.part" "$voice_json"
+  fi
+  check_sha "$voice" df011f56825a59dd1efc080c38a65a1ef70407e60f63050e9246f43a3d7e471e
+  check_sha "$voice_json" d45dd74cbb4eca58694bf04a97e243044092476f28a55ae26424f0653086980a
+  if [ ! -e models/whisper/models--KBLab--kb-whisper-base/refs/main ]; then
+    .venv/bin/python3 -c 'from faster_whisper import WhisperModel; WhisperModel("KBLab/kb-whisper-base", device="cpu", compute_type="int8", download_root="models/whisper")'
+  fi
+}
+
+run_node() {
+  node --experimental-strip-types src/precheck-cli.ts
+}
+
+if [ "${RADIO_DAYS_PRECHECK_CHILD:-}" != "1" ]; then
+  prepare
+fi
+export PATH="$ROOT/.venv/bin:$PATH"
+
+if [ "${RADIO_DAYS_PRECHECK_CHILD:-}" = "1" ]; then
+  run_node
+  exit $?
+fi
+
+if command -v systemd-run >/dev/null 2>&1; then
+  if systemd-run --quiet --scope \
+    -p MemoryMax=2G \
+    -p MemorySwapMax=0 \
+    -p CPUQuota=400% \
+    env RADIO_DAYS_PRECHECK_CHILD=1 PATH="$PATH" \
+    node --experimental-strip-types src/precheck-cli.ts 2>/dev/null
+  then
+    exit 0
+  fi
+fi
+
+rel=$(awk -F: '/^0::/ { print substr($0, 4) }' /proc/self/cgroup)
+here=/sys/fs/cgroup$rel
+parent=$(dirname "$here")
+child=$parent/radio-days-precheck
+# A child limit is used only when cpu and memory are already delegated.
+# The parent controller list is never changed.
+controls=""
+if [ -f "$parent/cgroup.subtree_control" ]; then
+  controls=$(cat "$parent/cgroup.subtree_control" 2>/dev/null || true)
+fi
+if [ "$parent" != "/sys/fs/cgroup" ] && has_word "$controls" cpu && has_word "$controls" memory; then
+  rmdir "$child" 2>/dev/null || true
+  if mkdir "$child" 2>/dev/null \
+    && echo 2147483648 > "$child/memory.max" \
+    && echo "400000 100000" > "$child/cpu.max" \
+    && echo $$ > "$child/cgroup.procs"
+  then
+    cleanup() {
+      echo $$ > "$here/cgroup.procs" 2>/dev/null || true
+      rmdir "$child" 2>/dev/null || true
+    }
+    trap cleanup EXIT
+    set +e
+    RADIO_DAYS_PRECHECK_CHILD=1 run_node
+    status=$?
+    set -e
+    cleanup
+    trap - EXIT
+    exit "$status"
+  fi
+fi
+
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  exec docker run --rm \
+    --cpus=4 \
+    --memory=2g \
+    --memory-swap=2g \
+    -v "$PWD":/work \
+    -w /work \
+    -e RADIO_DAYS_PRECHECK_CHILD=1 \
+    -e PATH="/work/.venv/bin:/usr/local/bin:/usr/bin:/bin" \
+    node:24-bookworm-slim \
+    node --experimental-strip-types src/precheck-cli.ts
+fi
+
+echo "Förhandskollen körs utan gräns på 4 kärnor och 2 GB." >&2
+RADIO_DAYS_PRECHECK_CHILD=1 run_node
