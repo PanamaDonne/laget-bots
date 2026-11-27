@@ -10,11 +10,13 @@ Teammotorn från Laget Bots är avstängd. Repot behåller TypeScript, CI, hemli
 
 `npm run radio` lyssnar efter ”Kör Radio” och svarar på svenska. Ljudenheten står i `radio-days.config.json` under `audioDevice`. Samma kod och övrig konfiguration används på datorn, i en Linux-container och på Pi 4.
 
-Direktsvar mot en chattmodell kräver ett uttryckligt val: `npm run radio -- --live`. Nyckeln läses från `RADIO_DAYS_API_KEY`. En nyckel i miljön utan `--live` startar inget betalt anrop. Modellen väljs med `RADIO_DAYS_MODEL` och `RADIO_DAYS_PROVIDER_BASE_URL`. Priset inklusive moms, i öre per miljon token, sätts med `RADIO_DAYS_ORE_PER_MILLION`.
+Direktsvar mot en chattmodell kräver ett uttryckligt val: `npm run radio -- --live`. Nyckeln läses från `RADIO_DAYS_API_KEY`. En nyckel i miljön utan `--live` startar inget betalt anrop. Modellen väljs med `RADIO_DAYS_MODEL` och `RADIO_DAYS_PROVIDER_BASE_URL`. Priset inklusive moms, i öre per miljon token, sätts med `RADIO_DAYS_ORE_PER_MILLION`. Sätt det till det högre av inpris och utpris.
 
-Lokal taligenkänning är KB-Whisper base (`KBLab/kb-whisper-base`). Rösten är Piper `sv_SE-nst-medium` och ligger kvar i minnet mellan svar. `scripts/voice-worker.py` behöver `faster-whisper` och `piper-tts`, och röstfilen `models/sv_SE-nst-medium.onnx`. Testerna använder mockar och anropar inte modellerna.
+Lokal taligenkänning är KB-Whisper base (`KBLab/kb-whisper-base`). Rösten är Piper `sv_SE-nst-medium` och ligger kvar i minnet mellan svar. Installera paketen med `pip install -r requirements.txt`. Första körningen hämtar KB-Whisper från Hugging Face till `models/`. Röstfilen `models/sv_SE-nst-medium.onnx` måste ligga på plats. Testerna använder mockar och anropar inte modellerna.
 
-`npm run latency-report` skriver svarstid. `sh scripts/precheck-container.sh` kör samma kontroll i en container med 4 kärnor och 2 GB minne. Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300.
+Efter ”Kör Radio” väntar radion högst tio sekunder. Tyst ljud skickas inte till taligenkänningen. Ett yttrande slutar vid första tysta biten efter ungefär en sekund, med tröskeln rms 500, så en kort paus kan klippa meningen. När ett svar har talats skrivs millisekunderna ensamma på standard error.
+
+`npm run latency-report` skriver gränserna. `latencyMs` är svarstid bara när de lokala modellerna redan finns på disk (`latencyKind` är då `model`). Annars är `latencyMs` null och `latencyKind` är `not-measured`. `sh scripts/precheck-container.sh` försöker köra samma kontroll med 4 kärnor och 2 GB minne. Om gränsen inte går att sätta står det på standard error, och rapporten har `enforcedCpus` null. Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300.
 
 Kräver Node 24.
 

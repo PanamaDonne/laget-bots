@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CAP_ORE } from "../src/cost.ts";
-import { completeChat, type ChatInput } from "../src/provider.ts";
+import { CHAT_TIMEOUT_MS, completeChat, type ChatInput } from "../src/provider.ts";
 import { SV } from "../src/swedish.ts";
 
 const KEY = "fake-key";
@@ -150,6 +150,31 @@ test("HTTP failures keep the provider id and status and drop the body, key, and 
       return true;
     },
   );
+});
+
+test("a failed call keeps the reservation that was written before the request", async () => {
+  let fetchStarted = false;
+  let reservedFirst = false;
+  let signal: AbortSignal | undefined;
+  await assert.rejects(
+    () =>
+      completeChat(
+        input({
+          onLedger: (ledger) => {
+            reservedFirst = !fetchStarted && ledger.spentOre > 0;
+          },
+          fetchImpl: async (_url, init) => {
+            fetchStarted = true;
+            signal = init?.signal ?? undefined;
+            throw new Error("down");
+          },
+        }),
+      ),
+  );
+
+  assert.equal(reservedFirst, true);
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(CHAT_TIMEOUT_MS, 15_000);
 });
 
 test("a network failure is fixed text with the key and user text scrubbed", async () => {

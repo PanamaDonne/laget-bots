@@ -8,22 +8,23 @@ export type PrecheckReport = {
   requestedMemoryMb: 2048;
   enforcedCpus: number | null;
   enforcedMemoryMb: number | null;
-  latencyMs: number;
+  latencyMs: number | null;
   ordinarySpeechFalseAlarms: number;
   ordinarySpeechChecked: number;
   modelsRan: boolean;
   whisperModel: typeof WHISPER_BASE;
-  latencyKind: "orchestration" | "end-to-end";
+  latencyKind: "model" | "not-measured";
 };
 
 export function buildPrecheckReport(input: {
-  latencyMs: number;
+  latencyMs: number | null;
   falseAlarms: number;
   checked: number;
   modelsRan: boolean;
   enforcedCpus: number | null;
   enforcedMemoryMb: number | null;
 }): PrecheckReport {
+  const latencyMs = input.modelsRan ? input.latencyMs : null;
   return {
     kind: "radio-days-precheck",
     countsAsThreeSecondGate: false,
@@ -32,11 +33,11 @@ export function buildPrecheckReport(input: {
     requestedMemoryMb: 2048,
     enforcedCpus: input.enforcedCpus,
     enforcedMemoryMb: input.enforcedMemoryMb,
-    latencyMs: input.latencyMs,
+    latencyMs,
     ordinarySpeechFalseAlarms: input.falseAlarms,
     ordinarySpeechChecked: input.checked,
-    modelsRan: input.modelsRan,
+    modelsRan: latencyMs !== null,
     whisperModel: WHISPER_BASE,
-    latencyKind: input.modelsRan ? "end-to-end" : "orchestration",
+    latencyKind: latencyMs !== null ? "model" : "not-measured",
   };
 }

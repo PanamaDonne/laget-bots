@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { Lamp } from "../src/lamp.ts";
+import { SV } from "../src/swedish.ts";
 import { handleHeard, type HeardInput } from "../src/turn.ts";
 
 function heard(overrides: Partial<HeardInput> = {}): HeardInput {
@@ -42,7 +41,7 @@ test("a wake followed by Swedish speech speaks one reply and returns to idle", a
       speechEndedAt: 2_000,
       complete: async (command) => {
         assert.equal(command, "vad är klockan");
-        return { text: "Den är tre.", calledModel: true };
+        return { text: "Den är tre.", calledModel: true, usedTokens: 40 };
       },
       speak: async (text) => {
         spoken.push(text);
@@ -53,6 +52,7 @@ test("a wake followed by Swedish speech speaks one reply and returns to idle", a
 
   assert.equal(answered.spoke, true);
   assert.equal(answered.reply, "Den är tre.");
+  assert.equal(answered.usedTokens, 40);
   assert.equal(answered.latencyMs, 300);
   assert.deepEqual(spoken, ["Den är tre."]);
   assert.equal(lamp.state, "idle");
@@ -113,16 +113,53 @@ test("playback of Kör Radio does not start a turn", async () => {
   assert.equal(answered.lamp.state, "idle");
 });
 
-test("a turn does not write audio or a transcript", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "radio-days-turn-"));
+test("a provider error is spoken and the radio stays up", async () => {
+  const lamp = new Lamp();
+  const spoken: string[] = [];
   const answered = await handleHeard(
     heard({
+      lamp,
       text: "Kör Radio hej",
-      complete: async () => ({ text: "Hej.", calledModel: false }),
-      speak: async () => ({ firstByteAt: 1_010 }),
+      complete: async () => {
+        throw new Error("provider down");
+      },
+      speak: async (text) => {
+        spoken.push(text);
+        return { firstByteAt: 1_200 };
+      },
     }),
   );
 
+  assert.equal(answered.reply, SV.failed);
+  assert.equal(answered.armed, false);
   assert.equal(answered.spoke, true);
-  assert.deepEqual(readdirSync(dir), []);
+  assert.deepEqual(spoken, [SV.failed]);
+  assert.equal(lamp.state, "idle");
+});
+
+test("a failure to speak still returns the radio to idle", async () => {
+  const lamp = new Lamp();
+  const answered = await handleHeard(
+    heard({
+      lamp,
+      text: "Kör Radio hej",
+      complete: async () => {
+        throw new Error("provider down");
+      },
+      speak: async () => {
+        throw new Error("speaker down");
+      },
+    }),
+  );
+
+  assert.equal(answered.armed, false);
+  assert.equal(answered.spoke, false);
+  assert.equal(lamp.state, "idle");
+});
+
+test("the voice worker keeps audio in memory and filters silence", () => {
+  const source = readFileSync("scripts/voice-worker.py", "utf8");
+  assert.equal(source.includes("NamedTemporaryFile"), false);
+  assert.equal(source.includes("tempfile"), false);
+  assert.equal(source.includes("vad_filter=True"), true);
 });

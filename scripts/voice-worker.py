@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Local KB-Whisper and Piper. The process keeps both loaded and never sees the API key."""
+"""Local KB-Whisper and Piper. Audio stays in memory. The process never sees the API key."""
 
 import base64
 import json
 import sys
-import tempfile
-import wave
 from pathlib import Path
 
 WHISPER_MODEL = "KBLab/kb-whisper-base"
@@ -27,6 +25,7 @@ def fail(code):
 
 def load_models():
     try:
+        import numpy as np
         from faster_whisper import WhisperModel
         from piper import PiperVoice
     except ImportError:
@@ -40,47 +39,25 @@ def load_models():
         download_root=str(MODEL_DIR / "whisper"),
     )
     voice = PiperVoice.load(str(VOICE_PATH))
-    return whisper, voice
+    return np, whisper, voice
 
 
-def pcm_to_wav(pcm, sample_rate):
-    handle = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    path = Path(handle.name)
-    handle.close()
-    with wave.open(str(path), "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(sample_rate)
-        wav.writeframes(pcm)
-    return path
-
-
-def transcribe(whisper, pcm, sample_rate):
-    path = pcm_to_wav(pcm, sample_rate)
-    try:
-        segments, _info = whisper.transcribe(str(path), language="sv")
-        return "".join(segment.text for segment in segments).strip()
-    finally:
-        path.unlink(missing_ok=True)
+def transcribe(np, whisper, pcm):
+    audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
+    segments, _info = whisper.transcribe(audio, language="sv", vad_filter=True)
+    return "".join(segment.text for segment in segments).strip()
 
 
 def speak(voice, text):
-    handle = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    path = Path(handle.name)
-    handle.close()
-    try:
-        with wave.open(str(path), "wb") as wav:
-            voice.synthesize_wav(text, wav)
-        with wave.open(str(path), "rb") as wav:
-            rate = wav.getframerate()
-            pcm = wav.readframes(wav.getnframes())
-        return base64.b64encode(pcm).decode("ascii"), rate
-    finally:
-        path.unlink(missing_ok=True)
+    chunks = list(voice.synthesize(text))
+    if not chunks:
+        return "", 22050
+    pcm = b"".join(chunk.audio_int16_bytes for chunk in chunks)
+    return base64.b64encode(pcm).decode("ascii"), chunks[0].sample_rate
 
 
 def main():
-    whisper, voice = load_models()
+    np, whisper, voice = load_models()
     emit({"op": "ready", "whisper": WHISPER_MODEL, "voice": VOICE_ID})
     for line in sys.stdin:
         if line.strip() == "":
@@ -95,8 +72,7 @@ def main():
             break
         if op == "transcribe":
             pcm = base64.b64decode(request.get("pcmBase64", ""))
-            rate = int(request.get("sampleRateHz", 16000))
-            emit({"op": "transcript", "text": transcribe(whisper, pcm, rate)})
+            emit({"op": "transcript", "text": transcribe(np, whisper, pcm)})
             continue
         if op == "speak":
             encoded, rate = speak(voice, str(request.get("text", "")))

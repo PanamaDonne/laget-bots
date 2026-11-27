@@ -27,4 +27,5 @@ if [ "${RADIO_DAYS_PRECHECK_CHILD:-}" != "1" ] && command -v systemd-run >/dev/n
   fi
 fi
 
+echo "Förhandskollen körs utan gräns på 4 kärnor och 2 GB." >&2
 exec node --experimental-strip-types src/precheck-cli.ts

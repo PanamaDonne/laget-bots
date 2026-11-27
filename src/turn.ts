@@ -1,9 +1,11 @@
 import { Lamp } from "./lamp.ts";
+import { SV } from "./swedish.ts";
 import { hear } from "./wake.ts";
 
 export type Reply = {
   text: string;
   calledModel: boolean;
+  usedTokens?: number;
 };
 
 export type HeardInput = {
@@ -22,6 +24,7 @@ export type HeardResult = {
   spoke: boolean;
   reply: string | null;
   latencyMs: number | null;
+  usedTokens: number | null;
   lamp: Lamp;
 };
 
@@ -31,6 +34,7 @@ export async function handleHeard(input: HeardInput): Promise<HeardResult> {
     spoke: false,
     reply: null,
     latencyMs: null,
+    usedTokens: null,
     lamp: input.lamp,
   };
   if (input.playbackActive) {
@@ -53,14 +57,44 @@ export async function handleHeard(input: HeardInput): Promise<HeardResult> {
   }
 
   input.lamp.set("thinking");
-  const completed = await input.complete(command);
-  const spoken = await input.speak(completed.text);
-  input.lamp.set("idle");
-  return {
-    armed: false,
-    spoke: true,
-    reply: completed.text,
-    latencyMs: spoken.firstByteAt - input.speechEndedAt,
-    lamp: input.lamp,
-  };
+  try {
+    const completed = await input.complete(command);
+    const spoken = await input.speak(completed.text);
+    input.lamp.set("idle");
+    return {
+      armed: false,
+      spoke: true,
+      reply: completed.text,
+      latencyMs: spoken.firstByteAt - input.speechEndedAt,
+      usedTokens: completed.usedTokens ?? null,
+      lamp: input.lamp,
+    };
+  } catch {
+    return sayFailure(input);
+  }
+}
+
+async function sayFailure(input: HeardInput): Promise<HeardResult> {
+  try {
+    const spoken = await input.speak(SV.failed);
+    input.lamp.set("idle");
+    return {
+      armed: false,
+      spoke: true,
+      reply: SV.failed,
+      latencyMs: spoken.firstByteAt - input.speechEndedAt,
+      usedTokens: null,
+      lamp: input.lamp,
+    };
+  } catch {
+    input.lamp.set("idle");
+    return {
+      armed: false,
+      spoke: false,
+      reply: SV.failed,
+      latencyMs: null,
+      usedTokens: null,
+      lamp: input.lamp,
+    };
+  }
 }

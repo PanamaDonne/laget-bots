@@ -2,6 +2,8 @@ import { CAP_ORE, charge, costOre, type Ledger } from "./cost.ts";
 import { scrubError } from "./secrets.ts";
 import { SV } from "./swedish.ts";
 
+export const CHAT_TIMEOUT_MS = 15_000;
+
 export type ChatInput = {
   liveChoice: boolean;
   apiKey: string;
@@ -15,6 +17,7 @@ export type ChatInput = {
   ledger: Ledger;
   now: Date;
   fetchImpl: (url: string, init?: RequestInit) => Promise<Response>;
+  onLedger?: (ledger: Ledger) => void;
 };
 
 export type ChatResult = {
@@ -61,6 +64,7 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
   if (!estimated.allowed) {
     return { ...idle, text: SV.paused, ledger: estimated.ledger };
   }
+  input.onLedger?.(estimated.ledger);
 
   let response: Response;
   try {
@@ -76,6 +80,7 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
         messages,
         max_tokens: reserve,
       }),
+      signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
     });
   } catch (error) {
     throw scrubError(error, [input.apiKey], SV.failed);
@@ -98,6 +103,7 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
   const tokens = readTotalTokens(payload) ?? promptTokens + reserve;
   const billed = charge(input.ledger, costOre(tokens, input.orePerMillion), input.now);
   const ledger = billed.allowed ? billed.ledger : { month: estimated.ledger.month, spentOre: CAP_ORE };
+  input.onLedger?.(ledger);
   const notice = billed.notice;
   return {
     calledModel: true,

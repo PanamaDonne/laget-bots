@@ -4,19 +4,17 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
-import { captureArgs, isSilence, playbackArgs } from "./audio.ts";
+import { captureArgs, playbackArgs } from "./audio.ts";
 import { parseRadioArgs } from "./cli.ts";
 import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
-import { type Ledger } from "./cost.ts";
+import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
 import { readLedgerFile, writeLedgerFile } from "./ledger-file.ts";
 import { Lamp } from "./lamp.ts";
+import { decideListen, overlapTail } from "./listen.ts";
 import { completeChat } from "./provider.ts";
 import { SV } from "./swedish.ts";
 import { handleHeard } from "./turn.ts";
 import { envForLocalModels } from "./worker-env.ts";
-
-const FRAME_BYTES = 16_000 * 2;
-const WINDOW_BYTES = FRAME_BYTES * 2;
 
 type VoiceReply = { pcm: Buffer; sampleRateHz: number };
 
@@ -44,9 +42,11 @@ async function main(): Promise<void> {
   const config = loadRuntimeConfig(args.audioDevice);
   const voice = await startVoice();
   const ledgerRoot = resolve("data");
-  const ledger: Ledger = readLedgerFile(ledgerRoot, new Date());
+  const opened = openLedger(ledgerRoot);
+  const ledger = opened.ledger;
   let usedTokens = 0;
   let armed = false;
+  let armedAt: number | null = null;
   let pending = Buffer.alloc(0);
   let skipBytes = 0;
   const lamp = new Lamp();
@@ -64,32 +64,78 @@ async function main(): Promise<void> {
       continue;
     }
     pending = Buffer.concat([pending, frame]);
-    const speechEnded = armed && isSilence(frame, 500) && pending.length > FRAME_BYTES;
-    const wakeWindow = !armed && pending.length >= WINDOW_BYTES;
-    if (!speechEnded && !wakeWindow) continue;
+    const decision = decideListen({
+      armed,
+      armedAt,
+      now: Date.now(),
+      pending,
+      frame,
+    });
+    if (decision === "wait") continue;
+    if (decision === "disarm") {
+      armed = false;
+      armedAt = null;
+      usedTokens = 0;
+      pending = Buffer.alloc(0);
+      lamp.set("idle");
+      continue;
+    }
+    if (decision === "skip-silent") {
+      pending = Buffer.alloc(0);
+      continue;
+    }
 
     const pcm = pending;
     pending = Buffer.alloc(0);
     const speechEndedAt = Date.now();
-    const text = await voice.transcribe(pcm);
-    const result = await handleHeard({
-      text,
-      playbackActive: false,
-      pushToTalk: false,
-      armed,
-      speechEndedAt,
-      lamp,
-      complete: (command) => replyTo(command, args.liveChoice, config, ledger, ledgerRoot, usedTokens),
-      speak: async (speech) => {
-        const audio = await voice.speak(speech);
-        const firstByteAt = await playPcm(config.audioDevice, audio);
-        const playedMs = Math.max(0, Date.now() - firstByteAt);
-        skipBytes = Math.ceil((16_000 * 2 * (playedMs + 400)) / 1_000);
-        return { firstByteAt };
-      },
-    });
-    armed = result.armed;
-    if (result.spoke) usedTokens = 0;
+    try {
+      const text = await voice.transcribe(pcm);
+      const wasArmed = armed;
+      const result = await handleHeard({
+        text,
+        playbackActive: false,
+        pushToTalk: false,
+        armed,
+        speechEndedAt,
+        lamp,
+        complete: (command) =>
+          replyTo(command, args.liveChoice, config, ledger, ledgerRoot, opened.writable, usedTokens),
+        speak: async (speech) => {
+          const audio = await voice.speak(speech);
+          const firstByteAt = await playPcm(config.audioDevice, audio);
+          const playedMs = Math.max(0, Date.now() - firstByteAt);
+          skipBytes = Math.ceil((16_000 * 2 * (playedMs + 400)) / 1_000);
+          return { firstByteAt };
+        },
+      });
+      if (result.latencyMs !== null) process.stderr.write(`${result.latencyMs}\n`);
+      if (result.usedTokens !== null) usedTokens = result.usedTokens;
+      const keepTalking = result.spoke && result.reply !== SV.failed;
+      if (keepTalking || (result.armed && !wasArmed)) armedAt = Date.now();
+      armed = keepTalking || result.armed;
+      if (!armed) {
+        armedAt = null;
+        usedTokens = 0;
+      }
+      if (!result.spoke && !result.armed) pending = overlapTail(pcm);
+    } catch {
+      armed = false;
+      armedAt = null;
+      usedTokens = 0;
+      pending = Buffer.alloc(0);
+      lamp.set("idle");
+    }
+  }
+}
+
+function openLedger(root: string): { ledger: Ledger; writable: boolean } {
+  try {
+    return { ledger: readLedgerFile(root, new Date()), writable: true };
+  } catch {
+    return {
+      ledger: { month: stockholmMonth(new Date()), spentOre: CAP_ORE },
+      writable: false,
+    };
   }
 }
 
@@ -107,8 +153,9 @@ async function replyTo(
   config: RadioConfig,
   ledger: Ledger,
   ledgerRoot: string,
+  writable: boolean,
   usedTokens: number,
-): Promise<{ text: string; calledModel: boolean }> {
+): Promise<{ text: string; calledModel: boolean; usedTokens: number }> {
   const price = readOptionalInt(process.env.RADIO_DAYS_ORE_PER_MILLION);
   const result = await completeChat({
     liveChoice,
@@ -123,11 +170,13 @@ async function replyTo(
     ledger,
     now: new Date(),
     fetchImpl: (url, init) => fetch(url, init),
+    onLedger: (next) => {
+      ledger.month = next.month;
+      ledger.spentOre = next.spentOre;
+      if (writable) writeLedgerFile(ledgerRoot, ledger);
+    },
   });
-  ledger.month = result.ledger.month;
-  ledger.spentOre = result.ledger.spentOre;
-  writeLedgerFile(ledgerRoot, ledger);
-  return { text: result.text, calledModel: result.calledModel };
+  return { text: result.text, calledModel: result.calledModel, usedTokens: result.usedTokens };
 }
 
 function readOptionalInt(value: string | undefined): number | null {
