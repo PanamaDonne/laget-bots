@@ -121,7 +121,7 @@ ATECC608 and locking a memory-database key in a chip on the radio no longer fit 
 
 ## 5. Architecture
 
-The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the local home server (section 6).
+The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the local home server.
 
 | Part | v1 (local home server) |
 | -- | -- |
@@ -225,7 +225,7 @@ The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-3
 
 ## 10. Running cost
 
-**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.
+**Local models (Daniel, 2026-11-27).** v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.
 
 A token cap per conversation remains.
 

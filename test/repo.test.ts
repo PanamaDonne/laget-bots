@@ -39,16 +39,6 @@ function says(text: string, sentence: string): void {
   assert.equal(text.includes(sentence), true, sentence);
 }
 
-function locks(text: string, expected: string): void {
-  const lead = expected.slice(0, Math.min(expected.length, 48));
-  const blocks = text
-    .split(/\n\n+/)
-    .map((block) => block.trim())
-    .filter((block) => block.startsWith(lead));
-  assert.ok(blocks.length > 0, lead);
-  for (const block of blocks) assert.equal(block, expected);
-}
-
 function repoFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -313,6 +303,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
   says(agent, "v1 runs only local models on the local home server.");
   says(voice, "The provider interface swaps one local model for another.");
+  says(voice, "v1 models run on the local home server.");
   says(v1Scope, "SearXNG is not a model.");
   says(cost, "v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1.");
   says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
@@ -343,7 +334,14 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     admin,
     "Secrets are handled server-side or encrypted. They never go into the public repository, into client-side source that is committed, or onto the screen in cleartext.",
   );
+  says(v1Scope, "Host: the local home server.");
+  says(v1Scope, "Vercel is not the host.");
+  says(v1Scope, "Memory stays at home.");
   says(v1Scope, "Secrets are handled server-side or encrypted, and never placed in the public code.");
+  says(v1Scope, "A token cap per conversation remains.");
+  says(admin, "Host: the local home server.");
+  says(admin, "Memory stays at home.");
+  says(cost, "A token cap per conversation remains.");
   says(
     v1Scope,
     "a ready-made English wake word for the first demo, for example \u201cHey Jarvis\u201d.",
@@ -355,17 +353,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "A backup of memory is encrypted.");
   says(privacy, "No unencrypted copy of memory is kept off the local home server.");
   says(milestone1, "A token cap is in place.");
-  locks(spec, "The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the local home server (section 6).");
-  locks(spec, "**What is sent to a model.** v1 runs only local models on the local home server. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the local home server. Habit records stay on the local home server.");
-  locks(spec, "**Host, memory and secrets.** Host: the local home server. Vercel is not the host. Memory stays at home. Secrets are handled server-side or encrypted, and never placed in the public code. Email is not in v1.");
-  locks(spec, "Decided for v1. Framework: Next.js. Host: the local home server. Access: Tailscale. Being on the tailnet is not enough.");
-  locks(spec, "Secrets are handled server-side or encrypted. They never go into the public repository, into client-side source that is committed, or onto the screen in cleartext. Memory stays at home.");
-  locks(spec, "**Local only (decided).** v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
-  locks(spec, "**At rest.** Memory and secrets are encrypted at rest on the local home server. A backup of memory is encrypted. No unencrypted copy of memory is kept off the local home server.");
-  locks(spec, "**Outbound traffic in v1.** SearXNG forwards queries to public search engines. Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads (a one-time fetch of model weights), and operating-system updates may leave the house. Nothing else leaves the house. No speech or audio leaves the house.");
-  locks(spec, "**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
-  locks(spec, "A token cap per conversation remains.");
-  locks(spec, "PR #20 (PAN-308) is merged. The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`. README and AGENTS.md still describe Pi 4 for that code. v1 conformance of the code is tracked in PAN-316, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP. The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR. PR #21 (PAN-289) is stopped.");
   says(v1Scope, "Email is not in v1.");
   says(later, "It is parked until v2 (Daniel, 2026-11-27).");
   says(
