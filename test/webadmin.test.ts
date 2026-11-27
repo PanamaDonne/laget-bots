@@ -3,10 +3,13 @@ import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 import {
   createWebAdmin,
+  decryptApiKeyOnPi,
   encryptApiKeyForPi,
   handleAdminRequest,
   type CloudSnapshot,
 } from "../src/webadmin/index.ts";
+import { encryptApiKeyInBrowser } from "../src/webadmin/client.js";
+import { startWebAdminServer } from "../src/webadmin/serve.ts";
 
 function generatePiKeyPair(): { publicKeyPem: string; privateKeyPem: string } {
   const { publicKey, privateKey } = generateKeyPairSync("rsa", {
@@ -182,10 +185,16 @@ test("Pi can decrypt a key envelope that the cloud only stored as ciphertext", a
   const { publicKeyPem, privateKeyPem } = generatePiKeyPair();
   const apiKey = "sk-roundtrip-key";
   const envelope = await encryptApiKeyForPi(apiKey, publicKeyPem);
-
-  const { decryptApiKeyOnPi } = await import("../src/webadmin/crypto.ts");
   const plain = await decryptApiKeyOnPi(envelope, privateKeyPem);
   assert.equal(plain, apiKey);
+});
+
+test("browser webcrypto envelope decrypts with the Pi private key", async () => {
+  const { publicKeyPem, privateKeyPem } = generatePiKeyPair();
+  const apiKey = "sk-browser-only";
+  const envelope = await encryptApiKeyInBrowser(apiKey, publicKeyPem);
+  assert.equal(envelope.ciphertext.includes(apiKey), false);
+  assert.equal(await decryptApiKeyOnPi(envelope, privateKeyPem), apiKey);
 });
 
 test("email connection keeps tokens off the cloud", () => {
@@ -303,4 +312,67 @@ test("HTTP adapter covers sign-in through status without leaking the key", async
   assert.equal(serialized.includes(apiKey), false);
   assert.match(serialized, /"configured":true/);
   assert.match(serialized, /"email":\{"status":"connected"\}/);
+});
+
+test("hosted page encrypts the key in the client before the cloud stores status", async () => {
+  const server = await startWebAdminServer(0);
+  const base = `http://127.0.0.1:${server.port}`;
+  const apiKey = "sk-hosted-page-secret";
+  try {
+    const page = await fetch(`${base}/`);
+    const html = await page.text();
+    assert.equal(page.status, 200);
+    assert.match(html, /id="sign-in"/);
+    assert.match(html, /id="pair"/);
+    assert.match(html, /id="provider-key"/);
+    assert.match(html, /id="email-connect"/);
+    assert.match(html, /src="\/client.js"/);
+    assert.equal(html.includes(apiKey), false);
+
+    const client = await (await fetch(`${base}/client.js`)).text();
+    assert.match(client, /encryptApiKeyInBrowser/);
+    assert.match(client, /\/api\/provider\/key/);
+    assert.equal(client.includes("apiKey:"), false);
+
+    const { publicKeyPem } = generatePiKeyPair();
+    const signIn = await fetch(`${base}/api/auth/sign-in`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "daniel@example.com" }),
+    });
+    const session = (await signIn.json()) as { token: string };
+    const pending = await fetch(`${base}/api/pairing/begin`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: "pi-hosted", piPublicKeyPem: publicKeyPem }),
+    });
+    const pairing = (await pending.json()) as { userCode: string };
+    await fetch(`${base}/api/pairing/confirm`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ userCode: pairing.userCode }),
+    });
+    const envelope = await encryptApiKeyInBrowser(apiKey, publicKeyPem);
+    const saved = await fetch(`${base}/api/provider/key`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ providerId: "scaleway", envelope }),
+    });
+    assert.equal(saved.status, 200);
+    const status = await fetch(`${base}/api/status`, {
+      headers: { authorization: `Bearer ${session.token}` },
+    });
+    const body = await status.text();
+    assert.equal(body.includes(apiKey), false);
+    assert.match(body, /"configured":true/);
+    assert.equal(body.includes(envelope.ciphertext), false);
+  } finally {
+    await server.close();
+  }
 });

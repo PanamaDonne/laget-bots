@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "sync-skills": "node --experimental-strip-types src/sync-skills.ts"
+    "sync-skills": "node --experimental-strip-types src/sync-skills.ts",
+    "webadmin": "node --experimental-strip-types src/webadmin/serve.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

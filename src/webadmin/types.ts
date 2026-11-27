@@ -25,6 +25,8 @@ export interface ConnectionStatus {
   device: {
     paired: boolean;
     deviceId: string | null;
+    /** Public key only. The cloud never has the Pi private key. */
+    piPublicKeyPem: string | null;
   };
   provider: {
     configured: boolean;

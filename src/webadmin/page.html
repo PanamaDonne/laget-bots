@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radio Days webbadmin</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1c1915;
+        --paper: #f6f1e7;
+        --panel: #fffaf3;
+        --line: #d9cbb8;
+        --accent: #8c3b2a;
+      }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", Palatino, Georgia, serif;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-weight: 500;
+        letter-spacing: 0.02em;
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 0.75rem;
+        padding: 1rem 1.1rem 1.2rem;
+        margin: 1rem 0;
+      }
+      label {
+        display: block;
+        margin: 0.6rem 0 0.25rem;
+      }
+      input, select, button {
+        font: inherit;
+      }
+      input, select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.45rem 0.55rem;
+        border: 1px solid var(--line);
+        border-radius: 0.4rem;
+        background: white;
+      }
+      button {
+        margin-top: 0.8rem;
+        background: var(--accent);
+        color: white;
+        border: 0;
+        border-radius: 0.4rem;
+        padding: 0.45rem 0.8rem;
+        cursor: pointer;
+      }
+      #status, #pi-user-code, #message {
+        white-space: pre-wrap;
+      }
+      #pi-user-code {
+        font-size: 1.6rem;
+        letter-spacing: 0.12em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Radio Days webbadmin</h1>
+      <p>Molnet visar status. API-nyckeln krypteras i webbläsaren och mejltoken stannar på Pi:n.</p>
+      <p id="message"></p>
+
+      <section>
+        <h2>Logga in</h2>
+        <form id="sign-in">
+          <label for="email">E-post</label>
+          <input id="email" name="email" type="email" autocomplete="username" required />
+          <button type="submit">Logga in</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Para ihop Pi</h2>
+        <form id="pair">
+          <label for="user-code">Kod från radion</label>
+          <input id="user-code" name="userCode" autocomplete="one-time-code" required />
+          <button type="submit">Bekräfta</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Leverantör och API-nyckel</h2>
+        <form id="provider-key">
+          <label for="provider">Leverantör</label>
+          <select id="provider" name="providerId">
+            <option value="scaleway">Scaleway</option>
+            <option value="ovh">OVH</option>
+          </select>
+          <label for="api-key">API-nyckel</label>
+          <input id="api-key" name="apiKey" type="password" autocomplete="off" required />
+          <button type="submit">Spara krypterad nyckel</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>E-post</h2>
+        <button id="email-connect" type="button">Koppla e-post</button>
+      </section>
+
+      <section>
+        <h2>Status</h2>
+        <p id="status">Inte inloggad.</p>
+      </section>
+
+      <section>
+        <h2>Pi på den här datorn</h2>
+        <p>Skelettet kan låtsas vara radion. Den privata nyckeln och mejltoken skickas inte till molnet.</p>
+        <button id="pi-start" type="button">Starta ihopparning</button>
+        <p id="pi-user-code"></p>
+        <button id="pi-email" type="button">Rapportera e-post kopplad</button>
+      </section>
+    </main>
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>

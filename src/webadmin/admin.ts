@@ -252,6 +252,7 @@ export function createWebAdmin(now: () => number = Date.now): WebAdmin {
         device: {
           paired: Boolean(device?.userId),
           deviceId: device?.userId ? device.deviceId : null,
+          piPublicKeyPem: device?.userId ? device.piPublicKeyPem : null,
         },
         provider: {
           configured: Boolean(device?.provider),

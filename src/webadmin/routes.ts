@@ -130,6 +130,7 @@ function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
         device: {
           paired: status.device.paired,
           deviceId: status.device.deviceId,
+          piPublicKeyPem: status.device.piPublicKeyPem,
         },
         provider: {
           configured: status.provider.configured,
