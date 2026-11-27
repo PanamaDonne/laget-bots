@@ -103,140 +103,88 @@ test("CI scans for secrets and vulnerable dependencies", () => {
   assert.match(ci, /npm audit/);
 });
 
-test("SPEC.md is the accepted Radio Days v2.0 product spec", () => {
+test("SPEC.md is the Radio Days v2.1 product spec", () => {
   const spec = readText("SPEC.md");
   const title = spec.split("\n", 1)[0] ?? "";
   const preamble = spec.split("\n## ")[0] ?? "";
 
   assert.match(title, /Radio Days/);
-  assert.match(title, /v2\.0/);
+  assert.match(title, /v2\.1/);
+  assert.match(preamble, /v2\.1/);
+  assert.match(preamble, /English/);
   assert.match(preamble, /accepted/);
-  assert.match(preamble, /v2\.0/);
   assert.match(spec, /PanamaDonne\/radio-days/);
 });
 
-test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
+test("SPEC.md records the local English voice chain", () => {
   const spec = readText("SPEC.md");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const cost = section(spec, "Running cost", "Plan");
 
   for (const fact of [
+    "Whisper",
+    "Parakeet",
+    "English",
+    "Qwen 2.5 7B",
+    "Llama 3.1 8B",
     "Piper",
-    "sv_SE-nst-medium",
-    "sv_SE-alma-medium",
-    "sv_SE-lisa-medium",
-    "ReadSpeaker",
+    "Kokoro",
     "fallback",
-    "KB-Whisper",
-    "stays loaded",
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
   }
-  for (const fact of ["pay-as-you-go", "99 SEK"]) {
+  for (const fact of ["99 SEK", "Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 });
 
-test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () => {
+test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
   const spec = readText("SPEC.md");
   const what = section(spec, "What it is", "Scope");
-  const hardware = section(spec, "Hardware", "An agent that learns");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const memory = section(spec, "Long-term memory", "Privacy, security and providers");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const open = spec.slice(spec.indexOf("**Open:**"));
+  const hardware = section(spec, "Hardware", "Architecture");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const cost = section(spec, "Running cost", "Plan");
 
-  for (const fact of ["Pi 4 Model B", "cheap to build", "cheap to run", "1 GB", "2 GB", "PAN-300", "Suggestions are driven"]) {
+  for (const fact of ["ESP32-S3", "Mac mini", "English", "Hey Jarvis", "500 SEK", "cassette"]) {
     assert.equal(what.includes(fact), true, `intro missing ${fact}`);
   }
 
-  for (const fact of [
-    "Pi 4 Model B",
-    "1 GB",
-    "2 GB",
-    "safe default",
-    "PAN-300",
-    "800",
-    "1,200",
-    "SEK",
-    "heatsink",
-    "DAC",
-    "USB",
-    "analog",
-    "Pi 3 B+",
-    "Pi Zero 2 W",
-    "not targets",
-  ]) {
+  for (const fact of ["ESP32-S3", "Mac mini", "500 SEK", "cassette", "16 GB"]) {
     assert.equal(hardware.includes(fact), true, `hardware missing ${fact}`);
   }
 
-  for (const fact of [
-    "sv_SE-lisa-medium",
-    "stays loaded",
-    "zero monthly cost",
-    "1 GB",
-    "2 GB",
-  ]) {
+  for (const fact of ["Whisper", "Parakeet", "English", "Piper", "Kokoro", "Postgres", "pgvector"]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  for (const fact of ["on the Pi", "not the v1 path", "PAN-300"]) {
-    assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
-  }
-
-  for (const fact of ["KB-Whisper", "pay-as-you-go", "zero monthly cost", "99 SEK", "on the Pi"]) {
+  for (const fact of ["99 SEK", "Mac mini"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
-
-  for (const fact of [
-    "Pi 4 Model B",
-    "1 GB",
-    "2 GB",
-    "sv_SE-lisa-medium",
-    "stays loaded",
-    "not the v1 path",
-    "99 SEK",
-  ]) {
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
-  }
-
-  for (const fact of ["Hardware fit", "Quiet hours", "RAM", "Embedding model", "PAN-300", "1 GB", "2 GB", "KB-Whisper"]) {
-    assert.equal(open.includes(fact), true, `open missing ${fact}`);
-  }
-  assert.equal(open.split("**RAM.**").length, 2);
-  assert.equal(open.split("**Embedding model").length, 2);
 });
 
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {
   const spec = readText("SPEC.md");
   const what = section(spec, "What it is", "Scope");
-  const behaviour = section(spec, "An agent that learns and decides", "Voice agent and everyday use");
-  const approval = section(spec, "Physical approval", "Evals");
-  const v1Scope = section(spec, "In scope for v1", "In scope for v2");
-  const later = section(spec, "Out of scope", "What is kept");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const memory = section(spec, "Long-term memory", "Privacy, security and providers");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
+  const behaviour = section(spec, "The agent, memory", "Web admin");
+  const v1Scope = section(spec, "In scope for v1", "Out of scope");
+  const later = section(spec, "Out of scope", "What changes");
+  const latency = section(spec, "Latency", "Running cost");
+  const cost = section(spec, "Running cost", "Plan");
   const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
-  const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
   const milestone4 = between(spec, "**Milestone 4:", "**Milestone 5:");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const open = spec.slice(spec.indexOf("**Open:**"));
+  const milestone6 = between(spec, "**Milestone 6:", "**v2");
 
   for (const title of [
-    "An agent that learns and decides",
-    "Long-term memory",
-    "Physical approval",
+    "The agent, memory and proactive jobs",
+    "Web admin",
     "Running cost",
-    "Decisions and open questions",
+    "Latency",
+    "Measurement, not an open product decision",
   ]) {
     assert.ok(headingIndex(spec, title) >= 0, title);
   }
 
-  for (const fact of ["Kör Radio", "habits", "morning brief"]) {
+  for (const fact of ["Hey Jarvis", "English", "Mac mini"]) {
     assert.equal(what.includes(fact), true, `intro missing ${fact}`);
   }
 
@@ -244,69 +192,38 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     "habits",
     "confident enough",
     "unsure",
-    "morning brief",
-    "deletes",
     "agrees",
-    "raw audio",
+    "Raw audio",
     "transcript",
-    "gmail.readonly",
-    "gmail.send",
-    "web search",
-    "untrusted",
-    "quiet hours",
-    "local list",
-    "anyone in the room",
-    "spoken code",
-    "unlock",
+    "Quiet hours",
+    "Postgres",
   ]) {
     assert.equal(behaviour.includes(fact), true, `behaviour missing ${fact}`);
   }
 
-  for (const fact of ["Kör Radio", "PAN-301", "conversation", "email", "calendar", "web search"]) {
+  for (const fact of ["Hey Jarvis", "English", "calendar", "web search", "PAN-301"]) {
     assert.equal(v1Scope.includes(fact), true, `v1 scope missing ${fact}`);
   }
-  for (const fact of ["Spotify", "III.3", "written permission"]) {
+  for (const fact of ["Spotify", "III.3", "written permission", "Email", "Swedish", "KB-Whisper"]) {
     assert.equal(later.includes(fact), true, `later missing ${fact}`);
   }
 
-  for (const fact of ["KB-Whisper", "Piper", "Kör Radio"]) {
-    assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
-  }
-
-  for (const fact of ["habits", "deletes", "on the Pi"]) {
-    assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
-  }
-
-  for (const fact of ["Kör Radio", "milestone 4"]) {
+  for (const fact of ["Hey Jarvis", "Whisper", "Parakeet", "English", "Kokoro"]) {
     assert.equal(milestone1.includes(fact), true, `milestone 1 missing ${fact}`);
   }
-  for (const fact of ["email", "calendar", "web search", "agrees", "not stored"]) {
-    assert.equal(milestone2.includes(fact), true, `milestone 2 missing ${fact}`);
-  }
-  for (const fact of ["deletes", "habit"]) {
+  for (const fact of ["English", "untrusted", "web radio"]) {
     assert.equal(milestone4.includes(fact), true, `milestone 4 missing ${fact}`);
   }
-
-  for (const fact of ["button", "mail"]) {
-    assert.equal(approval.includes(fact), true, `approval missing ${fact}`);
+  for (const fact of ["English", "3 second", "16 GB"]) {
+    assert.equal(milestone6.includes(fact), true, `milestone 6 missing ${fact}`);
   }
 
-  const evals = section(spec, "Evals", "Plan");
-  for (const fact of ["3 seconds", "PAN-300", "first audio", "not in CI"]) {
-    assert.equal(evals.includes(fact), true, `evals missing ${fact}`);
+  for (const fact of ["3 seconds", "PAN-300", "first audio", "not in CI", "English"]) {
+    assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "KB-Whisper", "pay-as-you-go"]) {
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
-  }
   assert.equal(cost.includes("99 SEK"), true);
   assert.equal(cost.includes("locked"), true);
-  assert.equal(cost.includes("90%"), true);
-  assert.equal(cost.includes("prepaid"), true);
-
-  for (const fact of ["Quiet hours", "still open", "RAM", "Embedding model", "PAN-303", "PAN-304", "PAN-306", "Email unlock"]) {
-    assert.equal(open.includes(fact), true, `open missing ${fact}`);
-  }
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
