@@ -32,8 +32,24 @@ export function costOre(tokens: number, orePerMillion: number): number {
   return Math.ceil((tokens * orePerMillion) / 1_000_000);
 }
 
+const EARLIEST_MONTH = "2026-01";
+
+function keepLedger(ledger: Ledger): ChargeResult {
+  return {
+    ledger: { month: ledger.month, spentOre: ledger.spentOre },
+    allowed: false,
+    notice: SV.clockUnknown,
+  };
+}
+
 export function charge(ledger: Ledger, cost: number, now: Date): ChargeResult {
-  const month = stockholmMonth(now);
+  let month: string;
+  try {
+    month = stockholmMonth(now);
+  } catch {
+    return keepLedger(ledger);
+  }
+  if (month < EARLIEST_MONTH || month < ledger.month) return keepLedger(ledger);
   const spent = ledger.month === month ? ledger.spentOre : 0;
   if (cost < 0 || spent + cost > CAP_ORE) {
     return { ledger: { month, spentOre: spent }, allowed: false, notice: SV.paused };

@@ -152,6 +152,33 @@ test("HTTP failures keep the provider id and status and drop the body, key, and 
   );
 });
 
+test("a clock before the stored month does not call the model or clear the counter", async () => {
+  let called = false;
+  const ledger = { month: "2026-11", spentOre: 4_000 };
+  const result = await completeChat(
+    input({
+      ledger,
+      now: new Date("1970-01-01T00:00:00.000Z"),
+      onLedger: (next) => {
+        ledger.month = next.month;
+        ledger.spentOre = next.spentOre;
+      },
+      fetchImpl: async () => {
+        called = true;
+        return Response.json({ choices: [{ message: { content: "nej" } }] });
+      },
+    }),
+  );
+
+  assert.equal(called, false);
+  assert.equal(result.calledModel, false);
+  assert.equal(result.text, SV.clockUnknown);
+  assert.equal(result.ledger.month, "2026-11");
+  assert.equal(result.ledger.spentOre, 4_000);
+  assert.equal(ledger.month, "2026-11");
+  assert.equal(ledger.spentOre, 4_000);
+});
+
 test("a shared ledger records the real cost, not the reservation plus the cost", async () => {
   const ledger = { month: "2026-11", spentOre: 0 };
   const result = await completeChat(

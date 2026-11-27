@@ -2,6 +2,7 @@ export const SV = {
   listeningForWake: "Lyssnar efter Kör Radio.",
   liveOff: "Jag hörde dig. Direktsvar är avstängt.",
   paused: "Moln-AI är pausad till nästa månad.",
+  clockUnknown: "Klockan är okänd. Moln-AI är pausad.",
   priceMissing: "Priset för samtalet är inte satt.",
   tokenCap: "Det här samtalet har nått sin gräns.",
   failed: "Samtalet kunde inte genomföras.",

@@ -5,6 +5,15 @@ set -eu
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 
+has_word() {
+  for word in $1; do
+    if [ "$word" = "$2" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 check_sha() {
   actual=$(sha256sum "$1" | awk '{ print $1 }')
   if [ "$actual" != "$2" ]; then
@@ -71,13 +80,13 @@ rel=$(awk -F: '/^0::/ { print substr($0, 4) }' /proc/self/cgroup)
 here=/sys/fs/cgroup$rel
 parent=$(dirname "$here")
 child=$parent/radio-days-precheck
-added_cpu=0
-if [ -d "$parent" ]; then
-  if ! grep -q 'cpu' "$parent/cgroup.subtree_control" 2>/dev/null; then
-    if echo '+cpu' > "$parent/cgroup.subtree_control" 2>/dev/null; then
-      added_cpu=1
-    fi
-  fi
+# A child limit is used only when cpu and memory are already delegated.
+# The parent controller list is never changed.
+controls=""
+if [ -f "$parent/cgroup.subtree_control" ]; then
+  controls=$(cat "$parent/cgroup.subtree_control" 2>/dev/null || true)
+fi
+if [ "$parent" != "/sys/fs/cgroup" ] && has_word "$controls" cpu && has_word "$controls" memory; then
   rmdir "$child" 2>/dev/null || true
   if mkdir "$child" 2>/dev/null \
     && echo 2147483648 > "$child/memory.max" \
@@ -87,9 +96,6 @@ if [ -d "$parent" ]; then
     cleanup() {
       echo $$ > "$here/cgroup.procs" 2>/dev/null || true
       rmdir "$child" 2>/dev/null || true
-      if [ "$added_cpu" = 1 ]; then
-        echo '-cpu' > "$parent/cgroup.subtree_control" 2>/dev/null || true
-      fi
     }
     trap cleanup EXIT
     set +e

@@ -51,6 +51,31 @@ test("crossing 90 percent warns once and a call that would pass 100 percent is r
   assert.equal(refused.ledger.spentOre, CAP_ORE - 5);
 });
 
+test("a clock before the stored month does not reset the counter", () => {
+  const blocked = charge(
+    { month: "2026-11", spentOre: 4_000 },
+    10,
+    new Date("2026-10-15T12:00:00.000Z"),
+  );
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.ledger.month, "2026-11");
+  assert.equal(blocked.ledger.spentOre, 4_000);
+  assert.equal(blocked.notice, SV.clockUnknown);
+
+  const epoch = charge(
+    { month: "2026-11", spentOre: 4_000 },
+    10,
+    new Date("1970-01-01T00:00:00.000Z"),
+  );
+  assert.equal(epoch.allowed, false);
+  assert.equal(epoch.ledger.month, "2026-11");
+  assert.equal(epoch.ledger.spentOre, 4_000);
+
+  const invalid = charge({ month: "2026-11", spentOre: 4_000 }, 10, new Date(Number.NaN));
+  assert.equal(invalid.allowed, false);
+  assert.equal(invalid.ledger.spentOre, 4_000);
+});
+
 test("token cost rounds up in öre", () => {
   assert.equal(costOre(500_000, 200), 100);
   assert.equal(costOre(1, 200), 1);

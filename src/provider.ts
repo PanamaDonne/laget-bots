@@ -63,7 +63,7 @@ export async function completeChat(input: ChatInput): Promise<ChatResult> {
   const opening = { month: input.ledger.month, spentOre: input.ledger.spentOre };
   const estimated = charge(opening, costOre(promptTokens + reserve, input.orePerMillion), input.now);
   if (!estimated.allowed) {
-    return { ...idle, text: SV.paused, ledger: estimated.ledger };
+    return { ...idle, text: estimated.notice ?? SV.paused, ledger: estimated.ledger };
   }
   input.onLedger?.(estimated.ledger);
 

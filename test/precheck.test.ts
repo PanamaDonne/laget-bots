@@ -47,6 +47,9 @@ test("the pre-check times local Whisper and Piper and does not call the chat mod
   assert.match(script, /2147483648/);
   assert.match(script, /400000 100000/);
   assert.match(script, /KBLab\/kb-whisper-base/);
+  assert.match(script, /df011f56825a59dd1efc080c38a65a1ef70407e60f63050e9246f43a3d7e471e/);
+  assert.equal(script.includes("+cpu"), false);
+  assert.equal(/echo\s+['"]?-cpu/.test(script), false);
 });
 
 test("model latency stays a number and still is not the 3 second gate", () => {
