@@ -299,7 +299,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   assert.equal(cost.includes("locked"), true);
   assert.equal(cost.includes("90%"), true);
 
-  for (const fact of ["Quiet hours", "still open", "RAM", "Embedding model"]) {
+  for (const fact of ["Quiet hours", "still open", "RAM", "Embedding model", "PAN-303", "PAN-304", "PAN-306"]) {
     assert.equal(open.includes(fact), true, `open missing ${fact}`);
   }
 });
