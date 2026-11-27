@@ -134,11 +134,11 @@ test("SPEC.md records the local English voice chain", () => {
     "Llama 3.1 8B",
     "Piper",
     "Kokoro",
-    "fallback",
+    "swaps one local model for another",
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
-  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
   for (const fact of ["Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
@@ -163,7 +163,7 @@ test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
   assert.equal(cost.includes("Mac mini"), true);
 });
 
@@ -227,7 +227,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
 });
 
 test("SPEC.md safety limits fail when a locked fact changes", () => {
@@ -288,12 +288,9 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
   says(privacy, "Email is not in v1.");
   says(agent, "v1 runs only local models on the Mac mini.");
-  says(later, "Berget, Soniox, Cartesia and Supabase are not v1 providers.");
-  says(later, "There is no cloud-backup opt-in in v1.");
-  says(later, "Adding cloud backup later requires a DPA first (PAN-306).");
-  says(later, "Live provider calls require an explicit `--live` opt-in.");
+  says(voice, "The provider interface swaps one local model for another.");
   says(v1Scope, "SearXNG is not a model.");
-  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
   says(admin, "Being on the tailnet is not enough.");
   says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
   says(admin, "Tailscale Funnel is not used for the admin.");
