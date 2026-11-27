@@ -190,7 +190,7 @@ Speech-to-text in v1 is local on the Pi 4 Model B, in Swedish (Daniel, 2026-11-2
 
 v1 uses local Piper. ReadSpeaker is only that quality fallback. The cost principle in section 14 is to take the cheapest option that meets the quality and latency evals; Piper has no hosted fee. Local speech-to-text has no hosted fee either.
 
-One always-on voice agent runs on the Pi (TypeScript). It gets to know the user and makes its own decisions (section 5). It holds a conversation with the AI, reads and sends mail, speaks the calendar, searches the web when asked, and uses long-term memory (section 8). The chat model is EU-hosted and pay-as-you-go (section 9). Every conversation has a token cap. The cap uses the token count the provider reports, and that count stays across replies in the conversation.
+One always-on voice agent runs on the Pi (TypeScript). It gets to know the user and makes its own decisions (section 5). It holds a conversation with the AI, reads and sends mail, speaks the calendar, searches the web when asked, and uses long-term memory (section 8). The chat model is EU-hosted and pay-as-you-go (section 9). Every conversation has a token cap. The cap uses the token count the provider reports. That count stays while the conversation is open and resets when the radio returns to idle, after a reply, a failed turn, or the ten-second wait.
 
 Everyday use in v1 is conversation, email, calendar, and web search. The user talks to the radio in Swedish. The radio reads an important email aloud, speaks calendar reminders and what is on the calendar, and answers a web search the user asked for. Sending mail uses the physical button (section 10).
 

@@ -4,6 +4,7 @@ import test from "node:test";
 import { CAP_ORE } from "../src/cost.ts";
 import { CHAT_TIMEOUT_MS, completeChat, type ChatInput } from "../src/provider.ts";
 import { SV } from "../src/swedish.ts";
+import { usageAfterTurn } from "../src/turn.ts";
 
 const KEY = "fake-key";
 const USER = "MARKER-USER-TEXT";
@@ -177,6 +178,50 @@ test("a clock before the stored month does not call the model or clear the count
   assert.equal(result.ledger.spentOre, 4_000);
   assert.equal(ledger.month, "2026-11");
   assert.equal(ledger.spentOre, 4_000);
+});
+
+test("returning to idle starts the token cap over", async () => {
+  let used = 0;
+  const called: boolean[] = [];
+  for (let turn = 0; turn < 4; turn += 1) {
+    const result = await completeChat(
+      input({
+        usedTokens: used,
+        fetchImpl: async () =>
+          Response.json({
+            choices: [{ message: { content: "Hej." } }],
+            usage: { total_tokens: 1_500 },
+          }),
+      }),
+    );
+    called.push(result.calledModel);
+    used = usageAfterTurn(used, result.usedTokens, true);
+  }
+
+  assert.deepEqual(called, [true, true, true, true]);
+  assert.equal(used, 0);
+});
+
+test("an open conversation keeps the reported token count until it returns to idle", async () => {
+  let used = 0;
+  const called: boolean[] = [];
+  for (let turn = 0; turn < 4; turn += 1) {
+    const result = await completeChat(
+      input({
+        usedTokens: used,
+        fetchImpl: async () =>
+          Response.json({
+            choices: [{ message: { content: "Hej." } }],
+            usage: { total_tokens: 1_500 },
+          }),
+      }),
+    );
+    called.push(result.calledModel);
+    used = usageAfterTurn(used, result.usedTokens, false);
+  }
+
+  assert.deepEqual(called, [true, true, true, false]);
+  assert.equal(used > 4_000, true);
 });
 
 test("a shared ledger records the real cost, not the reservation plus the cost", async () => {

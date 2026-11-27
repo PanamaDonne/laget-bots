@@ -28,8 +28,10 @@ export type HeardResult = {
   lamp: Lamp;
 };
 
-export function keepUsage(current: number, reported: number | null): number {
-  return reported === null ? current : reported;
+export function usageAfterTurn(current: number, reported: number | null, backToIdle: boolean): number {
+  if (backToIdle) return 0;
+  if (reported === null) return current;
+  return reported;
 }
 
 export async function handleHeard(input: HeardInput): Promise<HeardResult> {

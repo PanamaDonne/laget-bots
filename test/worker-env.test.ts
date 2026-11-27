@@ -47,6 +47,4 @@ test("a closed microphone stops the voice worker and exits", () => {
   assert.equal(main.includes("reportedFailure(error)"), true);
   assert.equal(main.includes("stdin.on(\"error\""), true);
   assert.equal(main.includes("audibleSlice"), true);
-  assert.equal(main.includes("keepUsage("), true);
-  assert.equal((main.match(/usedTokens = 0/g) ?? []).length, 1);
 });

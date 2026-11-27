@@ -13,7 +13,7 @@ import { Lamp } from "./lamp.ts";
 import { armAfterHeard, audibleSlice, decideListen, overlapTail } from "./listen.ts";
 import { completeChat } from "./provider.ts";
 import { SV } from "./swedish.ts";
-import { handleHeard, keepUsage } from "./turn.ts";
+import { handleHeard, usageAfterTurn } from "./turn.ts";
 import { envForLocalModels } from "./worker-env.ts";
 
 type VoiceReply = { pcm: Buffer; sampleRateHz: number };
@@ -92,6 +92,7 @@ async function main(): Promise<void> {
     if (decision === "disarm") {
       armed = false;
       armedAt = null;
+      usedTokens = usageAfterTurn(usedTokens, null, true);
       pending = Buffer.alloc(0);
       lamp.set("idle");
       continue;
@@ -129,11 +130,12 @@ async function main(): Promise<void> {
       armed = armAfterHeard({ heardArmed: result.armed, spoke: result.spoke });
       if (armed && !wasArmed) armedAt = Date.now();
       if (!armed) armedAt = null;
-      usedTokens = keepUsage(usedTokens, result.usedTokens);
+      usedTokens = usageAfterTurn(usedTokens, result.usedTokens, !armed);
       if (!result.spoke && !result.armed) pending = overlapTail(pcm);
     } catch {
       armed = false;
       armedAt = null;
+      usedTokens = usageAfterTurn(usedTokens, null, true);
       pending = Buffer.alloc(0);
       lamp.set("idle");
     }
