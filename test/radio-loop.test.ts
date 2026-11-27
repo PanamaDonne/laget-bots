@@ -70,3 +70,126 @@ test("three conversations through the radio loop each get a full token cap", asy
   assert.deepEqual(spoken, ["Hej.", "Hej.", "Hej."]);
   assert.equal(spoken.includes(SV.tokenCap), false);
 });
+
+function utterance(micBytes: { received: number }): Buffer[] {
+  const loud = tone(2);
+  const quiet = Buffer.alloc(3_200);
+  micBytes.received += loud.length;
+  micBytes.received += quiet.length;
+  return [loud, quiet];
+}
+
+test("eleven seconds after the wake phrase drops the radio to idle", async () => {
+  const rounds = 3;
+  let clock = 1_000;
+  const micBytes = { received: 0 };
+  const heard: string[] = [];
+  let sent = 0;
+  const frames: Buffer[] = [];
+  for (let round = 0; round < rounds; round += 1) {
+    frames.push(...utterance(micBytes));
+    const tick = Buffer.alloc(320);
+    micBytes.received += tick.length;
+    frames.push(tick);
+    frames.push(...utterance(micBytes));
+  }
+  const lines = ["Kör Radio", "vad är klockan"];
+  await runRadioLoop({
+    frames: (async function* generate() {
+      let at = 1_000;
+      for (let index = 0; index < frames.length; index += 1) {
+        const frame = frames[index];
+        if (frame !== undefined && frame.length === 320) at += 11_000;
+        clock = at;
+        if (frame !== undefined) yield frame;
+      }
+    })(),
+    micBytes,
+    now: () => clock,
+    transcribe: async (pcm) => {
+      const line = lines[heard.length % lines.length] ?? "";
+      heard.push(line);
+      assert.equal(pcm.length > 0, true);
+      return line;
+    },
+    complete: async () => {
+      sent += 1;
+      return { text: "nej", calledModel: true, usedTokens: 0 };
+    },
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => clock,
+  });
+
+  assert.equal(rounds >= 3, true);
+  assert.equal(heard.length, rounds * 2);
+  assert.equal(sent, 0);
+});
+
+test("a failed turn returns to idle and later speech is not sent", async () => {
+  const rounds = 3;
+  const micBytes = { received: 0 };
+  const frames: Buffer[] = [];
+  for (let round = 0; round < rounds; round += 1) {
+    frames.push(...utterance(micBytes));
+    frames.push(...utterance(micBytes));
+    frames.push(...utterance(micBytes));
+  }
+  const plan = ["Kör Radio", "throw", "vad är klockan"];
+  const heard: string[] = [];
+  let sent = 0;
+  await runRadioLoop({
+    frames: (async function* generate() {
+      for (const frame of frames) yield frame;
+    })(),
+    micBytes,
+    transcribe: async () => {
+      const step = plan[heard.length % plan.length] ?? "";
+      heard.push(step);
+      if (step === "throw") throw new Error("stt down");
+      return step;
+    },
+    complete: async () => {
+      sent += 1;
+      return { text: "nej", calledModel: true, usedTokens: 0 };
+    },
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => 0,
+  });
+
+  assert.equal(rounds >= 3, true);
+  assert.equal(heard.length, rounds * 3);
+  assert.equal(sent, 0);
+});
+
+test("text without a letter after the wake phrase is not sent", async () => {
+  const micBytes = { received: 0 };
+  const frames = [
+    ...utterance(micBytes),
+    ...utterance(micBytes),
+    ...utterance(micBytes),
+    ...utterance(micBytes),
+  ];
+  const lines = ["Kör Radio", "-", "0", "..."];
+  const heard: string[] = [];
+  let sent = 0;
+  await runRadioLoop({
+    frames: (async function* generate() {
+      for (const frame of frames) yield frame;
+    })(),
+    micBytes,
+    transcribe: async () => {
+      const line = lines[heard.length] ?? "";
+      heard.push(line);
+      return line;
+    },
+    complete: async () => {
+      sent += 1;
+      return { text: "nej", calledModel: true, usedTokens: 0 };
+    },
+    speak: async () => ({ pcm: Buffer.alloc(2), sampleRateHz: 16_000 }),
+    play: async () => 0,
+  });
+
+  assert.deepEqual(heard, lines);
+  assert.equal(sent, 0);
+});

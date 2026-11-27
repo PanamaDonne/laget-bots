@@ -95,6 +95,25 @@ test("push-to-talk starts a turn without the wake phrase", async () => {
   assert.equal(answered.armed, false);
 });
 
+test("a follow-up with no letter is not sent to the model", async () => {
+  for (const text of ["-", "0", "...", " - ", "0."]) {
+    let called = false;
+    const answered = await handleHeard(
+      heard({
+        text,
+        armed: true,
+        complete: async () => {
+          called = true;
+          return { text: "nej", calledModel: true };
+        },
+      }),
+    );
+    assert.equal(called, false, text);
+    assert.equal(answered.armed, true, text);
+    assert.equal(answered.spoke, false, text);
+  }
+});
+
 test("an empty transcript after the wake phrase does not call the paid model", async () => {
   let called = false;
   const answered = await handleHeard(
