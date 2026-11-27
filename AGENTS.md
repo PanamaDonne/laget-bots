@@ -11,11 +11,12 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 
 ## Decisions
 
-Radio Days is a voice agent in an old radio on a Raspberry Pi 4 Model B. SPEC.md is the product spec (v2.0). Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
+Radio Days is a voice agent in an old cassette player: an ESP32-S3 thin client and a local home server. SPEC.md is the product spec (v2.1). English is the v1 language. Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
 
-The radio learns habits and may act on them on its own. A habit is a pattern it detects itself. A memory is something the user asks it to remember. Habit data stays on the Pi and is not sent to the AI provider. Each conversation has a token cap. The running-cost cap for the user is 99 SEK per month including VAT. At 90% the radio tells the user. At 100% cloud AI pauses until next month. v1 is conversation, email, calendar, and web search. Spotify is later and needs written permission. Speech-to-text is local KB-Whisper on the Pi, base first. The chat model is EU-hosted and pay-as-you-go.
+The radio learns habits and may act on them on its own. A habit is a pattern it detects itself. A memory is something the user asks it to remember. Habit data stays on the local home server. Each conversation has a token cap. v1 runs only local models on the local home server. v1 makes no calls to any hosted model or speech provider. The provider interface swaps one local model for another. v1 is wake word, voice chat, memory, calendar, web search, and a web admin. Spotify is later and needs written permission.
 
-Tests of SPEC.md and docs check structure and a few short key facts per section, not full sentences, section numbers, or words that must not appear.
+Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once in the section that owns it, or every copy is tested. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
+A doc test for a number or limit must match with a boundary (e.g. /(?<![\d.])3 per day/). If a spec change removes a safety fact from a doc test, the PR body must say which one and why.
 
 Read secrets from the environment only. Do not put keys in config, code, traces, or the public repo. Never include raw API keys in logs, errors, or telemetry. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on, and replace the key with `[REDACTED]`.
 Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.

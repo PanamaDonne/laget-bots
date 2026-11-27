@@ -35,6 +35,10 @@ function section(text: string, title: string, nextTitle: string): string {
   return text.slice(from, to);
 }
 
+function says(text: string, sentence: string): void {
+  assert.equal(text.includes(sentence), true, sentence);
+}
+
 function repoFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -103,210 +107,296 @@ test("CI scans for secrets and vulnerable dependencies", () => {
   assert.match(ci, /npm audit/);
 });
 
-test("SPEC.md is the accepted Radio Days v2.0 product spec", () => {
+test("SPEC.md is the Radio Days v2.1 product spec", () => {
   const spec = readText("SPEC.md");
   const title = spec.split("\n", 1)[0] ?? "";
   const preamble = spec.split("\n## ")[0] ?? "";
 
   assert.match(title, /Radio Days/);
-  assert.match(title, /v2\.0/);
-  assert.match(preamble, /accepted/);
-  assert.match(preamble, /v2\.0/);
+  assert.match(title, /v2\.1/);
+  assert.match(preamble, /v2\.1/);
+  says(
+    preamble,
+    "Status: proposed. Direction decided by Daniel Hansson 2026-11-27; this spec becomes accepted when Daniel merges this PR.",
+  );
   assert.match(spec, /PanamaDonne\/radio-days/);
 });
 
-test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
+test("SPEC.md records the local English voice chain", () => {
   const spec = readText("SPEC.md");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const cost = section(spec, "Running cost", "Plan");
 
   for (const fact of [
+    "Whisper",
+    "Parakeet",
+    "English",
+    "Qwen 2.5 7B",
+    "Llama 3.1 8B",
     "Piper",
-    "sv_SE-nst-medium",
-    "sv_SE-alma-medium",
-    "sv_SE-lisa-medium",
-    "ReadSpeaker",
-    "fallback",
-    "KB-Whisper",
-    "stays loaded",
+    "Kokoro",
+    "swaps one local model for another",
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
   }
-  for (const fact of ["pay-as-you-go", "99 SEK"]) {
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+  for (const fact of ["Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 });
 
-test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () => {
+test("SPEC.md targets an ESP32-S3 thin client and a local home server", () => {
   const spec = readText("SPEC.md");
   const what = section(spec, "What it is", "Scope");
-  const hardware = section(spec, "Hardware", "An agent that learns");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const memory = section(spec, "Long-term memory", "Privacy, security and providers");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const open = spec.slice(spec.indexOf("**Open:**"));
+  const hardware = section(spec, "Hardware", "Architecture");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const cost = section(spec, "Running cost", "Plan");
 
-  for (const fact of ["Pi 4 Model B", "cheap to build", "cheap to run", "1 GB", "2 GB", "PAN-300", "Suggestions are driven"]) {
+  for (const fact of ["local home server", "cassette"]) {
     assert.equal(what.includes(fact), true, `intro missing ${fact}`);
   }
 
-  for (const fact of [
-    "Pi 4 Model B",
-    "1 GB",
-    "2 GB",
-    "safe default",
-    "PAN-300",
-    "800",
-    "1,200",
-    "SEK",
-    "heatsink",
-    "DAC",
-    "USB",
-    "analog",
-    "Pi 3 B+",
-    "Pi Zero 2 W",
-    "not targets",
-  ]) {
-    assert.equal(hardware.includes(fact), true, `hardware missing ${fact}`);
-  }
+  says(hardware, "The radio is an ESP32-S3 used as a thin client.");
+  says(hardware, "The house backend is a local home server (reference: Mac mini M4, 16 GB).");
+  says(hardware, "The server is a Mac mini or similar local machine.");
+  says(hardware, "Requirements and latency measurements are stated against that reference.");
+  says(
+    hardware,
+    "Radio budget: at most 500 SEK for one working unit, including microphone and speaker.",
+  );
+  assert.match(hardware, /(?<![\d.])16 GB/);
+  assert.match(hardware, /(?<![\d.])500 SEK/);
 
-  for (const fact of [
-    "sv_SE-lisa-medium",
-    "stays loaded",
-    "zero monthly cost",
-    "1 GB",
-    "2 GB",
-  ]) {
+  for (const fact of ["Whisper", "Parakeet", "English", "Piper", "Kokoro", "Postgres", "pgvector"]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  for (const fact of ["on the Pi", "not the v1 path", "PAN-300"]) {
-    assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
-  }
-
-  for (const fact of ["KB-Whisper", "pay-as-you-go", "zero monthly cost", "99 SEK", "on the Pi"]) {
-    assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
-  }
-
-  for (const fact of [
-    "Pi 4 Model B",
-    "1 GB",
-    "2 GB",
-    "sv_SE-lisa-medium",
-    "stays loaded",
-    "not the v1 path",
-    "99 SEK",
-  ]) {
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
-  }
-
-  for (const fact of ["Hardware fit", "Quiet hours", "RAM", "Embedding model", "PAN-300", "1 GB", "2 GB", "KB-Whisper"]) {
-    assert.equal(open.includes(fact), true, `open missing ${fact}`);
-  }
-  assert.equal(open.split("**RAM.**").length, 2);
-  assert.equal(open.split("**Embedding model").length, 2);
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+  assert.equal(cost.includes("local home server"), true);
 });
 
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {
   const spec = readText("SPEC.md");
   const what = section(spec, "What it is", "Scope");
-  const behaviour = section(spec, "An agent that learns and decides", "Voice agent and everyday use");
-  const approval = section(spec, "Physical approval", "Evals");
-  const v1Scope = section(spec, "In scope for v1", "In scope for v2");
-  const later = section(spec, "Out of scope", "What is kept");
-  const voice = section(spec, "Voice agent and everyday use", "Web admin");
-  const memory = section(spec, "Long-term memory", "Privacy, security and providers");
-  const cost = section(spec, "Running cost", "Decisions and open questions");
-  const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
-  const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
+  const behaviour = section(spec, "The agent, memory", "Web admin");
+  const v1Scope = section(spec, "In scope for v1", "Out of scope");
+  const later = section(spec, "Out of scope", "What changes");
+  const latency = section(spec, "Latency", "Running cost");
+  const cost = section(spec, "Running cost", "Plan");
   const milestone4 = between(spec, "**Milestone 4:", "**Milestone 5:");
-  const decided = between(spec, "**Decided", "**Open:**");
-  const open = spec.slice(spec.indexOf("**Open:**"));
 
   for (const title of [
-    "An agent that learns and decides",
-    "Long-term memory",
-    "Physical approval",
+    "The agent, memory and proactive jobs",
+    "Web admin",
     "Running cost",
-    "Decisions and open questions",
+    "Latency",
+    "Measurement, not an open product decision",
   ]) {
     assert.ok(headingIndex(spec, title) >= 0, title);
   }
 
-  for (const fact of ["Kör Radio", "habits", "morning brief"]) {
-    assert.equal(what.includes(fact), true, `intro missing ${fact}`);
-  }
+  assert.equal(what.includes("local home server"), true, "intro missing local home server");
 
   for (const fact of [
     "habits",
     "confident enough",
     "unsure",
-    "morning brief",
-    "deletes",
     "agrees",
-    "raw audio",
+    "Raw audio",
     "transcript",
-    "gmail.readonly",
-    "gmail.send",
-    "web search",
-    "untrusted",
-    "quiet hours",
-    "local list",
-    "anyone in the room",
-    "spoken code",
-    "unlock",
+    "Quiet hours",
+    "Postgres",
   ]) {
     assert.equal(behaviour.includes(fact), true, `behaviour missing ${fact}`);
   }
 
-  for (const fact of ["Kör Radio", "PAN-301", "conversation", "email", "calendar", "web search"]) {
+  for (const fact of ["Hey Jarvis", "English", "calendar", "web search", "PAN-301"]) {
     assert.equal(v1Scope.includes(fact), true, `v1 scope missing ${fact}`);
   }
-  for (const fact of ["Spotify", "III.3", "written permission"]) {
+  for (const fact of ["Spotify", "III.3", "written permission", "Email", "Swedish", "KB-Whisper"]) {
     assert.equal(later.includes(fact), true, `later missing ${fact}`);
   }
 
-  for (const fact of ["KB-Whisper", "Piper", "Kör Radio"]) {
-    assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
-  }
-
-  for (const fact of ["habits", "deletes", "on the Pi"]) {
-    assert.equal(memory.includes(fact), true, `memory missing ${fact}`);
-  }
-
-  for (const fact of ["Kör Radio", "milestone 4"]) {
-    assert.equal(milestone1.includes(fact), true, `milestone 1 missing ${fact}`);
-  }
-  for (const fact of ["email", "calendar", "web search", "agrees", "not stored"]) {
-    assert.equal(milestone2.includes(fact), true, `milestone 2 missing ${fact}`);
-  }
-  for (const fact of ["deletes", "habit"]) {
+  for (const fact of ["untrusted", "web radio"]) {
     assert.equal(milestone4.includes(fact), true, `milestone 4 missing ${fact}`);
   }
 
-  for (const fact of ["button", "mail"]) {
-    assert.equal(approval.includes(fact), true, `approval missing ${fact}`);
+  says(
+    latency,
+    "at most 3 seconds from when the user stops speaking until the first audio on the cassette player\u2019s speaker.",
+  );
+  assert.match(latency, /(?<![\d.])3 seconds/);
+  for (const fact of ["PAN-300", "first audio", "not in CI"]) {
+    assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  const evals = section(spec, "Evals", "Plan");
-  for (const fact of ["3 seconds", "PAN-300", "first audio", "not in CI"]) {
-    assert.equal(evals.includes(fact), true, `evals missing ${fact}`);
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+});
+
+test("SPEC.md safety limits fail when a locked fact changes", () => {
+  const spec = readText("SPEC.md");
+  const scope = section(spec, "Scope", "What changes");
+  const later = section(spec, "Out of scope", "What changes");
+  const quiet = between(scope, "**Quiet hours and the unprompted cap", "Mail text");
+  const v1Scope = section(spec, "In scope for v1", "Out of scope");
+  const preamble = spec.slice(0, headingIndex(spec, "What it is"));
+  const hardware = section(spec, "Hardware", "Architecture");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const agent = section(spec, "The agent, memory", "Web admin");
+  const admin = section(spec, "Web admin", "Privacy");
+  const privacy = section(spec, "Privacy, security and providers", "Latency");
+  const cost = section(spec, "Running cost", "Plan");
+  const latency = section(spec, "Latency", "Running cost");
+  const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
+  const unprompted =
+    "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory, context-aware reminders the radio creates on its own, and any self-initiated tips.";
+  const quietHours =
+    "These unprompted announcements count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
+  const notCounted =
+    "The user\u2019s own reminders, watches, and scheduled broadcasts do not count toward that cap, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
+  const scheduled =
+    "The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00\u201307:00.";
+  const wait = "Unprompted announcements wait.";
+  const urgent =
+    "Urgent is a per-item flag the user sets in the admin, and it is off by default.";
+  const held =
+    "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
+  const rollout = section(spec, "Process and workflow", "Impact");
+  const issues = section(spec, "Impact on in-flight work", "Measurement");
+  const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
+
+  says(quiet, unprompted);
+  says(quiet, quietHours);
+  says(quiet, notCounted);
+  says(quiet, scheduled);
+  says(quiet, wait);
+  says(quiet, urgent);
+  says(quiet, held);
+  assert.match(quiet, /(?<![\d.])3 per day/);
+  says(later, "English is the v1 default.");
+  says(hardware, "The Raspberry Pi is out.");
+  says(hardware, "The radio is an ESP32-S3 used as a thin client.");
+  says(hardware, "must be on around the clock");
+  says(v1Scope, "must be on around the clock");
+  says(hardware, "The house backend is a local home server (reference: Mac mini M4, 16 GB).");
+  says(hardware, "The server is a Mac mini or similar local machine.");
+  says(hardware, "Requirements and latency measurements are stated against that reference.");
+  says(hardware, "If it is unreachable, the radio says an error out loud.");
+  says(admin, "A tailnet ACL limits who can reach the admin port.");
+  says(admin, "Sessions are server-side, with expiry and logout.");
+  says(admin, "CSRF protection applies to every state-changing request.");
+  says(admin, "Sign-in without that proof is refused.");
+  says(voice, "Both ends authenticate with that key.");
+  says(voice, "Re-pairing from the admin rotates the key and revokes the old key.");
+  says(v1Scope, "They are never treated as instructions and can never start an action.");
+  says(privacy, "No speech or audio leaves the house.");
+  says(privacy, "v1 makes no calls to any hosted model or speech provider.");
+  says(privacy, "The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
+  says(rollout, "The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`.");
+  says(rollout, "README and AGENTS.md still describe Pi 4 for that code.");
+  says(rollout, "v1 conformance of the code is tracked in PAN-316, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
+  says(rollout, "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.");
+  says(issues, "v1 conformance of the code is tracked here. It closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
+  says(privacy, "SearXNG forwards queries to public search engines.");
+  says(privacy, "Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads (a one-time fetch of model weights), and operating-system updates may leave the house.");
+  says(privacy, "Nothing else leaves the house.");
+  says(privacy, "Calendar invitations and events, and web search results, are never treated as instructions and can never start an action.");
+  says(privacy, "Memory and secrets are encrypted at rest on the local home server.");
+  says(privacy, "Logs must not contain raw audio, transcripts, prompts, user text, or secrets.");
+  says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
+  says(agent, "v1 runs only local models on the local home server.");
+  says(voice, "The provider interface swaps one local model for another.");
+  says(voice, "v1 models run on the local home server.");
+  says(v1Scope, "SearXNG is not a model.");
+  says(cost, "v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1.");
+  says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+  says(
+    latency,
+    "If Qwen 2.5 7B or Llama 3.1 8B misses that gate, the fallback is a smaller local model, a faster local voice, or both, and it stays local only.",
+  );
+  says(
+    latency,
+    "at most 3 seconds from when the user stops speaking until the first audio on the cassette player\u2019s speaker.",
+  );
+  assert.match(latency, /(?<![\d.])3 seconds/);
+  says(admin, "Access: Tailscale.");
+  says(admin, "Being on the tailnet is not enough.");
+  says(admin, "Sign-in requires proof of identity: the Tailscale identity of an allowlisted user, verified server-side, plus an app session.");
+  says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
+  says(admin, "The allowlist is a list of users, not a shared or tagged device.");
+  says(admin, "Tailscale Funnel is not used for the admin.");
+  says(admin, "The service binds to the tailnet interface or localhost only.");
+  says(admin, "It does not listen on the LAN or on a public address.");
+  says(voice, "The device verifies that it is talking to the paired local home server with a pinned certificate or a challenge.");
+  says(voice, "The audio stream is encrypted (TLS or equivalent).");
+  says(voice, "a pairing key is set in the web admin.");
+  says(voice, "The backend rejects a device that does not present the current key.");
+  says(voice, "The key is never committed to the public repository or to committed firmware.");
+  says(voice, "Piper with an English voice, or Kokoro");
+  says(
+    admin,
+    "Secrets are handled server-side or encrypted. They never go into the public repository, into client-side source that is committed, or onto the screen in cleartext.",
+  );
+  says(v1Scope, "Host: the local home server.");
+  says(v1Scope, "Vercel is not the host.");
+  says(v1Scope, "Memory stays at home.");
+  says(v1Scope, "Secrets are handled server-side or encrypted, and never placed in the public code.");
+  says(v1Scope, "A token cap per conversation remains.");
+  says(admin, "Host: the local home server.");
+  says(admin, "Memory stays at home.");
+  says(cost, "A token cap per conversation remains.");
+  says(
+    v1Scope,
+    "a ready-made English wake word for the first demo, for example \u201cHey Jarvis\u201d.",
+  );
+  says(agent, "The radio does not store a habit until the user agrees, by voice or in the web admin.");
+  says(agent, "Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the local home server.");
+  says(agent, "Habit records stay on the local home server.");
+  says(milestone2, "Secrets handled server-side or encrypted, never in the public code.");
+  says(privacy, "A backup of memory is encrypted.");
+  says(privacy, "No unencrypted copy of memory is kept off the local home server.");
+  says(milestone1, "A token cap is in place.");
+  says(v1Scope, "Email is not in v1.");
+  says(later, "It is parked until v2 (Daniel, 2026-11-27).");
+  says(
+    preamble,
+    "Status: proposed. Direction decided by Daniel Hansson 2026-11-27; this spec becomes accepted when Daniel merges this PR.",
+  );
+});
+
+test("SPEC.md rule sections do not bring cloud or paid calls back", () => {
+  const spec = readText("SPEC.md");
+  const sections = [
+    section(spec, "In scope for v1", "Out of scope"),
+    section(spec, "Architecture", "The agent, memory"),
+    section(spec, "Privacy, security and providers", "Latency"),
+    section(spec, "Running cost", "Plan"),
+    section(spec, "Process and workflow", "Impact"),
+  ];
+  const allowed = [
+    "Vercel is not the host.",
+    "v1 makes no calls to any hosted model or speech provider.",
+    "v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1.",
+    "The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`.",
+    "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.",
+  ];
+  const banned = /Berget|\bDPA\b|Soniox|hosted model|Host:\s*Vercel|Vercel is the host|hosted on Vercel|\bVercel\b|--live|\bSEK\b/i;
+  for (const text of sections) {
+    let rest = text;
+    for (const sentence of allowed) rest = rest.split(sentence).join("");
+    assert.doesNotMatch(rest, banned);
   }
 
-  for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "KB-Whisper", "pay-as-you-go"]) {
-    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
-  }
-  assert.equal(cost.includes("99 SEK"), true);
-  assert.equal(cost.includes("locked"), true);
-  assert.equal(cost.includes("90%"), true);
-  assert.equal(cost.includes("prepaid"), true);
-
-  for (const fact of ["Quiet hours", "still open", "RAM", "Embedding model", "PAN-303", "PAN-304", "PAN-306", "Email unlock"]) {
-    assert.equal(open.includes(fact), true, `open missing ${fact}`);
-  }
+  const issues = section(spec, "Impact on in-flight work", "Measurement");
+  const pan306 = issues.split("\n").find((line) => line.includes("PAN-306"));
+  const pan310 = issues.split("\n").find((line) => line.includes("PAN-310"));
+  assert.ok(pan306);
+  assert.ok(pan310);
+  const pan306Cells = pan306.split("|").map((cell) => cell.trim());
+  const pan310Cells = pan310.split("|").map((cell) => cell.trim());
+  assert.equal(pan306Cells[2], "Closed");
+  assert.match(pan306Cells[3] ?? "", /No cloud in v1/);
+  assert.doesNotMatch(pan310Cells[3] ?? "", /cloud|hosted model|Berget|Soniox|\bDPA\b|\bVercel\b|--live|\bSEK\b/i);
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
@@ -317,11 +407,18 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(readme, /\[SPEC\.md\]\(SPEC\.md\)/);
   assert.match(readme, /vanor/);
   assert.match(readme, /på egen hand/);
-  assert.match(readme, /Pi 4 Model B/);
-  assert.match(agents, /Pi 4 Model B/);
+  assert.match(readme, /ESP32-S3/);
+  assert.match(readme, /lokal hemserver/);
+  assert.match(readme, /v2\.1/);
+  assert.match(readme, /English/);
+  assert.match(agents, /ESP32-S3/);
+  assert.match(agents, /local home server/);
+  assert.match(agents, /English/);
   assert.match(agents, /Radio Days/);
   assert.match(agents, /SPEC\.md/);
-  assert.match(agents, /v2\.0/);
+  assert.match(agents, /v2\.1/);
+  assert.match(agents, /A doc test for a number or limit must match with a boundary/);
+  assert.match(agents, /v1 makes no calls to any hosted model or speech provider\./);
   assert.match(agents, /Vera/);
   assert.match(agents, /Lazek/);
   assert.match(agents, /sync-skills/);
@@ -329,7 +426,6 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(agents, /habits/);
   assert.match(agents, /on its own/);
   assert.match(agents, /token cap/);
-  assert.match(agents, /99 SEK/);
   assert.match(agents, /key facts/);
 });
 
