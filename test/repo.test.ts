@@ -39,6 +39,16 @@ function says(text: string, sentence: string): void {
   assert.equal(text.includes(sentence), true, sentence);
 }
 
+function locks(text: string, expected: string): void {
+  const lead = expected.slice(0, Math.min(expected.length, 48));
+  const blocks = text
+    .split(/\n\n+/)
+    .map((block) => block.trim())
+    .filter((block) => block.startsWith(lead));
+  assert.ok(blocks.length > 0, lead);
+  for (const block of blocks) assert.equal(block, expected);
+}
+
 function repoFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -249,11 +259,11 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const latency = section(spec, "Latency", "Running cost");
   const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
   const unprompted =
-    "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips.";
+    "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory, context-aware reminders the radio creates on its own, and any self-initiated tips.";
   const quietHours =
-    "Unprompted announcements count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
+    "These unprompted announcements count toward the max of 3 per day, and none may be spoken in quiet hours 22:00\u201307:00 Europe/Stockholm.";
   const notCounted =
-    "The user\u2019s own reminders, watches, and scheduled broadcasts do not count toward that cap: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
+    "The user\u2019s own reminders, watches, and scheduled broadcasts do not count toward that cap, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (\u201ctell me when \u2026\u201d).";
   const scheduled =
     "The morning broadcast and the evening summary run at the times the user sets, and the admin refuses times inside 22:00\u201307:00.";
   const wait = "Unprompted announcements wait.";
@@ -261,8 +271,9 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     "Urgent is a per-item flag the user sets in the admin, and it is off by default.";
   const held =
     "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
-  const ownCount =
-    "Context-aware reminders and suggestions the radio creates on its own count toward the max of 3 unprompted announcements per day.";
+  const rollout = section(spec, "Process and workflow", "Impact");
+  const issues = section(spec, "Impact on in-flight work", "Measurement");
+  const milestone1 = between(spec, "**Milestone 1:", "**Milestone 2:");
 
   says(quiet, unprompted);
   says(quiet, quietHours);
@@ -271,7 +282,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, wait);
   says(quiet, urgent);
   says(quiet, held);
-  says(quiet, ownCount);
   assert.match(quiet, /(?<![\d.])3 per day/);
   says(later, "English is the v1 default.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
@@ -289,11 +299,13 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "No speech or audio leaves the house.");
   says(privacy, "v1 makes no calls to any hosted model or speech provider.");
   says(privacy, "The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
-  says(privacy, "The code on main still requires an https base URL, sends a Bearer token, and still has the cost ledger and `--live`.");
-  says(privacy, "v1 conformance of the code is tracked in PAN-314, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
-  says(privacy, "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.");
+  says(rollout, "The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`.");
+  says(rollout, "README and AGENTS.md still describe Pi 4 for that code.");
+  says(rollout, "v1 conformance of the code is tracked in PAN-316, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
+  says(rollout, "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.");
+  says(issues, "v1 conformance of the code is tracked here. It closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP.");
   says(privacy, "SearXNG forwards queries to public search engines.");
-  says(privacy, "Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads, and operating-system updates may leave the house.");
+  says(privacy, "Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads (a one-time fetch of model weights), and operating-system updates may leave the house.");
   says(privacy, "Nothing else leaves the house.");
   says(privacy, "Calendar invitations and events, and web search results, are never treated as instructions and can never start an action.");
   says(privacy, "Memory and secrets are encrypted at rest on the local home server.");
@@ -341,6 +353,19 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(agent, "Habit records stay on the local home server.");
   says(milestone2, "Secrets handled server-side or encrypted, never in the public code.");
   says(privacy, "A backup of memory is encrypted.");
+  says(privacy, "No unencrypted copy of memory is kept off the local home server.");
+  says(milestone1, "A token cap is in place.");
+  locks(spec, "The backend is built so that every part can be swapped through a common provider interface. Configuration selects the local model for each part. The provider interface swaps one local model for another. v1 models run on the local home server (section 6).");
+  locks(spec, "**What is sent to a model.** v1 runs only local models on the local home server. Conversation, retrieved memories the user asked the radio to remember, and tool results stay on the local home server. Habit records stay on the local home server.");
+  locks(spec, "**Host, memory and secrets.** Host: the local home server. Vercel is not the host. Memory stays at home. Secrets are handled server-side or encrypted, and never placed in the public code. Email is not in v1.");
+  locks(spec, "Decided for v1. Framework: Next.js. Host: the local home server. Access: Tailscale. Being on the tailnet is not enough.");
+  locks(spec, "Secrets are handled server-side or encrypted. They never go into the public repository, into client-side source that is committed, or onto the screen in cleartext. Memory stays at home.");
+  locks(spec, "**Local only (decided).** v1 makes no calls to any hosted model or speech provider. The model or speech provider base URL may only point to loopback or the LAN, at a local model server on the local home server.");
+  locks(spec, "**At rest.** Memory and secrets are encrypted at rest on the local home server. A backup of memory is encrypted. No unencrypted copy of memory is kept off the local home server.");
+  locks(spec, "**Outbound traffic in v1.** SearXNG forwards queries to public search engines. Web radio streams, Google Calendar, weather, news, Tailscale, one-time model downloads (a one-time fetch of model weights), and operating-system updates may leave the house. Nothing else leaves the house. No speech or audio leaves the house.");
+  locks(spec, "**Local models (Daniel, 2026-11-27).** Local models are the rule in section 6. v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1. Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the local home server, and own SearXNG have no hosted fee.");
+  locks(spec, "A token cap per conversation remains.");
+  locks(spec, "PR #20 (PAN-308) is merged. The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`. README and AGENTS.md still describe Pi 4 for that code. v1 conformance of the code is tracked in PAN-316, which closes only when the code accepts only loopback or the LAN and a test fails for an https cloud URL or a public IP. The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR. PR #21 (PAN-289) is stopped.");
   says(v1Scope, "Email is not in v1.");
   says(later, "It is parked until v2 (Daniel, 2026-11-27).");
   says(
