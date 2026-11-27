@@ -1,0 +1,13 @@
+export const SV = {
+  listeningForWake: "Lyssnar efter Kör Radio.",
+  liveOff: "Jag hörde dig. Direktsvar är avstängt.",
+  paused: "Moln-AI är pausad till nästa månad.",
+  priceMissing: "Priset för samtalet är inte satt.",
+  tokenCap: "Det här samtalet har nått sin gräns.",
+  failed: "Samtalet kunde inte genomföras.",
+  costWarning: "Du har använt 90 procent av månadens kostnadstak.",
+  modelMissing: "Chattmodellen är inte vald.",
+  voiceMissing: "Den lokala rösten saknas.",
+  audioMissing: "Ljudenheten saknas.",
+  invalidDevice: "Ljudenheten är ogiltig.",
+} as const;
