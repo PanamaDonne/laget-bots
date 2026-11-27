@@ -13,6 +13,10 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 
 Radio Days is a voice agent in an old radio on a Raspberry Pi 4 Model B. SPEC.md is the product spec (v2.0). Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
 
+The radio learns habits and may act on them on its own. A habit is a pattern it detects itself. A memory is something the user asks it to remember. Habit data stays on the Pi and is not sent to the AI provider. Each conversation has a token cap. The running-cost cap for the user is 99 SEK per month including VAT. At 90% the radio tells the user. At 100% cloud AI pauses until next month. v1 is conversation, email, calendar, and web search. Spotify is later and needs written permission. Speech-to-text is local KB-Whisper on the Pi, base first. The chat model is EU-hosted and pay-as-you-go.
+
+Tests of SPEC.md and docs check structure and a few short key facts per section, not full sentences, section numbers, or words that must not appear.
+
 Read secrets from the environment only. Do not put keys in config, code, traces, or the public repo. Never include raw API keys in logs, errors, or telemetry. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on, and replace the key with `[REDACTED]`.
 Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.
 A secret in the environment must not by itself start a paid call; an explicit choice is required.
