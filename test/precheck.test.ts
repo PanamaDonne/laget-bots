@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { processCgroupDir, readCgroupLimits } from "../src/cgroup.ts";
@@ -28,6 +29,20 @@ test("a mock pre-check is not reported as reply latency and is not the 3 second 
   assert.equal(report.ordinarySpeechFalseAlarms, 0);
   assert.equal(report.whisperModel, WHISPER_BASE);
   assert.equal(report.latencyKind, "not-measured");
+});
+
+test("the pre-check times local Whisper and Piper and does not call the chat model", () => {
+  const source = readFileSync("src/precheck-cli.ts", "utf8");
+  const script = readFileSync("scripts/precheck-container.sh", "utf8");
+
+  assert.match(source, /voice-worker\.py/);
+  assert.match(source, /mockedChatReply/);
+  assert.equal(source.includes("completeChat"), false);
+  assert.equal(source.includes("fetch("), false);
+  assert.equal(source.includes("calledModel"), false);
+  assert.match(script, /2147483648/);
+  assert.match(script, /400000 100000/);
+  assert.match(script, /KBLab\/kb-whisper-base/);
 });
 
 test("model latency stays a number and still is not the 3 second gate", () => {

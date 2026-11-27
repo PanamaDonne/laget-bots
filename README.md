@@ -16,7 +16,7 @@ Lokal taligenkänning är KB-Whisper base (`KBLab/kb-whisper-base`). Rösten är
 
 Efter ”Kör Radio” väntar radion högst tio sekunder. Tyst ljud skickas inte till taligenkänningen. Ett yttrande slutar vid första tysta biten efter ungefär en sekund, med tröskeln rms 500, så en kort paus kan klippa meningen. När ett svar har talats skrivs millisekunderna ensamma på standard error.
 
-`npm run latency-report` skriver gränserna. `latencyMs` är svarstid bara när de lokala modellerna redan finns på disk (`latencyKind` är då `model`). Annars är `latencyMs` null och `latencyKind` är `not-measured`. `sh scripts/precheck-container.sh` försöker köra samma kontroll med 4 kärnor och 2 GB minne. Om gränsen inte går att sätta står det på standard error, och rapporten har `enforcedCpus` null. Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300.
+`sh scripts/precheck-container.sh` hämtar KB-Whisper base och Piper-rösten om de saknas, och mäter i en gräns på 4 kärnor och 2 GB. Taligenkänning och röst körs på riktigt. Chattmodellen anropas inte. `latencyMs` är tiden från att talet tar slut till att svarsljudet finns (`latencyKind` är `model`). Det är en grov förhandskoll. Den är inte 3-sekundersmätningen. Den görs på en riktig Pi 4 i PAN-300. Om gränsen inte går att sätta står det på standard error.
 
 Kräver Node 24.
 

@@ -7,5 +7,6 @@ dist/
 coverage/
 models/
 data/
+.venv/
 __pycache__/
 *.pyc
