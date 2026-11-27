@@ -267,7 +267,7 @@ Evals for intent-to-tool, memory recall, invention and deletion, untrusted text,
 
 Unchanged from the accepted spec:
 
-* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once in the section that owns it, or every copy is tested. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
+* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once in the section that owns it, or every copy is tested. Tests do not count occurrences, and they do not check section numbers or words that must not appear, except one local-only guard on sections 2.1, 5, 8, 10 and 12, and on PAN-306 and PAN-310 in section 13.
 * Daniel builds in Cursor and opens a PR. Vera (code review) and Lazek (QA, same sha) review every PR and post a verdict in the PR. Only Daniel merges.
 * Every branch and PR title contains the Linear issue id, except this spec revision, whose branch name was set for the change of direction; PAN-267 tracks the spec.
 * Model calls run on the local home server. The local model address is the rule in section 8. QA uses fake keys and mocks only.

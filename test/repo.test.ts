@@ -274,7 +274,10 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, held);
   assert.match(quiet, /(?<![\d.])3 per day/);
   says(later, "English is the v1 default.");
+  says(hardware, "The Raspberry Pi is out.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
+  says(hardware, "must be on around the clock");
+  says(v1Scope, "must be on around the clock");
   says(hardware, "The house backend is a local home server (reference: Mac mini M4, 16 GB).");
   says(hardware, "The server is a Mac mini or similar local machine.");
   says(hardware, "Requirements and latency measurements are stated against that reference.");
@@ -359,6 +362,41 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     preamble,
     "Status: proposed. Direction decided by Daniel Hansson 2026-11-27; this spec becomes accepted when Daniel merges this PR.",
   );
+});
+
+test("SPEC.md rule sections do not bring cloud or paid calls back", () => {
+  const spec = readText("SPEC.md");
+  const sections = [
+    section(spec, "In scope for v1", "Out of scope"),
+    section(spec, "Architecture", "The agent, memory"),
+    section(spec, "Privacy, security and providers", "Latency"),
+    section(spec, "Running cost", "Plan"),
+    section(spec, "Process and workflow", "Impact"),
+  ];
+  const allowed = [
+    "Vercel is not the host.",
+    "v1 makes no calls to any hosted model or speech provider.",
+    "v1 has no paid calls, so the monthly cost cap, the cost ledger, and `--live` are not part of v1.",
+    "The code on main still requires an https base URL, sends a Bearer token to a hosted provider, and still has the cost ledger and `--live`.",
+    "The `--live` and cost-counter text in README and AGENTS.md changes in that same code PR.",
+  ];
+  const banned = /Berget|\bDPA\b|Soniox|hosted model|Host:\s*Vercel|Vercel is the host|hosted on Vercel|\bVercel\b|--live|\bSEK\b/i;
+  for (const text of sections) {
+    let rest = text;
+    for (const sentence of allowed) rest = rest.split(sentence).join("");
+    assert.doesNotMatch(rest, banned);
+  }
+
+  const issues = section(spec, "Impact on in-flight work", "Measurement");
+  const pan306 = issues.split("\n").find((line) => line.includes("PAN-306"));
+  const pan310 = issues.split("\n").find((line) => line.includes("PAN-310"));
+  assert.ok(pan306);
+  assert.ok(pan310);
+  const pan306Cells = pan306.split("|").map((cell) => cell.trim());
+  const pan310Cells = pan310.split("|").map((cell) => cell.trim());
+  assert.equal(pan306Cells[2], "Closed");
+  assert.match(pan306Cells[3] ?? "", /No cloud in v1/);
+  assert.doesNotMatch(pan310Cells[3] ?? "", /cloud|hosted model|Berget|Soniox|\bDPA\b|\bVercel\b|--live|\bSEK\b/i);
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
