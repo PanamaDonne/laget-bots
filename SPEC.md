@@ -1,6 +1,6 @@
 # Radio Days — product spec v2.1
 
-Approved by Daniel on 2026-11-27. This file is opened as a pull request to replace [`SPEC.md`](https://github.com/PanamaDonne/radio-days/blob/main/SPEC.md) on `main`. Until that PR is merged, the accepted file on `main` remains v2.0 (Linear PAN-267, tightened in PAN-298). PAN-297 is absorbed here.
+Status: proposed. Direction decided by Daniel Hansson 2026-11-27; this spec becomes accepted when Daniel merges this PR. This file is opened as a pull request to replace [`SPEC.md`](https://github.com/PanamaDonne/radio-days/blob/main/SPEC.md) on `main`. Until that PR is merged, the accepted file on `main` remains v2.0 (Linear PAN-267, tightened in PAN-298). PAN-297 is absorbed here.
 
 This revision drops the Raspberry Pi. An ESP32-S3 thin client talks to a house server (Daniel’s Mac mini) over the local network. Every backend part is swappable through a common provider interface. The default is local on the Mac mini. The fallback is the cloud.
 
@@ -48,9 +48,9 @@ The core of the agent is getting to know the user, and acting on what it has lea
    * proactive suggestions from memory
    * multi-step research
    * an evening summary
-7. **Web admin**, in v1. Built in Next.js and **served from the Mac mini**, reached via Tailscale. In it the user can: onboard and pair the device (Wi-Fi, device linking, and the pairing key); manage keys and connections such as Google Calendar; view and edit what the radio remembers; manage watches and reminders; pick favourite radio stations; and turn automatic cloud fallback on or off (off by default). Secrets are handled server-side or encrypted, and never placed in the public code. Memory stays at home. Supabase Pro is not needed. Vercel is not the host.
+7. **Web admin**, in v1. Built in Next.js and **served from the Mac mini**, reached via Tailscale. In it the user can: onboard and pair the device (Wi-Fi, device linking, and the pairing key); manage keys and connections such as Google Calendar; view and edit what the radio remembers; manage watches and reminders; pick favourite radio stations. Automatic cloud fallback is off by default. Secrets are handled server-side or encrypted, and never placed in the public code. Memory stays at home. Supabase Pro is not needed. Vercel is not the host.
 
-**Quiet hours and how often (decided):** quiet hours are 22:00–07:00 Europe/Stockholm. The cap is at most three unprompted proactive suggestions per day. Only unprompted proactive suggestions count toward that cap. User-requested reminders and watches, and the scheduled morning and evening broadcasts, do not count. Those still respect quiet hours, except an alarm the user set. Important, time-bound reminders may break through if the user has allowed that.
+**Quiet hours and the unprompted cap (decided):** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.
 
 Mail text (if email returns in v2), calendar invitations and events, and web search results stay untrusted. They are never treated as instructions and can never start an action.
 
@@ -90,12 +90,12 @@ This revision changes that as follows.
 | Agent jobs | On the always-on Pi. Multi-step goal planning was out of v1 | Default: a local scheduler on the Mac mini, which must stay on. Multi-step research is in v1 |
 | Web search | A search service, vendor open | Own SearXNG or a search API |
 | Web admin | Next.js on Vercel with Supabase; secrets and memory stayed on the Pi | Next.js served from the Mac mini, reached via Tailscale. Memory stays at home. Supabase Pro is not needed. Supabase is only a cloud fallback |
-| v1 capabilities | Conversation, email, calendar, web search | Wake word, voice chat, memory, calendar, web search plus web radio, proactive jobs, web admin. Email is parked until v2. English is the default language |
-| Quiet hours | Required, times unset | 22:00–07:00 Europe/Stockholm. The cap is at most three unprompted proactive suggestions per day. User-requested reminders and watches, and the scheduled morning and evening broadcasts, do not count |
+| v1 capabilities | Conversation, email, calendar, web search | Wake word, voice chat, memory, calendar, web search plus web radio, proactive jobs, web admin. Email is parked until v2. English is the default language. |
+| Quiet hours | Required, times unset | The decided rule in section 2 |
 | Cost cap | 99 SEK per month including VAT, assuming local speech on the Pi at 0 SEK hosted | 99 SEK per month including VAT, on cloud fallback spend. Local mode costs 0 in provider spend. At 90 % the radio tells the user. At 100 % paid cloud calls pause. A local cost ledger on the Mac mini resets at the start of each calendar month. A spend cap or prepaid limit is set at each provider |
 | Latency | First audio within 3 seconds, measured on a Pi 4 in PAN-300 | First audio within 3 seconds, measured against the Mac mini, from the ESP32-S3 over the home network |
 | When the Mac mini is unreachable | Not applicable | The radio says an error out loud, by default. Automatic cloud fallback is an opt-in toggle in the admin |
-| Chat provider | EU-hosted, pay-as-you-go. The accepted file still says Berget is not the provider | Local Qwen 2.5 7B or Llama 3.1 8B is the default. Berget is the cloud fallback for the LLM (PAN-306). A cloud provider requires an EU region and a data processing agreement before the first use. Live calls require an explicit `--live` opt-in |
+| Chat provider | EU-hosted, pay-as-you-go. The accepted file still says Berget is not the provider | Local Qwen 2.5 7B or Llama 3.1 8B is the default. Berget may be used for conversation only, with no email, calendar, search or memory content, until a DPA exists (PAN-306). Every other cloud provider needs a DPA and an EU region before first use. Live calls require an explicit `--live` opt-in |
 
 Workflow is unchanged: TypeScript, `AGENTS.md`, CI, Vera and Lazek on every PR, only Daniel merges, no secrets in chat or code, live model calls only with Daniel’s yes.
 
@@ -112,7 +112,7 @@ The Raspberry Pi is out. The radio is an ESP32-S3 used as a thin client. The hou
 * The component list for the radio is produced separately. It is not part of this spec.
 * A desk or bench prototype of the same chip, microphone and a speaker is enough for software milestones until the cabinet is ready.
 * After the wake word, the ESP32-S3 streams audio over the local WebSocket to the Mac mini, and plays streamed speech and web radio on the speaker.
-* The Mac mini must be on around the clock for scheduled agent jobs. If it is unreachable, the radio says an error out loud. Automatic cloud fallback is off by default unless the user turns it on in the web admin.
+* The Mac mini must be on around the clock for scheduled agent jobs. If it is unreachable, the radio says an error out loud. Automatic cloud fallback is off by default.
 * A simple status indicator (listening, thinking, idle) is still desirable. A physical approval button is not required in v1.
 
 ATECC608 and locking a memory-database key in a chip on the radio no longer fit a thin client. They are dropped from v1 unless Daniel brings them back.
@@ -142,7 +142,7 @@ Swedish, including KB-Whisper and a Swedish voice, is a later language option th
 * **On the Mac mini, by default:** STT, the language model, text-to-speech, long-term memory, web search, the web admin (Next.js), and scheduled agent jobs.
 * **Web admin access:** Next.js served from the Mac mini, reached via Tailscale. Being on the tailnet is not enough; sign-in must prove an allowlisted identity (section 7).
 
-A provider key alone does not start a paid fallback call; an explicit choice is required. Live provider calls also require an explicit `--live` opt-in. Switching a part to the cloud fallback is a configuration change, not a rewrite. Automatic fallback when the Mac mini is unreachable stays off by default unless the user opts in.
+A provider key alone does not start a paid fallback call; an explicit choice is required. Live provider calls also require an explicit `--live` opt-in. Switching a part to the cloud fallback is a configuration change, not a rewrite. Automatic cloud fallback is off by default.
 
 Whether Qwen 2.5 7B or Llama 3.1 8B is good enough in English with tool calling, and whether STT, the model and TTS can run at the same time in 16 GB while meeting the 3 second gate, is a measurement in milestone 6 / PAN-300. It is not a product decision in this file.
 
@@ -158,7 +158,7 @@ A habit is a pattern the radio detects itself. A memory is something the user ex
 
 **Consent and retention (PAN-297).** The radio does not store a habit until the user agrees, by voice or in the web admin. Raw audio and transcripts are not stored by Radio Days, on the Mac mini, in the cloud, or in the repo. Memory and habits live in Postgres with pgvector on the Mac mini by default. They do not leave the house unless a cloud fallback is explicitly chosen, or unless the user has turned on automatic cloud fallback and the Mac mini is unreachable.
 
-**What is sent to a model.** In the local default, conversation, retrieved memories the user asked the radio to remember, and tool results stay on the Mac mini and are not sent to a cloud AI provider. Habit records are not sent to a cloud provider in a prompt or as embedding text. If the LLM fallback (Berget) is used, only conversation may be sent until a DPA exists; calendar, search results, memory and habits must not be sent in the meantime. After a DPA, what may be sent is still limited to what that turn needs, with no training on household data and with minimal retention.
+**What is sent to a model.** In the local default, conversation, retrieved memories the user asked the radio to remember, and tool results stay on the Mac mini and are not sent to a cloud AI provider. Habit records are not sent to a cloud provider in a prompt or as embedding text. Berget may be used for conversation only, with no email, calendar, search or memory content, until a DPA exists. Every other cloud provider needs a DPA and an EU region before first use. This is Daniel’s decision of 2026-11-27, logged in PAN-306. After a DPA, what may be sent is still limited to what that turn needs, with no training on household data and with minimal retention.
 
 Proactive jobs in v1:
 
@@ -169,7 +169,7 @@ Proactive jobs in v1:
 * **Multi-step research.**
 * **Evening summary.**
 
-These jobs run on a local scheduler on the Mac mini by default. Quiet hours are 22:00–07:00 Europe/Stockholm. The cap is at most three unprompted proactive suggestions per day. Only unprompted proactive suggestions count toward that cap. User-requested reminders and watches, and the scheduled morning and evening broadcasts, do not count. Those still respect quiet hours, except an alarm the user set. Important, time-bound reminders may break through if the user has allowed that.
+These jobs run on a local scheduler on the Mac mini by default. Quiet hours and the unprompted cap are the decided rule in section 2.
 
 ---
 
@@ -189,7 +189,7 @@ The user can:
 * view and edit what the radio remembers about the user
 * manage watches and reminders
 * pick favourite radio stations
-* turn automatic cloud fallback on or off (off by default)
+* Automatic cloud fallback is off by default.
 
 Secrets are handled server-side or encrypted. They never go into the public repository, into client-side source that is committed, or onto the screen in cleartext. Memory stays at home. Supabase Pro is not needed. Supabase is only a cloud fallback for memory, if that fallback is chosen.
 
@@ -207,7 +207,7 @@ The repo stays public. No secrets, pairing keys or personal data in code.
 
 **Local default (decided).** In local mode, no speech leaves the house. Audio goes from the ESP32-S3 over the home network to the Mac mini, and is processed there. Memory stays in local Postgres. Under the GDPR, Radio Days processes this household data on a machine in the home for the purpose of running the radio for that household; it is not sent to a cloud processor unless a fallback is in use.
 
-**Cloud fallback.** Before the first use of any cloud provider, that provider must be in an EU region and must have a data processing agreement. That applies to Berget (LLM), to Soniox (streaming STT, and TTS if chosen), to Cartesia (TTS if chosen), and to Supabase if memory is stored there. No training on household data, and minimal retention, remain required. Live provider calls require an explicit `--live` opt-in. QA uses fake keys and mocks only. A provider key alone does not start a paid call. This matches PAN-68 / PAN-306.
+**Cloud fallback.** Berget may be used for conversation only, with no email, calendar, search or memory content, until a DPA exists. Every other cloud provider needs a DPA and an EU region before first use. This is Daniel’s decision of 2026-11-27, logged in PAN-306. The other providers here are Soniox (streaming STT, and TTS if chosen), Cartesia (TTS if chosen), and Supabase if memory is stored there. No training on household data, and minimal retention, remain required. Live provider calls require an explicit `--live` opt-in. QA uses fake keys and mocks only. A provider key alone does not start a paid call. This matches PAN-68 / PAN-306.
 
 **At rest.** Memory and secrets are encrypted at rest on the Mac mini. A backup of memory is encrypted. No unencrypted copy of memory is kept off the Mac mini. Supabase holds memory only when that cloud fallback is explicitly chosen.
 
@@ -272,7 +272,7 @@ Web search as a tool, via own SearXNG or a search API. The user can ask a questi
 
 **Milestone 5: Proactive agent jobs**
 
-Morning broadcast (weather, Google Calendar, news, then radio on), background watches, context-aware reminders, suggestions from memory, multi-step research, and evening summary, run by the local scheduler. Quiet hours are 22:00–07:00 Europe/Stockholm. The cap is at most three unprompted proactive suggestions per day. Only unprompted proactive suggestions count. User-requested reminders and watches, and the scheduled morning and evening broadcasts, do not count, and they still respect quiet hours, except an alarm the user set. Done when those jobs run on a schedule and can be managed in the admin. Covered by unit tests, CI green.
+Morning broadcast (weather, Google Calendar, news, then radio on), background watches, context-aware reminders, suggestions from memory, multi-step research, and evening summary, run by the local scheduler. Quiet hours and the unprompted cap are the decided rule in section 2. Done when those jobs run on a schedule and can be managed in the admin. Covered by unit tests, CI green.
 
 **Milestone 6: Evals, latency and the default stack**
 
@@ -286,7 +286,7 @@ Evals for intent-to-tool, memory recall, invention and deletion, untrusted text,
 
 Unchanged from the accepted spec:
 
-* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section, not full sentences, section numbers, or words that must not appear.
+* `AGENTS.md` stays the short project guide. Confirm work with `npm run check` before calling work done. Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
 * Daniel builds in Cursor and opens a PR. Vera (code review) and Lazek (QA, same sha) review every PR and post a verdict in the PR. Only Daniel merges.
 * Every branch and PR title contains the Linear issue id, except this spec revision, whose branch name was set for the change of direction; PAN-267 tracks the spec.
 * Live model calls with real keys only with Daniel’s yes, and only with an explicit `--live` opt-in. QA uses fake keys and mocks only.
@@ -306,7 +306,7 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | [PR #20](https://github.com/PanamaDonne/radio-days/pull/20) / [PAN-308](https://linear.app/panamadonnes/issue/PAN-308/kor-milstolpe-1-pa-datorn-innan-pi-4-finns) | Approved, CI green, awaiting Daniel’s merge | **Merge, then adapt.** Daniel merges. After merge, the Pi 4 destination is removed and the loop is pointed at the Mac mini default |
 | [PR #21](https://github.com/PanamaDonne/radio-days/pull/21) / [PAN-289](https://linear.app/panamadonnes/issue/PAN-289/webbadmin-skelett) | In review; custom Node `serve.ts`, in-memory store, Pi ciphertext model | **Stopped.** The stack does not fit. PAN-289 is rescoped to Next.js on the Mac mini, reached via Tailscale |
 | [PAN-300](https://linear.app/panamadonnes/issue/PAN-300/mat-svensk-rost-pa-pi-4-med-1-gb-och-2-gb) | Backlog | **Rescope** to the 3 second measurement on the ESP32-S3 plus the Mac mini, including 16 GB concurrency and English quality and tool calling for Qwen 2.5 7B or Llama 3.1 8B |
-| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Backlog | **Rescope to cloud fallback only.** Default LLM is local Qwen 2.5 7B or Llama 3.1 8B. Fallback: Berget for the LLM, Soniox for streaming STT, Cartesia or Soniox for TTS. An EU region and a data processing agreement are required before the first use |
+| [PAN-306](https://linear.app/panamadonnes/issue/PAN-306/valj-eu-chattleverantor-for-v1) | Backlog | **Rescope to cloud fallback only.** Default LLM is local Qwen 2.5 7B or Llama 3.1 8B. Berget may be used for conversation only, with no email, calendar, search or memory content, until a DPA exists. Every other cloud provider needs a DPA and an EU region before first use |
 | [PAN-307](https://linear.app/panamadonnes/issue/PAN-307/valj-upplasningsmetod-for-upplasning-av-mejl), [PAN-302](https://linear.app/panamadonnes/issue/PAN-302/mejl-med-rosten) | Backlog | **Parked until v2.** Email is out of v1. Not cancelled |
 | [PAN-303](https://linear.app/panamadonnes/issue/PAN-303/kalender-med-rosten) | Backlog | **Rescope.** Calendar stays in v1 for the morning broadcast and as a Google Calendar connection in the admin |
 | [PAN-304](https://linear.app/panamadonnes/issue/PAN-304/webbsokning-med-rosten) | Backlog | **Widen** so the same tool can start web radio or music, via own SearXNG or a search API |
@@ -321,9 +321,9 @@ These changes follow Daniel’s decisions of 2026-11-27.
 | [PAN-299](https://linear.app/panamadonnes/issue/PAN-299/specen-billig-pi-4-med-lokal-svensk-rost) | Done | **Superseded** as a hardware decision. Leave the issue done |
 | [PAN-269](https://linear.app/panamadonnes/issue/PAN-269/skills-synken-skriver-aldrig-utanfor-cursorskills), [PAN-270](https://linear.app/panamadonnes/issue/PAN-270/skills-synk-skriver-aldrig-utanfor-cursorskills-aven-vid-symlankade) | Backlog | **Keep.** Repo hygiene |
 | PAN-309 | New | **In v1.** ESP32-S3 WebSocket, mDNS or a fixed IP, and a pairing key. Both ends authenticate. The audio stream is encrypted. Re-pairing revokes the old key |
-| PAN-310 | New | **In v1.** A common provider interface. Live provider calls require an explicit `--live` opt-in. A data processing agreement and an EU region are required before the first use of a cloud provider |
+| PAN-310 | New | **In v1.** A common provider interface. Live provider calls require an explicit `--live` opt-in. Berget may be used for conversation only until a DPA exists (PAN-306). Every other cloud provider needs a DPA and an EU region before first use |
 | PAN-311 | New | **In v1.** Local scheduler on the Mac mini |
-| PAN-312 | New | **In v1.** Quiet hours 22:00–07:00 Europe/Stockholm. The cap is at most three unprompted proactive suggestions per day |
+| PAN-312 | New | **In v1.** Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips. These count toward the max of 3 per day, and none may be spoken in quiet hours 22:00–07:00 Europe/Stockholm. These do not count, because the user asked for them: the morning broadcast and evening summary the user has scheduled, reminders the user created, and watch alerts the user set up (“tell me when …”). User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin. |
 | PAN-313 | New | **After v1.** Swedish is a language option via the swappable providers, including KB-Whisper |
 
 `README.md` and `AGENTS.md` are updated in this revision to the ESP32-S3, the Mac mini, and English by default in v1.
