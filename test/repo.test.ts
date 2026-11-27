@@ -97,7 +97,8 @@ test("SPEC.md is the accepted Radio Days v2.0 product spec", () => {
 
   assert.match(title, /Radio Days/);
   assert.match(title, /v2\.0/);
-  assert.equal(/\bdraft\b/i.test(spec), false);
+  assert.equal(/\bdraft\b/i.test(title), false);
+  assert.equal(/\bdraft\b/i.test(preamble), false);
   assert.match(preamble, /v2\.0/);
   assert.equal(preamble.includes("blob/main/SPEC.md"), false);
   assert.equal(preamble.includes("once that change is merged"), false);
@@ -228,7 +229,6 @@ test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () =>
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {
   const spec = readText("SPEC.md");
   const what = between(spec, "## 1. What it is", "## 2. Scope");
-  const scope = between(spec, "## 2. Scope", "## 3. What is kept");
   const behaviour = between(
     spec,
     "## 5. An agent that learns and decides",
@@ -244,87 +244,91 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
   const open = spec.slice(spec.indexOf("**Open:**"));
   const scopeLine = what.split("\n").find((line) => line.startsWith("v1 is "));
 
+  const v1Scope = between(spec, "### 2.1 In scope for v1", "### 2.2 In scope for v2");
+  const voice = between(spec, "## 6. Voice agent", "## 7. Web admin");
+  const milestone2 = between(spec, "**Milestone 2:", "**Milestone 3:");
+  const milestone4 = between(spec, "**Milestone 4:", "**Milestone 5:");
+  const cost = between(spec, "## 14. Running cost", "## 15. Decisions");
+
   assert.ok(scopeLine, "missing v1 scope line");
-  assert.match(what, /The core of the agent is getting to know the user/);
-  assert.match(what, /makes its own decisions/);
-  assert.match(what, /Proactive announcements are driven by what it has learned/);
+  for (const fact of ["Kör Radio", "habits", "morning brief", "not in v1"]) {
+    assert.equal(scopeLine?.includes(fact), true, `scope line missing ${fact}`);
+  }
+
+  for (const heading of [
+    "## 5. An agent that learns and decides",
+    "## 8. Long-term memory",
+    "## 10. Physical approval",
+    "## 14. Running cost",
+    "## 15. Decisions",
+  ]) {
+    assert.equal(spec.includes(heading), true, heading);
+  }
+
   for (const fact of [
-    "habits and preferences",
+    "habits",
     "confident enough",
     "unsure",
+    "does not suggest",
     "morning brief",
-    "not secondary",
-    "calendar reminders",
-    "v2 or later",
-    "marks as important",
-    "Gmail in v2",
-    "Multi-step goal planning is not in v1",
+    "not a learned suggestion",
+    "not in v1",
+    "Nytt avsnitt",
+    "until the user deletes",
+    "never sent",
+    "Berget",
+    "agrees",
+    "raw audio",
+    "transcript",
+    "ångra",
+    "undone",
+    "gmail.readonly",
+    "gmail.send",
+    "never start",
+    "quiet hours",
   ]) {
-    assert.equal(scopeLine.includes(fact), true, `scope line missing ${fact}`);
+    assert.equal(behaviour.includes(fact), true, `behaviour missing ${fact}`);
+  }
+
+  for (const fact of ["Kör Radio", "PAN-301", "No important proactive announcements in v1"]) {
+    assert.equal(v1Scope.includes(fact), true, `v1 scope missing ${fact}`);
   }
 
   for (const fact of [
-    "Primary",
-    "habits and preferences",
-    "confident enough",
-    "The core of the agent is getting to know the user",
-    "Proactive announcements are driven by what it has learned",
-    "asks only when it is unsure",
-    "habit-based suggestions for Spotify content are in v1",
-    "Nytt avsnitt av podden <namn> är ute, som du brukar lyssna på. Ska jag sätta på det?",
-    "Shall I put it on?",
-    "asks before playing",
-    "just play",
-    "Important proactive announcements",
-    "It is not secondary",
-    "Calendar reminders",
-    "v2 or later",
-    "marks as important",
-    "Gmail integration in v2",
-    "read-only",
-    "needs no approval button",
-    "suggest senders from learned habits",
-    "break through",
-    "Secondary",
-    "morning brief",
-    "Multi-step goal planning",
-    "not in v1",
-    "does not speak unprompted during quiet hours",
-    "How often",
-    "turn autonomous behaviour off",
-    "forget",
-    "by voice and in the web admin",
-    "on-device encrypted memory",
-    "The cloud sees only status",
-    "physical approval button",
-    "email",
+    "user-modify-playback-state",
+    "playlist-modify-private",
+    "playlist-modify-public",
+    "user-library-modify",
+    "user-read-playback-position",
+    "user-read-recently-played",
+    "III.13",
+    "III.14",
+    "III.3",
   ]) {
-    assert.equal(behaviour.includes(fact), true, `behaviour section missing ${fact}`);
+    assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
-  assert.match(behaviour, /section 8/);
-  assert.match(behaviour, /section 10/);
-  assert.equal(spec.includes("## 8. Long-term memory"), true);
-  assert.equal(spec.includes("## 10. Physical approval"), true);
 
-  assert.match(scope, /quiet hours/);
-  assert.match(scope, /multi-step goal planning/i);
-  assert.match(scope, /on-device encrypted memory/);
+  assert.equal(milestone1.includes("Kör Radio"), true);
+  assert.equal(milestone1.includes("milestone 4"), true);
+  assert.equal(milestone1.includes("confident enough"), false);
+  assert.equal(milestone2.includes("undone"), true);
+  assert.equal(milestone2.includes("milestone 4"), true);
+  assert.equal(milestone4.includes("agrees"), true);
+  assert.equal(milestone4.includes("not sent"), true);
 
-  assert.match(approval, /consequences outside the radio/);
   assert.match(approval, /physical approval button/);
-  assert.match(approval, /acting on its own/);
+  assert.match(approval, /undone/);
 
-  assert.match(milestone1, /confident enough/);
-  assert.match(milestone1, /asks/);
-  assert.match(milestone1, /quiet hours/);
-  assert.match(milestone1, /multi-step goal planning/i);
-  assert.match(milestone1, /physical approval button/);
+  for (const fact of ["99 SEK", "Kör Radio", "PAN-301", "2026-11-27", "Berget"]) {
+    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
+  }
+  assert.equal(cost.includes("99 SEK"), true);
+  assert.equal(cost.includes("proposal, not locked"), false);
 
-  assert.match(decided, /learns habits and preferences/);
-  assert.match(decided, /Daniel, 2026-11-26/);
-  assert.match(decided, /physical approval button/);
   assert.match(open, /Quiet hours/);
   assert.match(open, /still open/);
+  assert.equal(open.includes("Exact wake word"), false);
+  assert.equal(/pending Daniel/i.test(open), false);
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
@@ -342,6 +346,12 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(agents, /Lazek/);
   assert.match(agents, /sync-skills/);
   assert.match(agents, /Linear/);
+  assert.match(readme, /habits/);
+  assert.match(readme, /on its own/);
+  assert.match(agents, /habits/);
+  assert.match(agents, /on its own/);
+  assert.match(agents, /token cap/);
+  assert.match(agents, /99 SEK/);
   for (const stale of [
     "defaultModel",
     "maxTurns",
