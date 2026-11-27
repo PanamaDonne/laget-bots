@@ -110,7 +110,13 @@ test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
   const decided = between(spec, "**Decided", "**Open:**");
   const open = spec.slice(spec.indexOf("**Open:**"));
 
-  for (const fact of ["Piper", "sv_SE-nst-medium", "sv_SE-alma-medium", "ReadSpeaker"]) {
+  for (const fact of [
+    "Piper",
+    "sv_SE-nst-medium",
+    "sv_SE-alma-medium",
+    "sv_SE-lisa-medium",
+    "ReadSpeaker",
+  ]) {
     assert.equal(decided.includes(fact), true, fact);
   }
   assert.match(decided, /fallback/i);
@@ -123,6 +129,100 @@ test("SPEC.md records local Piper as the v1 text-to-speech choice", () => {
     if (/\bsten\b/i.test(line)) assert.match(line, /\bnot\b/i);
     if (line.includes("gemma")) assert.equal(/\bdefault\b/i.test(line), false, line);
   }
+});
+
+test("SPEC.md targets a cheap Pi 4 Model B and keeps Swedish voice local", () => {
+  const spec = readText("SPEC.md");
+  const what = between(spec, "## 1. What it is", "## 2. Scope");
+  const hardware = between(spec, "## 4. Hardware", "## 5. An agent");
+  const voice = between(spec, "## 6. Voice agent", "## 7. Web admin");
+  const memory = between(spec, "## 8. Long-term memory", "## 9. Privacy");
+  const cost = between(spec, "## 14. Running cost", "## 15. Decisions");
+  const decided = between(spec, "**Decided", "**Open:**");
+  const open = spec.slice(spec.indexOf("**Open:**"));
+  const readme = readText("README.md");
+  const agents = readText("AGENTS.md");
+
+  for (const fact of ["Pi 4 Model B", "cheap to build", "cheap to run", "1 GB", "2 GB", "PAN-300"]) {
+    assert.equal(what.includes(fact), true, `intro missing ${fact}`);
+  }
+
+  for (const fact of [
+    "Pi 4 Model B",
+    "1 GB",
+    "2 GB",
+    "safe default",
+    "PAN-300",
+    "800",
+    "1,200",
+    "SEK",
+    "heatsink",
+    "DAC",
+    "USB",
+    "analog",
+    "Pi 3 B+",
+    "Pi Zero 2 W",
+    "not targets",
+  ]) {
+    assert.equal(hardware.includes(fact), true, `hardware missing ${fact}`);
+  }
+  assert.equal(hardware.includes("4 GB"), false);
+  assert.equal(hardware.includes("HiFiBerry"), false);
+
+  for (const fact of [
+    "sv_SE-nst-medium",
+    "sv_SE-alma-medium",
+    "sv_SE-lisa-medium",
+    "medium",
+    "x_low",
+    "stays loaded",
+    "zero monthly cost",
+  ]) {
+    assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
+  }
+
+  assert.equal(memory.includes("not the v1 path"), true);
+  assert.equal(memory.includes("PAN-300"), true);
+  assert.equal(memory.includes("4 GB"), false);
+
+  for (const fact of ["speech-to-text", "conversation model", "zero monthly cost", "800", "1,200"]) {
+    assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
+  }
+
+  for (const fact of [
+    "2026-11-27",
+    "Pi 4 Model B",
+    "1 GB",
+    "2 GB",
+    "safe default",
+    "PAN-300",
+    "800",
+    "1,200",
+    "heatsink",
+    "DAC",
+    "USB",
+    "Pi 3 B+",
+    "Pi Zero 2 W",
+    "x_low",
+    "stays loaded",
+    "zero monthly cost",
+    "speech-to-text",
+    "conversation model",
+    "sv_SE-lisa-medium",
+  ]) {
+    assert.equal(decided.includes(fact), true, `decided missing ${fact}`);
+  }
+
+  for (const fact of ["1 GB", "2 GB", "safe default", "PAN-300", "Pi 4 Model B"]) {
+    assert.equal(open.includes(fact), true, `open missing ${fact}`);
+  }
+  assert.equal(open.includes("4 GB"), false);
+
+  assert.equal(spec.includes("4 GB"), false);
+  assert.match(readme, /Pi 4 Model B/);
+  assert.match(agents, /Pi 4 Model B/);
+  assert.equal(readme.includes("4 GB"), false);
+  assert.equal(agents.includes("4 GB"), false);
 });
 
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {

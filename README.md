@@ -1,6 +1,6 @@
 # Radio Days
 
-Radio Days är en röstagent i en gammal radio på en Raspberry Pi 4. Specen är [SPEC.md](SPEC.md) (v2.0).
+Radio Days är en röstagent i en gammal radio på en Raspberry Pi 4 Model B. Specen är [SPEC.md](SPEC.md) (v2.0).
 
 Teammotorn från Laget Bots är avstängd. Repot behåller TypeScript, CI, hemlighetsskanning, licensen och synk av skills. Produktfunktionerna i specen är inte byggda än.
 
