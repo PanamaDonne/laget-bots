@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
-import { captureArgs, ignoreStreamError, playbackArgs } from "./audio.ts";
+import { captureArgs, playbackArgs, watchMicrophone, whenPlayerExits } from "./audio.ts";
 import { liveStartupLine, parseRadioArgs, reportedFailure } from "./cli.ts";
 import { loadConfigFile, resolveConfig, type RadioConfig } from "./config.ts";
 import { CAP_ORE, stockholmMonth, type Ledger } from "./cost.ts";
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
     process.stderr.write(`${closed.line}\n`);
     process.exitCode = closed.exitCode;
   };
-  mic.on("error", endMicrophone);
+  watchMicrophone(mic, endMicrophone);
   if (mic.stdout === null) {
     endMicrophone();
     return;
@@ -289,23 +289,7 @@ async function playPcm(device: string, audio: VoiceReply): Promise<number> {
   if (child.stdin === null) throw new Error(SV.audioMissing);
   const stdin = child.stdin;
   const firstByteAt = Date.now();
-  let settled = false;
-  const finished = new Promise<void>((resolveDone, reject) => {
-    const fail = (): void => {
-      if (settled) return;
-      settled = true;
-      reject(new Error(SV.audioMissing));
-    };
-    child.on("error", fail);
-    stdin.on("error", fail);
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      if (code === 0) resolveDone();
-      else reject(new Error(SV.audioMissing));
-    });
-  });
-  ignoreStreamError(stdin);
+  const finished = whenPlayerExits(child, stdin);
   try {
     stdin.write(audio.pcm);
     stdin.end();

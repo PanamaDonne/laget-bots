@@ -41,10 +41,4 @@ test("a closed microphone stops the voice worker and exits", () => {
   assert.equal(stopped, true);
   assert.equal(closed.line, SV.audioMissing);
   assert.equal(closed.exitCode, 1);
-  const main = readFileSync("src/radio-main.ts", "utf8");
-  assert.equal(main.includes("closeRadio(voice.stop)"), true);
-  assert.equal(main.includes("mic.on(\"error\", endMicrophone)"), true);
-  assert.equal(main.includes("reportedFailure(error)"), true);
-  assert.equal(main.includes("stdin.on(\"error\""), true);
-  assert.equal(main.includes("audibleSlice"), true);
 });

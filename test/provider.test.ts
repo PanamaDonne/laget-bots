@@ -180,13 +180,20 @@ test("a clock before the stored month does not call the model or clear the count
   assert.equal(ledger.spentOre, 4_000);
 });
 
-test("returning to idle starts the token cap over", async () => {
+test("returning to idle starts the token cap over and leaves the monthly cost", async () => {
   let used = 0;
   const called: boolean[] = [];
+  const ledger = { month: "2026-11", spentOre: 0 };
   for (let turn = 0; turn < 4; turn += 1) {
     const result = await completeChat(
       input({
         usedTokens: used,
+        orePerMillion: 1_000_000,
+        ledger,
+        onLedger: (next) => {
+          ledger.month = next.month;
+          ledger.spentOre = next.spentOre;
+        },
         fetchImpl: async () =>
           Response.json({
             choices: [{ message: { content: "Hej." } }],
@@ -200,6 +207,8 @@ test("returning to idle starts the token cap over", async () => {
 
   assert.deepEqual(called, [true, true, true, true]);
   assert.equal(used, 0);
+  assert.equal(ledger.spentOre, 6_000);
+  assert.equal(ledger.month, "2026-11");
 });
 
 test("an open conversation keeps the reported token count until it returns to idle", async () => {

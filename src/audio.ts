@@ -1,9 +1,35 @@
+import type { ChildProcess } from "node:child_process";
 import type { EventEmitter } from "node:events";
+import type { Writable } from "node:stream";
 
 import { SV } from "./swedish.ts";
 
 export function ignoreStreamError(stream: EventEmitter): void {
   stream.on("error", () => undefined);
+}
+
+export function watchMicrophone(mic: EventEmitter, onEnd: () => void): void {
+  mic.on("error", onEnd);
+}
+
+export function whenPlayerExits(player: ChildProcess, stdin: Writable): Promise<void> {
+  ignoreStreamError(stdin);
+  return new Promise((resolveDone, reject) => {
+    let settled = false;
+    const fail = (): void => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(SV.audioMissing));
+    };
+    player.on("error", fail);
+    stdin.on("error", fail);
+    player.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      if (code === 0) resolveDone();
+      else reject(new Error(SV.audioMissing));
+    });
+  });
 }
 
 export function captureArgs(device: string): string[] {
