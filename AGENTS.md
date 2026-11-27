@@ -15,7 +15,7 @@ Radio Days is a voice agent in an old cassette player: an ESP32-S3 thin client a
 
 The radio learns habits and may act on them on its own. A habit is a pattern it detects itself. A memory is something the user asks it to remember. Habit data stays on the Mac mini and is not sent to the AI provider. Each conversation has a token cap. v1 runs only local models on the Mac mini. The provider interface swaps one local model for another. v1 is wake word, voice chat, memory, calendar, web search, and a web admin. Spotify is later and needs written permission.
 
-Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
+Tests of SPEC.md and docs check structure and a few short key facts per section. A safety limit is the whole sentence or the exact value, in the section that owns it. Each locked fact is written once there. Tests do not count occurrences, and they do not check section numbers or words that must not appear.
 A doc test for a number or limit must match with a boundary (e.g. /(?<![\d.])99 SEK/). If a spec change removes a safety fact from a doc test, the PR body must say which one and why.
 
 Read secrets from the environment only. Do not put keys in config, code, traces, or the public repo. Never include raw API keys in logs, errors, or telemetry. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on, and replace the key with `[REDACTED]`.

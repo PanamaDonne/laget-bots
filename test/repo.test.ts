@@ -117,7 +117,7 @@ test("SPEC.md is the Radio Days v2.1 product spec", () => {
   assert.match(title, /Radio Days/);
   assert.match(title, /v2\.1/);
   assert.match(preamble, /v2\.1/);
-  assert.match(preamble, /English by default in v1/);
+  assert.match(preamble, /Status: proposed\./);
   assert.match(spec, /PanamaDonne\/radio-days/);
 });
 
@@ -234,7 +234,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const spec = readText("SPEC.md");
   const scope = section(spec, "Scope", "What changes");
   const later = section(spec, "Out of scope", "What changes");
-  const changes = section(spec, "What changes", "Hardware");
   const quiet = between(scope, "**Quiet hours and the unprompted cap", "Mail text");
   const v1Scope = section(spec, "In scope for v1", "Out of scope");
   const preamble = spec.slice(0, headingIndex(spec, "What it is"));
@@ -244,8 +243,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   const admin = section(spec, "Web admin", "Privacy");
   const privacy = section(spec, "Privacy, security and providers", "Latency");
   const cost = section(spec, "Running cost", "Plan");
-  const impact = section(spec, "Impact on in-flight work", "Measurement");
-  const pan312 = between(impact, "PAN-312", "PAN-313");
   const unprompted =
     "Unprompted means anything the radio says on its own initiative that the user did not ask for: proactive suggestions from memory and any self-initiated tips.";
   const quietHours =
@@ -267,15 +264,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(quiet, wait);
   says(quiet, urgent);
   says(quiet, held);
-  says(pan312, unprompted);
-  says(pan312, quietHours);
-  says(pan312, notCounted);
-  says(pan312, scheduled);
-  says(pan312, wait);
-  says(pan312, urgent);
-  says(pan312, held);
   says(later, "English is the v1 default.");
-  says(changes, "English is the default language.");
   says(admin, "User-facing admin text is English in v1.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
   says(hardware, "If it is unreachable, the radio says an error out loud.");
@@ -286,13 +275,15 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "Memory and secrets are encrypted at rest on the Mac mini.");
   says(privacy, "Logs must not contain raw audio, transcripts, prompts, user text, or secrets.");
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
-  says(privacy, "Email is not in v1.");
   says(agent, "v1 runs only local models on the Mac mini.");
   says(voice, "The provider interface swaps one local model for another.");
   says(v1Scope, "SearXNG is not a model.");
   says(cost, "Local STT, the local model, local Piper or Kokoro, local Postgres, the local scheduler, the Next.js admin on the Mac mini, and own SearXNG have no hosted fee.");
+  says(admin, "Access: Tailscale.");
   says(admin, "Being on the tailnet is not enough.");
+  says(admin, "Sign-in requires proof of identity: the Tailscale identity of an allowlisted user, verified server-side, plus an app session.");
   says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
+  says(admin, "The allowlist is a list of users, not a shared or tagged device.");
   says(admin, "Tailscale Funnel is not used for the admin.");
   says(admin, "The service binds to the tailnet interface or localhost only.");
   says(admin, "It does not listen on the LAN or on a public address.");
