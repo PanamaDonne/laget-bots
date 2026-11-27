@@ -35,6 +35,20 @@ function section(text: string, title: string, nextTitle: string): string {
   return text.slice(from, to);
 }
 
+function countOf(text: string, needle: string): number {
+  let found = 0;
+  let from = 0;
+  while (from <= text.length) {
+    const at = text.indexOf(needle, from);
+    if (at < 0) return found;
+    found += 1;
+    from = at + needle.length;
+  }
+  return found;
+}
+
+const sekCap = /(?<![\d.])99 SEK/;
+
 function repoFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -111,8 +125,7 @@ test("SPEC.md is the Radio Days v2.1 product spec", () => {
   assert.match(title, /Radio Days/);
   assert.match(title, /v2\.1/);
   assert.match(preamble, /v2\.1/);
-  assert.match(preamble, /English/);
-  assert.match(preamble, /accepted/);
+  assert.match(preamble, /English by default in v1/);
   assert.match(spec, /PanamaDonne\/radio-days/);
 });
 
@@ -133,7 +146,8 @@ test("SPEC.md records the local English voice chain", () => {
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
-  for (const fact of ["99 SEK", "Piper", "Kokoro"]) {
+  assert.match(cost, sekCap);
+  for (const fact of ["Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
 });
@@ -157,9 +171,8 @@ test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  for (const fact of ["99 SEK", "Mac mini"]) {
-    assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
-  }
+  assert.match(cost, sekCap);
+  assert.equal(cost.includes("Mac mini"), true);
 });
 
 test("SPEC.md describes an agent that learns habits and acts on its own", () => {
@@ -222,8 +235,73 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  assert.equal(cost.includes("99 SEK"), true);
+  assert.match(cost, sekCap);
   assert.equal(cost.includes("locked"), true);
+});
+
+test("SPEC.md safety limits fail when a locked fact changes", () => {
+  const spec = readText("SPEC.md");
+  const what = section(spec, "What it is", "Scope");
+  const hardware = section(spec, "Hardware", "Architecture");
+  const voice = section(spec, "Architecture", "The agent, memory");
+  const admin = section(spec, "Web admin", "Privacy");
+  const privacy = section(spec, "Privacy, security and providers", "Latency");
+  const cost = section(spec, "Running cost", "Plan");
+  const later = section(spec, "Out of scope", "What changes");
+  const capabilities = between(spec, "In scope for v1", "**Quiet hours");
+  const quietHours = "22:00\u201307:00";
+
+  assert.equal(countOf(spec, quietHours), 5);
+  assert.equal(countOf(spec, "22:00"), countOf(spec, quietHours));
+  assert.equal(countOf(spec, "at most three unprompted"), 5);
+  assert.equal(countOf(spec, "three unprompted"), countOf(spec, "at most three unprompted"));
+  assert.equal(countOf(spec, "off by default"), 5);
+  assert.equal(countOf(spec, "on by default"), 0);
+  assert.equal(countOf(spec, "English by default in v1"), 4);
+  assert.equal(countOf(spec, "At 90 %"), 2);
+  assert.equal(countOf(spec, "At 100 %"), 2);
+  assert.equal(countOf(spec, "prepaid"), 2);
+  assert.equal(countOf(spec, "spend cap"), 2);
+  assert.equal(countOf(spec, "local cost ledger"), 2);
+  assert.equal(countOf(spec, "says an error out loud"), 2);
+  assert.equal(countOf(spec, "Tailscale"), 13);
+  assert.equal(countOf(spec, "pairing key"), 11);
+  assert.match(what, /English by default in v1/);
+  assert.equal(what.includes("Pi 4"), false);
+  assert.match(hardware, /ESP32-S3/);
+  assert.match(hardware, /says an error out loud/);
+  assert.match(hardware, /off by default/);
+  assert.equal(hardware.includes("Pi 4"), false);
+  assert.match(voice, /pairing key/);
+  assert.match(voice, /TLS/);
+  assert.match(voice, /off by default/);
+  assert.equal(voice.includes("Pi 4"), false);
+  assert.match(admin, /Tailscale/);
+  assert.match(admin, /pairing key/);
+  assert.match(admin, /off by default/);
+  assert.match(admin, /allowlisted/);
+  assert.match(admin, /verified server-side/);
+  assert.match(admin, /localhost/);
+  assert.match(admin, /Tailscale Funnel is not used/);
+  assert.match(admin, /CSRF/);
+  assert.match(admin, /expiry and logout/);
+  assert.equal(spec.match(/before the first use/gi)?.length, 4);
+  assert.match(privacy, /Before the first use/);
+  assert.match(privacy, /data processing agreement/);
+  assert.match(privacy, /EU region/);
+  assert.match(privacy, /--live/);
+  assert.match(cost, sekCap);
+  assert.match(cost, /At 90 %/);
+  assert.match(cost, /At 100 %/);
+  assert.match(cost, /local cost ledger/);
+  assert.match(cost, /spend cap/);
+  assert.match(cost, /prepaid/);
+  assert.equal(capabilities.includes("**Email**"), false);
+  assert.match(later, /\*\*Email\*\*/);
+  assert.match(later, /parked until v2/);
+  for (const id of ["PAN-309", "PAN-310", "PAN-311", "PAN-312", "PAN-313"]) {
+    assert.equal(spec.includes(id), true, id);
+  }
 });
 
 test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
@@ -234,11 +312,18 @@ test("README and AGENTS.md describe Radio Days and point at SPEC.md", () => {
   assert.match(readme, /\[SPEC\.md\]\(SPEC\.md\)/);
   assert.match(readme, /vanor/);
   assert.match(readme, /på egen hand/);
-  assert.match(readme, /Pi 4 Model B/);
-  assert.match(agents, /Pi 4 Model B/);
+  assert.match(readme, /ESP32-S3/);
+  assert.match(readme, /Mac mini/);
+  assert.match(readme, /v2\.1/);
+  assert.match(readme, /English/);
+  assert.match(agents, /ESP32-S3/);
+  assert.match(agents, /Mac mini/);
+  assert.match(agents, /English/);
   assert.match(agents, /Radio Days/);
   assert.match(agents, /SPEC\.md/);
-  assert.match(agents, /v2\.0/);
+  assert.match(agents, /v2\.1/);
+  assert.match(agents, /A doc test for a number or limit must match with a boundary/);
+  assert.match(agents, sekCap);
   assert.match(agents, /Vera/);
   assert.match(agents, /Lazek/);
   assert.match(agents, /sync-skills/);
