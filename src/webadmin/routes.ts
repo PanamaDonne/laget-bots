@@ -1,0 +1,180 @@
+import { createWebAdmin, type WebAdmin } from "./admin.ts";
+import type { EmailConnectionStatus, KeyEnvelope } from "./types.ts";
+import { webAdminError } from "./errors.ts";
+
+export type Json =
+  | null
+  | boolean
+  | number
+  | string
+  | Json[]
+  | { [key: string]: Json };
+
+export interface AdminRequest {
+  method: "GET" | "POST";
+  path: string;
+  headers: Record<string, string | undefined>;
+  body?: Json;
+}
+
+export interface AdminResponse {
+  status: number;
+  body: Json;
+}
+
+function sessionToken(headers: Record<string, string | undefined>): string {
+  const raw = headers.authorization ?? headers.Authorization;
+  if (!raw || !raw.startsWith("Bearer ")) {
+    throw webAdminError("Not signed in.");
+  }
+  return raw.slice("Bearer ".length).trim();
+}
+
+function asObject(body: Json | undefined): Record<string, Json> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw webAdminError("JSON object body is required.");
+  }
+  return body;
+}
+
+function asString(value: Json | undefined, field: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw webAdminError(`Field ${field} is required.`);
+  }
+  return value;
+}
+
+/**
+ * Minimal HTTP adapter for the cloud web admin skeleton.
+ * Next.js (or another host) can forward route handlers here.
+ */
+export function handleAdminRequest(
+  admin: WebAdmin,
+  request: AdminRequest,
+): AdminResponse {
+  try {
+    return dispatch(admin, request);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Request failed.";
+    const status = /not signed in/i.test(message) ? 401 : 400;
+    return { status, body: { error: message } };
+  }
+}
+
+function dispatch(admin: WebAdmin, request: AdminRequest): AdminResponse {
+  const { method, path } = request;
+
+  if (method === "POST" && path === "/api/auth/sign-in") {
+    const body = asObject(request.body);
+    const session = admin.signIn({ email: asString(body.email, "email") });
+    return { status: 200, body: { token: session.token, email: session.email } };
+  }
+
+  if (method === "POST" && path === "/api/pairing/begin") {
+    const body = asObject(request.body);
+    const pending = admin.beginDevicePairing({
+      deviceId: asString(body.deviceId, "deviceId"),
+      piPublicKeyPem: asString(body.piPublicKeyPem, "piPublicKeyPem"),
+    });
+    return { status: 200, body: pending };
+  }
+
+  if (method === "POST" && path === "/api/pairing/confirm") {
+    const paired = admin.confirmPairing({
+      sessionToken: sessionToken(request.headers),
+      userCode: asString(asObject(request.body).userCode, "userCode"),
+    });
+    return { status: 200, body: paired };
+  }
+
+  if (method === "GET" && path.startsWith("/api/pairing/poll/")) {
+    const deviceCode = path.slice("/api/pairing/poll/".length);
+    return { status: 200, body: admin.pollPairing(deviceCode) };
+  }
+
+  if (method === "POST" && path === "/api/provider/key") {
+    const body = asObject(request.body);
+    const envelope = readEnvelope(body.envelope);
+    admin.submitProviderKey({
+      sessionToken: sessionToken(request.headers),
+      providerId: asString(body.providerId, "providerId"),
+      envelope,
+    });
+    return { status: 200, body: { ok: true } };
+  }
+
+  if (method === "POST" && path === "/api/email/start") {
+    const result = admin.startEmailConnection({
+      sessionToken: sessionToken(request.headers),
+    });
+    return { status: 200, body: result };
+  }
+
+  if (method === "POST" && path === "/api/email/status") {
+    const body = asObject(request.body);
+    admin.reportEmailStatusFromPi({
+      deviceId: asString(body.deviceId, "deviceId"),
+      status: readEmailStatus(body.status),
+    });
+    return { status: 200, body: { ok: true } };
+  }
+
+  if (method === "GET" && path === "/api/status") {
+    const status = admin.getConnectionStatus({
+      sessionToken: sessionToken(request.headers),
+    });
+    return {
+      status: 200,
+      body: {
+        signedIn: status.signedIn,
+        device: {
+          paired: status.device.paired,
+          deviceId: status.device.deviceId,
+        },
+        provider: {
+          configured: status.provider.configured,
+          id: status.provider.id,
+        },
+        email: {
+          status: status.email.status,
+        },
+      },
+    };
+  }
+
+  return { status: 404, body: { error: "Not found." } };
+}
+
+export function createDefaultAdminHandler(): (request: AdminRequest) => AdminResponse {
+  const admin = createWebAdmin();
+  return (request) => handleAdminRequest(admin, request);
+}
+
+function readEnvelope(value: Json | undefined): KeyEnvelope {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw webAdminError("Key envelope is required.");
+  }
+  const alg = value.alg;
+  if (alg !== "RSA-OAEP-256") {
+    throw webAdminError("Unsupported key envelope algorithm.");
+  }
+  return {
+    alg,
+    ciphertext: asString(value.ciphertext, "ciphertext"),
+    keyFingerprint: asString(value.keyFingerprint, "keyFingerprint"),
+  };
+}
+
+function readEmailStatus(value: Json | undefined): EmailConnectionStatus {
+  const status = asString(value, "status");
+  switch (status) {
+    case "connected":
+    case "disconnected":
+    case "pending":
+      return status;
+    default: {
+      const _exhaustive: never = status as never;
+      throw webAdminError(`Unknown email status: ${String(_exhaustive)}`);
+    }
+  }
+}
