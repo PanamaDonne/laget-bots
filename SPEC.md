@@ -138,7 +138,7 @@ Swedish, including KB-Whisper and a Swedish voice, is a later language option th
 
 * **On the chip:** microWakeWord with a ready-made English wake word, microphone capture, a WebSocket client for audio in both directions, playback of streamed speech, and starting web radio on the speaker.
 * **Discovery:** the radio finds the Mac mini via mDNS (`radio-days.local`) or a fixed IP.
-* **Pairing:** a pairing key is set in the web admin. Both ends authenticate with that key. The device verifies that it is talking to the paired Mac mini. The backend rejects a device that does not present the current key. The audio stream is encrypted (TLS or equivalent). Re-pairing from the admin rotates the key and revokes the old key. The key is never committed to the public repository or to committed firmware.
+* **Pairing:** a pairing key is set in the web admin. Both ends authenticate with that key. The device verifies that it is talking to the paired Mac mini with a pinned certificate or a challenge. The backend rejects a device that does not present the current key. The audio stream is encrypted (TLS or equivalent). Re-pairing from the admin rotates the key and revokes the old key. The key is never committed to the public repository or to committed firmware.
 * **On the Mac mini, by default:** STT, the language model, text-to-speech, long-term memory, web search, the web admin (Next.js), and scheduled agent jobs.
 * **Web admin access:** Next.js served from the Mac mini, reached via Tailscale. Being on the tailnet is not enough; sign-in must prove an allowlisted identity (section 7).
 
@@ -177,7 +177,7 @@ These jobs run on a local scheduler on the Mac mini by default. Quiet hours are 
 
 Decided for v1. Framework: Next.js. Host: the Mac mini. Access: Tailscale. Being on the tailnet is not enough.
 
-Sign-in requires proof of identity: the Tailscale identity of an allowlisted user, verified server-side, plus an app session. Sign-in without that proof is refused. Sessions are server-side, with expiry and logout. CSRF protection applies to every state-changing request.
+Sign-in requires proof of identity: the Tailscale identity of an allowlisted user, verified server-side, plus an app session. Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header. The allowlist is a list of users, not a shared or tagged device. A tailnet ACL limits who can reach the admin port. Sign-in without that proof is refused. Sessions are server-side, with expiry and logout. CSRF protection applies to every state-changing request.
 
 The service binds to the tailnet interface or localhost only. It does not listen on the LAN or on a public address. Tailscale Funnel is not used for the admin.
 
@@ -211,7 +211,7 @@ The repo stays public. No secrets, pairing keys or personal data in code.
 
 **At rest.** Memory and secrets are encrypted at rest on the Mac mini. A backup of memory is encrypted. No unencrypted copy of memory is kept off the Mac mini. Supabase holds memory only when that cloud fallback is explicitly chosen.
 
-**Logs.** Logs must not contain raw audio, transcripts, or secrets.
+**Logs.** Logs must not contain raw audio, transcripts, prompts, user text, or secrets.
 
 **Web search.** A self-hosted SearXNG keeps queries in the house. A third-party search API is a cloud processor and needs the same fallback rules.
 
@@ -235,7 +235,7 @@ The accepted measurement in PAN-300 was on a Pi 4. That setup is obsolete. PAN-3
 
 **Price.** The price is the provider’s published price list, recorded in config with the date.
 
-**Counter.** A local cost ledger on the Mac mini holds the counter. It resets at the start of each calendar month in Europe/Stockholm. At 90 % the radio tells the user. At 100 % paid cloud calls pause until the next month. The wake word still works. A spend cap or prepaid limit is set at each provider, as a backstop to the ledger.
+**Counter.** A local cost ledger on the Mac mini holds the counter. It resets at the start of each calendar month in Europe/Stockholm. The counter never goes backwards to an earlier month. An unreadable ledger stops paid calls. At 90 % the radio tells the user. At 100 % paid cloud calls pause until the next month. The wake word still works. A spend cap or prepaid limit is set at each provider, as a backstop to the ledger.
 
 **Principle:** use the cheapest option that meets the quality and latency evals. Prefer the local default. A provider key alone does not start a paid call. Automatic fallback, if the user has opted in, also counts toward the cap.
 
@@ -256,11 +256,11 @@ The plan takes the time it takes. Each milestone is done only when its done crit
 
 **Milestone 1: Wake word and voice chat**
 
-On-chip microWakeWord with a ready-made English wake word for the first demo (for example “Hey Jarvis”). A custom wake word (“Kör Radio”) and Swedish come later. Audio streams over the local WebSocket, with mDNS (`radio-days.local`) or a fixed IP, and a pairing key. Both ends authenticate with that key, and the audio stream is encrypted. Default local chain: Whisper or Parakeet, English; Qwen 2.5 7B or Llama 3.1 8B with tool calling; and Piper with an English voice, or Kokoro. After the wake word, the user can have a short spoken conversation and hear the reply from the speaker. A token cap is in place. Raw audio and transcripts are not stored. Done when that conversation works from the ESP32-S3 against the Mac mini (a bench prototype is enough). Covered by unit tests, CI green.
+On-chip microWakeWord with a ready-made English wake word for the first demo (for example “Hey Jarvis”). A custom wake word (“Kör Radio”) and Swedish come later. Audio streams over the local WebSocket, with mDNS (`radio-days.local`) or a fixed IP, and a pairing key. Both ends authenticate with that key. The device verifies the paired Mac mini with a pinned certificate or a challenge, and the audio stream is encrypted. Default local chain: Whisper or Parakeet, English; Qwen 2.5 7B or Llama 3.1 8B with tool calling; and Piper with an English voice, or Kokoro. After the wake word, the user can have a short spoken conversation and hear the reply from the speaker. A token cap is in place. Raw audio and transcripts are not stored. Done when that conversation works from the ESP32-S3 against the Mac mini (a bench prototype is enough). Covered by unit tests, CI green.
 
 **Milestone 2: Web admin and pairing**
 
-Next.js admin served from the Mac mini and reached via Tailscale: sign-in that proves an allowlisted Tailscale identity, verified server-side, plus an app session. Sign-in without that proof is refused. The service binds to the tailnet interface or localhost only. Tailscale Funnel is not used for the admin. Sessions are server-side, with expiry and logout, and CSRF protection applies to every state-changing request. Onboard and pair the device (Wi-Fi, device linking, pairing key), keys and connections such as Google Calendar, status, favourite stations, and the automatic-fallback toggle (off by default). Secrets handled server-side or encrypted, never in the public code. Memory stays at home. User-facing admin text is English in v1. Done when the user can sign in over Tailscale, put the device on Wi-Fi, pair it, and set connections, without secrets appearing in cleartext or in the repo. Covered by unit tests, CI green.
+Next.js admin served from the Mac mini and reached via Tailscale: sign-in that proves an allowlisted Tailscale identity, verified server-side with `tailscale whois` or `tailscale serve`, never a client-supplied header, plus an app session. The allowlist is users, and a tailnet ACL limits who can reach the admin port. Sign-in without that proof is refused. The service binds to the tailnet interface or localhost only. Tailscale Funnel is not used for the admin. Sessions are server-side, with expiry and logout, and CSRF protection applies to every state-changing request. Onboard and pair the device (Wi-Fi, device linking, pairing key), keys and connections such as Google Calendar, status, favourite stations, and the automatic-fallback toggle (off by default). Secrets handled server-side or encrypted, never in the public code. Memory stays at home. User-facing admin text is English in v1. Done when the user can sign in over Tailscale, put the device on Wi-Fi, pair it, and set connections, without secrets appearing in cleartext or in the repo. Covered by unit tests, CI green.
 
 **Milestone 3: Memory**
 
