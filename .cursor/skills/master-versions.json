@@ -2,7 +2,7 @@
   "source": "~/Desktop/skills",
   "skills": {
     "agent-loops": {
-      "masterSha256": "58113f7c2b2dd9555ffe85f2f72481f12d617e3469eba58f29147abcf2d45b4e",
+      "masterSha256": "b0a5bc24db22418f2a9d24e5d65bf9082760439c8d5bc2f1f9f4264496d49006",
       "files": [
         "SKILL.md",
         "templates/bug-report-to-pr.md",
@@ -23,7 +23,7 @@
       ]
     },
     "mr-audit-code": {
-      "masterSha256": "52ab28b595f6afa381795f9e4d9dceedf86091b246ee6861e1b65de92065e7f8",
+      "masterSha256": "56a3b5a6a23ba7fca1a791c351684b2bfe45fbac5a9032663594671d6c116a29",
       "files": [
         "SKILL.md"
       ]

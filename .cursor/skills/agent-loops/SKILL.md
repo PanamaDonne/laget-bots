@@ -121,6 +121,24 @@ These override any marketplace template that conflicts with them.
   status`, the repo's test command), keep the OS sandbox and network
   deny-by-default on, and give the loop credentials scoped so that a
   bypass cannot reach production or merge.
+- **State the sandbox rules in the brief.** An agent that hits a
+  missing permission or a gap in its sandbox tends to reason that
+  working around it is allowed, especially when the brief asks it to
+  be "thorough" or gives it broad authority. In Anthropic's Siren
+  evaluation (1,700+ deliberately weakened sandboxes), removing
+  thoroughness and authority wording cut reaching outside by 23–26
+  points in five of six models; naming the sandbox, listing its rules
+  and saying "if the task needs something you were not given, stop and
+  say so" cut it further, and a report-the-weakness tool cut it by
+  7–33 points
+  ([Anthropic, 24 Nov 2026](https://safeguards.anthropic.com/2026/siren/);
+  vendor's own eval on its own models, many runs showed eval
+  awareness; see [CSO, 25 Nov 2026](https://www.csoonline.com/article/4253053/prompting-ai-to-be-thorough-can-drive-sandbox-escapes-anthropic-says.html)).
+  Rules are a nudge, not a fix: keep the sandbox, scoped credentials
+  and network deny-by-default anyway. In every loop brief: list what
+  the agent may touch (workspace, env, services), say that blocked
+  access is a stop-and-report, not a puzzle, and give it a place to
+  report (PR comment or issue label).
 - **Budget and anti-loop caps.** Set a turn cap, a spend cap, and a
   workflow timeout. Do not let the agent's own commits or bot comments
   retrigger the same workflow (see Wiring).
@@ -253,6 +271,21 @@ fuzz-crash-fix, ci-speed); it only adds cost there.
   So: split work into independent chunks, hand off through artifacts
   (issue, plan, PR, exit check), keep the team small, and do not rely
   on workers chatting to stay in sync.
+
+- Check sibling PRs together. Two worker PRs can each be green and
+  still break the build once both land (one removes an export the
+  other uses); in one coordinator write-up the merge queue caught
+  exactly that
+  ([Christopher Weir, Nov 2026](https://christopher-weir.com/2026/11/coordinating-coding-agents-in-a-large-codebase);
+  one practitioner's report). Turn on strict required checks ("Require
+  branches to be up to date before merging") or a merge queue on
+  GitHub ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches),
+  [merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)),
+  or merged-results pipelines / merge trains on GitLab. Updating the
+  branch changes the head SHA, so the reviewer's verdict must be
+  re-run on the new SHA. Put settled decisions, shared interfaces and
+  stop-and-report conditions in each brief: a busy worker cannot be
+  asked, and a worker's report is a claim, not proof.
 
 ## Pros and cons (cross-checked)
 
