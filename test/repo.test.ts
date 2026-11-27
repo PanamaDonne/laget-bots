@@ -138,7 +138,7 @@ test("SPEC.md records the local English voice chain", () => {
   ]) {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
-  assert.match(cost, sekCap);
+  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
   for (const fact of ["Piper", "Kokoro"]) {
     assert.equal(cost.includes(fact), true, `cost missing ${fact}`);
   }
@@ -163,7 +163,7 @@ test("SPEC.md targets an ESP32-S3 thin client and a local Mac mini", () => {
     assert.equal(voice.includes(fact), true, `voice missing ${fact}`);
   }
 
-  assert.match(cost, sekCap);
+  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
   assert.equal(cost.includes("Mac mini"), true);
 });
 
@@ -227,8 +227,7 @@ test("SPEC.md describes an agent that learns habits and acts on its own", () => 
     assert.equal(latency.includes(fact), true, `latency missing ${fact}`);
   }
 
-  assert.match(cost, sekCap);
-  assert.equal(cost.includes("locked"), true);
+  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
 });
 
 test("SPEC.md safety limits fail when a locked fact changes", () => {
@@ -260,10 +259,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
     "Urgent is a per-item flag the user sets in the admin, and it is off by default.";
   const held =
     "User-requested reminders and watch alerts are also held during quiet hours, unless the user marked them urgent in the admin.";
-  const berget =
-    "Berget may be used for conversation only, with no email, calendar, search or memory content, until a DPA exists.";
-  const otherProviders =
-    "Every other cloud provider needs a DPA and an EU region before first use.";
 
   says(quiet, unprompted);
   says(quiet, quietHours);
@@ -283,8 +278,7 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(changes, "English is the default language.");
   says(admin, "User-facing admin text is English in v1.");
   says(hardware, "The radio is an ESP32-S3 used as a thin client.");
-  says(hardware, "Automatic cloud fallback is off by default.");
-  says(admin, "Automatic cloud fallback is off by default.");
+  says(hardware, "If it is unreachable, the radio says an error out loud.");
   says(admin, "CSRF protection applies to every state-changing request.");
   says(admin, "Sign-in without that proof is refused.");
   says(voice, "Both ends authenticate with that key.");
@@ -293,20 +287,13 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(privacy, "Logs must not contain raw audio, transcripts, prompts, user text, or secrets.");
   says(privacy, "The radio starts a station only from the user\u2019s saved favourites or a curated allowlist of stream URLs, never from a URL taken from search results or other untrusted text.");
   says(privacy, "Email is not in v1.");
-  says(agent, berget);
-  says(agent, otherProviders);
-  says(privacy, berget);
-  says(privacy, otherProviders);
-  says(cost, "99 SEK per month including 25 % VAT.");
-  says(cost, "It resets at the start of each calendar month in Europe/Stockholm.");
-  says(cost, "At 90 % the radio tells the user.");
-  says(cost, "At 100 % paid cloud calls pause until the next month.");
-  says(cost, "An unreadable ledger stops paid calls.");
-  says(cost, "The counter never goes backwards to an earlier month.");
-  says(cost, "Every paid provider call counts: STT, LLM, TTS, a search API, and Supabase.");
-  says(cost, "A spend cap or prepaid limit is set at each provider, as a backstop to the ledger.");
-  says(cost, "A price in a foreign currency is converted with the Sveriges Riksbank reference rate for that currency on the date recorded in config, then 25 % VAT is added.");
-  says(cost, "Token counts are taken from the provider\u2019s response.");
+  says(agent, "v1 runs only local models on the Mac mini.");
+  says(later, "Berget, Soniox, Cartesia and Supabase are not v1 providers.");
+  says(later, "There is no cloud-backup opt-in in v1.");
+  says(later, "Adding cloud backup later requires a DPA first (PAN-306).");
+  says(later, "Live provider calls require an explicit `--live` opt-in.");
+  says(v1Scope, "SearXNG is not a model.");
+  says(cost, "There is no cloud provider in v1, and no cloud cost cap in v1.");
   says(admin, "Being on the tailnet is not enough.");
   says(admin, "Verified server-side means the service checks that identity with `tailscale whois` or `tailscale serve`, and never trusts a client-supplied header.");
   says(admin, "Tailscale Funnel is not used for the admin.");
@@ -316,7 +303,6 @@ test("SPEC.md safety limits fail when a locked fact changes", () => {
   says(voice, "The audio stream is encrypted (TLS or equivalent).");
   says(voice, "a pairing key is set in the web admin.");
   says(privacy, "A backup of memory is encrypted.");
-  says(privacy, "Live provider calls require an explicit `--live` opt-in.");
   says(v1Scope, "Email is not in v1.");
   says(later, "It is parked until v2 (Daniel, 2026-11-27).");
   says(preamble, "Status: proposed.");
