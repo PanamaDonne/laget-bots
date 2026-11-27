@@ -11,7 +11,7 @@ Run `npm run check` before calling work done. It runs typecheck, lint, and tests
 
 ## Decisions
 
-Radio Days is a voice agent in an old radio on a Raspberry Pi 4. SPEC.md is the product spec (v2.0). Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
+Radio Days is a voice agent in an old radio on a Raspberry Pi 4 Model B. SPEC.md is the product spec (v2.0). Linear PAN-267 tracks it, and both must be kept in sync. The Laget Bots team engine is shut down. Do not restore it.
 
 Read secrets from the environment only. Do not put keys in config, code, traces, or the public repo. Never include raw API keys in logs, errors, or telemetry. Never include raw provider response bodies in error messages (only provider id and HTTP status). Scrub the API key from any error (message, stack, cause chain) before passing it on, and replace the key with `[REDACTED]`.
 Never echo an unknown key, an old key, or raw user input; write error messages as fixed text, and scrub both the raw secret and its trimmed form.
